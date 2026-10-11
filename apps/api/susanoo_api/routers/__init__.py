@@ -6,8 +6,10 @@ Every router here needs auth except /health, /demo/* (see CLAUDE.md §5).
 
 from fastapi import APIRouter, FastAPI
 
+from susanoo_api.routers import demo
+
 # Jugaad: projects, connectors, demo
-PLATFORM_ROUTERS: list[APIRouter] = []
+PLATFORM_ROUTERS: list[APIRouter] = [demo.router]
 
 # Muaaz: runs, events, intake, approvals, feedback, agent
 AI_ROUTERS: list[APIRouter] = []
