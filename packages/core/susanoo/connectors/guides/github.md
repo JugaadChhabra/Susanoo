@@ -23,6 +23,6 @@ Click-paths a human must check against GitHub's current UI before shipping (labe
 4. Under **Permissions** → **Repository permissions**, set **Pull requests** to **Read-only** (so the agent can read pull requests and their diffs) and **Contents** to **Read-only** (so it can read the rest of a changed file for context). GitHub adds **Metadata: Read-only** for you.
 5. Click **Generate token**, copy it (it starts with github_pat_ and is only shown once), and paste it here with the repository's name, like acme/payments-api.
 
-Want the agent to post its review as comments? Set **Pull requests** to **Read and write** instead, then switch on "Let the agent post comments" here. Until you do, Susanoo only says what it would have posted.
+Want the agent to post its review as comments? Set **Pull requests** to **Read and write** instead, then tick "Let the agent act, not just read" here. Until you do, Susanoo only says what it would have posted.
 
 Your token is stored encrypted, is never shown again, and you can revoke it here or on GitHub at any time.
