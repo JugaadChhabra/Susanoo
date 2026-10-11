@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from psycopg.types.json import Jsonb
 from pydantic import SecretStr
 
-from susanoo.connectors import Connector, Credential, InvalidCredential, registry
+from susanoo.connectors import Connector, Credential, InvalidCredential, TestResult, registry
 from susanoo.db import session
 from susanoo_api.deps import CurrentUserDep
 from susanoo_api.models import ConnectionStatus, ConnectionSummary, ConnectionTest, ConnectorInfo, NewConnection
@@ -24,6 +24,7 @@ logger = logging.getLogger("susanoo_api.connectors")
 
 _NOT_FOUND = "We couldn't find that connection."
 _UNAVAILABLE = "Your connections are unavailable right now. Please try again in a minute."
+_CHANGED = "This connection was replaced or revoked while we were testing it. Please test it again."
 
 
 class ConnectionStore(Protocol):
@@ -31,10 +32,16 @@ class ConnectionStore(Protocol):
     async def save(
         self, user_id: str, connector: str, secret: SecretStr, settings: dict[str, str], writes_enabled: bool
     ) -> ConnectionSummary: ...
-    async def credential(self, user_id: str, connection_id: str) -> tuple[ConnectionSummary, Credential] | None: ...
+    async def credential(self, user_id: str, connection_id: str) -> tuple[ConnectionSummary, Credential, str] | None:
+        """(summary, credential, secret_ref); secret_ref changes whenever the secret is replaced."""
+        ...
+
     async def set_status(
-        self, user_id: str, connection_id: str, status: ConnectionStatus
-    ) -> ConnectionSummary | None: ...
+        self, user_id: str, connection_id: str, status: ConnectionStatus, secret_ref: str
+    ) -> ConnectionSummary | None:
+        """Record a test verdict only if the secret is still the one that was tested."""
+        ...
+
     async def delete(self, user_id: str, connection_id: str) -> bool: ...
 
 
@@ -72,10 +79,10 @@ class PostgresConnectionStore:
             assert saved is not None
             return _summary(saved)
 
-    async def credential(self, user_id: str, connection_id: str) -> tuple[ConnectionSummary, Credential] | None:
+    async def credential(self, user_id: str, connection_id: str) -> tuple[ConnectionSummary, Credential, str] | None:
         async with session() as conn:
             cur = await conn.execute(
-                f"select {_COLUMNS}, public.read_connection_secret(id) as secret "
+                f"select {_COLUMNS}, vault_secret_id, public.read_connection_secret(id) as secret "
                 "from public.connections where id = %s and user_id = %s",
                 (connection_id, user_id),
             )
@@ -83,15 +90,17 @@ class PostgresConnectionStore:
         if row is None or row["secret"] is None:
             return None
         summary = _summary(row)
-        return summary, Credential(SecretStr(row["secret"]), summary.settings, summary.writes_enabled)
+        credential = Credential(SecretStr(row["secret"]), summary.settings, summary.writes_enabled)
+        return summary, credential, row["vault_secret_id"]
 
     async def set_status(
-        self, user_id: str, connection_id: str, status: ConnectionStatus
+        self, user_id: str, connection_id: str, status: ConnectionStatus, secret_ref: str
     ) -> ConnectionSummary | None:
         async with session() as conn:
             cur = await conn.execute(
-                f"update public.connections set status = %s where id = %s and user_id = %s returning {_COLUMNS}",
-                (status, connection_id, user_id),
+                "update public.connections set status = %s "
+                f"where id = %s and user_id = %s and vault_secret_id = %s returning {_COLUMNS}",
+                (status, connection_id, user_id, secret_ref),
             )
             row = await cur.fetchone()
             return _summary(row) if row else None
@@ -171,14 +180,20 @@ async def test_connection(
         raise _unavailable("read a connection", user.id) from None
     if found is None or found[0].connector not in available:
         raise HTTPException(404, _NOT_FOUND)
-    summary, credential = found
-    result = await available[summary.connector].test_connection(credential)
+    summary, credential, secret_ref = found
     try:
-        updated = await store.set_status(user.id, canonical, "connected" if result.ok else "failed")
+        result = await available[summary.connector].test_connection(credential)
+    except Exception:
+        logger.exception("Testing a %s connection failed for user %s", summary.connector, user.id)
+        result = TestResult(
+            ok=False, message=f"We couldn't check this {summary.connector} connection. Please try again."
+        )
+    try:
+        updated = await store.set_status(user.id, canonical, "connected" if result.ok else "failed", secret_ref)
     except Exception:
         raise _unavailable("record a connection test", user.id) from None
-    if updated is None:  # revoked while we were testing it
-        raise HTTPException(404, _NOT_FOUND)
+    if updated is None:  # replaced or revoked while we were testing it: don't stamp this verdict on the new one
+        raise HTTPException(409, _CHANGED)
     return ConnectionTest(ok=result.ok, message=result.message, connection=updated)
 
 

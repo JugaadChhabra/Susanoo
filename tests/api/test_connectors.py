@@ -65,11 +65,11 @@ class FakeStore:
         owner, summary, secret = self.rows.get(connection_id, (None, None, None))
         if owner != user_id or summary is None or secret is None:
             return None
-        return summary, Credential(secret, summary.settings, summary.writes_enabled)
+        return summary, Credential(secret, summary.settings, summary.writes_enabled), str(id(secret))
 
-    async def set_status(self, user_id, connection_id, status: ConnectionStatus):
+    async def set_status(self, user_id, connection_id, status: ConnectionStatus, secret_ref: str):
         owner, summary, secret = self.rows.get(connection_id, (None, None, None))
-        if owner != user_id or summary is None or secret is None:
+        if owner != user_id or summary is None or secret is None or str(id(secret)) != secret_ref:
             return None
         updated = summary.model_copy(update={"status": status})
         self.rows[connection_id] = (owner, updated, secret)
@@ -206,7 +206,7 @@ def test_malformed_ids_are_not_found(client, bad_id):
         ({"connector": "slack", "values": {"token": TOKEN}}, "don't have that connector"),
         ({"connector": "github", "values": {"token": TOKEN, "repo": "nope"}}, "owner/name"),
         ({"connector": "github", "values": {"token": "ghp_" + "a" * 36, "repo": "acme/x"}}, "classic token"),
-        ({"connector": "github", "values": {"token": "x" * 1001, "repo": "acme/x"}}, "at most 1000"),
+        ({"connector": "github", "values": {"token": "x" * 1001, "repo": "acme/x"}}, "under 1000 characters"),
     ],
 )
 def test_bad_submissions_get_a_plain_english_422(client, store, body, phrase):
@@ -240,3 +240,32 @@ def test_no_secret_in_any_response_or_log(client, store, caplog):
     assert "Could not save a connection" in caplog.text  # the failure was logged...
     assert TOKEN not in caplog.text  # ...with the token redacted from the exception message
     assert responses[-1].json()["error"]["message"] == connectors._UNAVAILABLE
+
+
+def test_a_test_that_outlives_a_replacement_does_not_stamp_the_new_token(client, store, monkeypatch):
+    connection_id = save(client).json()["id"]
+    real = GitHubConnector.test_connection
+
+    async def slow_test(self, credential):
+        # the user replaces the token while GitHub is still answering about the old one
+        owner, summary, _ = store.rows[connection_id]
+        store.rows[connection_id] = (owner, summary, SecretStr(TOKEN))
+        return await real(self, credential)
+
+    monkeypatch.setattr(GitHubConnector, "test_connection", slow_test)
+    response = client.post(f"/connections/{connection_id}/test", headers=bearer(ALICE))
+    assert response.status_code == 409
+    assert "test it again" in response.json()["error"]["message"]
+    assert store.rows[connection_id][1].status == "untested"
+
+
+def test_a_connector_that_crashes_reports_a_plain_failure(client, store, monkeypatch):
+    connection_id = save(client).json()["id"]
+
+    async def boom(self, credential):
+        raise KeyError("repo")
+
+    monkeypatch.setattr(GitHubConnector, "test_connection", boom)
+    result = client.post(f"/connections/{connection_id}/test", headers=bearer(ALICE)).json()
+    assert result["ok"] is False and result["connection"]["status"] == "failed"
+    assert "couldn't check" in result["message"]

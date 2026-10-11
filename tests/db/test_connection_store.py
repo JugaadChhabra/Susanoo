@@ -4,6 +4,7 @@ Proves the secret lives only in Vault (never in public.connections), replacing a
 secret, revoking deletes the secret, and one user can never read another's.
 """
 
+import asyncio
 import os
 import uuid
 from urllib.parse import urlparse
@@ -59,12 +60,13 @@ async def test_save_read_test_and_revoke(users):
 
     found = await store.credential(a, saved.id)
     assert found is not None
-    summary, credential = found
+    summary, credential, ref = found
     assert summary == saved and credential.secret.get_secret_value() == TOKEN
     assert credential.settings == {"repo": "acme/payments-api"} and credential.writes_enabled is False
 
-    assert await store.set_status(b, saved.id, "connected") is None
-    tested = await store.set_status(a, saved.id, "connected")
+    assert await store.set_status(b, saved.id, "connected", ref) is None
+    assert await store.set_status(a, saved.id, "connected", str(uuid.uuid4())) is None  # a replaced secret
+    tested = await store.set_status(a, saved.id, "connected", ref)
     assert tested is not None and tested.status == "connected"
 
     assert await store.delete(b, saved.id) is False
@@ -77,8 +79,8 @@ async def test_saving_again_replaces_the_secret_and_resets_status(users):
     a, _, c = users
     store = PostgresConnectionStore()
     first = await store.save(a, "github", SecretStr(TOKEN), {"repo": "acme/one"}, False)
-    await store.set_status(a, first.id, "connected")
     old_secret = c.execute("select vault_secret_id from public.connections where id = %s", (first.id,)).fetchone()[0]
+    await store.set_status(a, first.id, "connected", old_secret)
 
     second = await store.save(a, "github", SecretStr(TOKEN + "x"), {"repo": "acme/two"}, True)
     assert second.id == first.id  # one connection per connector per user
@@ -86,3 +88,13 @@ async def test_saving_again_replaces_the_secret_and_resets_status(users):
     assert not secret_exists(c, old_secret)
     found = await store.credential(a, second.id)
     assert found is not None and found[1].secret.get_secret_value() == TOKEN + "x"
+
+
+async def test_concurrent_saves_leave_no_orphaned_secret(users):
+    a, _, c = users
+    store = PostgresConnectionStore()
+    before = c.execute("select count(*) from vault.secrets").fetchone()[0]
+    await asyncio.gather(
+        *(store.save(a, "github", SecretStr(f"{TOKEN}{i}"), {"repo": "acme/x"}, False) for i in range(4))
+    )
+    assert c.execute("select count(*) from vault.secrets").fetchone()[0] == before + 1

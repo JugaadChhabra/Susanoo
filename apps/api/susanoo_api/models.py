@@ -65,6 +65,15 @@ class RunQuota(BaseModel):
     resets_at: str  # ISO timestamp of the next midnight UTC, when the counts start over
 
 
+MAX_CONNECTION_VALUE = 1000
+
+
+def _short_values(values: dict[str, SecretStr]) -> dict[str, SecretStr]:
+    if any(len(v.get_secret_value()) > MAX_CONNECTION_VALUE for v in values.values()):
+        raise ValueError(f"Each value must be under {MAX_CONNECTION_VALUE} characters.")
+    return values
+
+
 ConnectionStatus = Literal["untested", "connected", "failed"]
 
 
@@ -89,7 +98,7 @@ class ConnectorInfo(BaseModel):
 class NewConnection(BaseModel):
     connector: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
     # Every value is a SecretStr so no field (token or not) can show up in a repr, a log line or a traceback.
-    values: Annotated[dict[str, Annotated[SecretStr, Field(max_length=1000)]], Field(max_length=10)]
+    values: Annotated[dict[str, SecretStr], Field(max_length=10), AfterValidator(_short_values)]
     writes_enabled: bool = False
 
 
