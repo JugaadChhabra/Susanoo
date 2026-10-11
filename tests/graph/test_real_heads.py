@@ -1,7 +1,7 @@
 from susanoo.graph import build_graph, real_heads
 from susanoo.graph import stubs
 from susanoo.graph.state import GraphState
-from susanoo.heads import agent_smith, builder, planner, simulator
+from susanoo.heads import agent_smith, builder, planner, runner, simulator
 
 
 def test_real_heads_replace_the_built_stubs_and_leave_the_rest():
@@ -13,7 +13,8 @@ def test_real_heads_replace_the_built_stubs_and_leave_the_rest():
     assert h.builder is builder.run
     assert h.agent_smith is agent_smith.run
     assert h.simulator is simulator.run
-    for name in ("runner", "diagnostician", "human_gate", "fixer", "verifier", "done"):
+    assert h.runner is runner.run
+    for name in ("diagnostician", "human_gate", "fixer", "verifier", "done"):
         assert getattr(h, name) is getattr(stubs, name)
 
 
