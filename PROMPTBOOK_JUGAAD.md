@@ -1,198 +1,222 @@
 # PROMPTBOOK — Jugaad (Frontend, platform backend, testing, infra)
 
-Copy-paste prompts for Claude Code, phase by phase. Each phase follows `IMPLEMENTATION_JUGAAD.md`, which follows `PRD.md`, the single source of truth. Claude reads `CLAUDE.md` automatically; the prompts point it at the right skill and section.
+One prompt per ticket. The tickets are GitHub issues #1–#21 on `JugaadChhabra/Susanoo`, broken out of `IMPLEMENTATION_JUGAAD.md`, which follows `PRD.md`, the single source of truth. Claude reads `CLAUDE.md` automatically; the prompts point it at the right skill and section.
 
 **How to use**
-- Run the prompts in order. Each `▶` block is one message to Claude Code.
-- Paste the **session-start prompt** at the beginning of every new session.
-- After each phase, run the **phase-close prompt** (verify → evidence → commit → post).
+- **Automatically:** `scripts/run-tickets.sh` picks the next unblocked `ready-for-agent` issue, starts a fresh Claude Code session, and runs `/mattpocock-skills:implement` with that issue's prompt from this file. The prompt is found by its heading, `### #<issue> — <title>`, so keep that heading format and keep exactly one fenced block under each heading.
+- **By hand:** start a new session, paste the session-start prompt, then `/mattpocock-skills:implement` followed by the ticket's prompt.
+- Every ticket ends the same way: typecheck and tests pass, `/code-review` is done, and work is committed in the `CLAUDE.md` §3 format. The script then merges to `main`, pushes and closes the issue.
+- `ready-for-human` tickets (#2, #21) are never run by the script. Run them by hand.
 - Your git identity must be `JugaadChhabra` (`make check-identity`).
 
 ---
 
-## Session start (every new session)
+## Session start (manual sessions only)
 
 ▶
 ```
 I'm Jugaad (git user JugaadChhabra). Read CLAUDE.md, then IMPLEMENTATION_JUGAAD.md, and use the prd-lookup skill for any section you need from PRD.md.
-Tell me in 5 lines or fewer: which phase I'm in (look at what exists in the repo and the last commits), what's done, and the next 3 tasks from IMPLEMENTATION_JUGAAD.md with the PRD sections they cite.
+Run `gh issue list --state open` and tell me in 5 lines or fewer: which tickets are done, which are unblocked now, and which one I should take next.
 Don't write code yet.
 ```
 
----
+## Before ticket #1 (manual, once)
 
-## Phase 0 — Contracts, scaffold, skeleton deploy (Sun 18:00–21:00)
-
-▶ **0.0 Dev kit in the repo (first thing)**
+▶ **Dev kit**
 ```
-This repo is https://github.com/JugaadChhabra/Susanoo. The dev kit files are already at the root (CLAUDE.md, .claude/, .githooks/, .devkit/, PRD.md/PRD.pdf, IMPLEMENTATION_*.md, PROMPTBOOK_*.md).
 Run bash scripts/setup-dev.sh and show me the output. If it says my identity is wrong, stop and tell me the exact command to run myself. Don't set it yourself.
 ```
 
-▶ **0.1 Schemas (with Muaaz on a call)**
+▶ **Schema review (with Muaaz on a call; this unblocks #3)**
 ```
 Muaaz is creating packages/core/susanoo/schemas/ from [PRD › Contracts (locked)]. Review his models against the PRD line by line (use the prd-lookup skill) and list any mismatch. Don't change anything; report only.
 ```
 
-▶ **0.2 Monorepo scaffold**
+---
+
+## Foundation
+
+### #1 — Monorepo skeleton runs locally
 ```
 Use prd-lookup for [PRD › Repository structure] and [PRD › Tech stack]. Scaffold the monorepo exactly as the tree shows:
 - uv workspace root pyproject.toml with members apps/api, apps/worker, packages/core (Python 3.12, ruff, pytest)
-- apps/api/susanoo_api/main.py with /health only, CORS for APP_DOMAIN, and consistent JSON errors
-- apps/web: Next.js + TypeScript strict, Tailwind, shadcn/ui, React Flow; route groups (marketing), (auth) and (app) with placeholder pages
-- Keep the existing Makefile targets working (dev, test, lint, types)
-Don't create anything the tree doesn't list.
+- apps/api/susanoo_api/main.py: /health that reads from Supabase (degrade with a clear status if SUPABASE_URL is unset), CORS for APP_DOMAIN, one consistent JSON error shape, and a clear place to mount both owners' routers
+- apps/web: Next.js + TypeScript strict, Tailwind, shadcn/ui, React Flow; route groups (marketing), (auth) and (app) with placeholder pages; the placeholder home page calls /health and shows the result
+- .env.example (names only) and an MIT LICENSE
+- .github/workflows/ci.yml: ruff, pytest, tsc and eslint on every PR and push
+Keep the existing Makefile targets working (dev, test, lint, types). Don't create anything the tree doesn't list.
+Acceptance: make lint and make test pass; make dev serves the page and /health.
 ```
 
-▶ **0.3 Type export**
-```
-Write scripts/export_types.py: export every Pydantic model in packages/core/susanoo/schemas/ to apps/web/types/generated.ts (JSON Schema → TypeScript; pick a maintained tool and say why). Add a CI step that fails when generated.ts is stale. Run make types and show the output.
-```
-
-▶ **0.4 Skeleton deploy**
+### #2 — Skeleton live on every tier (Vercel, EC2, Supabase, Cloudflare)
+*ready-for-human: run by hand.*
 ```
 Use the deploy-check skill and [PRD › Deployment]. Set up:
 - docker-compose.yml (api, worker, caddy) and a Caddyfile routing api.<API_DOMAIN> and the wildcard run-*.<PREVIEW_DOMAIN> with automatic HTTPS
-- .github/workflows/ci.yml (ruff, pytest, tsc, eslint, type-staleness) and deploy-backend.yml (SSH to EC2: compose pull + up -d on push to main)
+- .github/workflows/deploy-backend.yml (SSH to EC2: compose pull + up -d on push to main)
 - Vercel for apps/web
-- Give the worker container access to the Docker API so it can start sibling containers, with a label convention for Caddy routing (document it in docs/integration-points.md for Muaaz)
-Give me a checklist of the manual steps only I can do (EC2 instance, Cloudflare DNS records, Supabase project, GitHub secrets, Vercel env vars), in order.
+Give me a checklist of the manual steps only I can do (EC2 instance, Cloudflare DNS records for app., api. and *., Supabase project, GitHub secrets, Vercel env vars), in order.
+Done when https://app.<domain> calls https://api.<domain>/health, which reads from Supabase, and a push to main redeploys both.
+Afterwards: draft the kickoff #neatHack post with the architecture diagram (docs/build-in-public.md), log it in EVIDENCE.md §6, and confirm Entire is recording checkpoints.
 ```
 
-▶ **Phase-close**
+### #3 — Generated frontend types and contract tests in CI
 ```
-Phase 0 close-out: verify https://app.<domain> calls https://api.<domain>/health, which reads from Supabase; CI and commit-guard are green; a push to main redeploys both. Commit with the commit-and-push skill (infra, chore, feat(web)) and push.
-Draft the kickoff #neatHack post with the architecture diagram (docs/build-in-public.md) and log it in EVIDENCE.md §6. Confirm Entire is recording checkpoints on this repo.
+Write scripts/export_types.py: export every Pydantic model in packages/core/susanoo/schemas/ to apps/web/types/generated.ts (JSON Schema → TypeScript; pick a maintained tool and say why in the commit body). Add a CI step that fails when generated.ts is stale.
+Add tests/contracts/: sample RunEvent, Scenario, IterationMetrics and Diagnosis payloads validate against the Pydantic models. Put the samples where frontend screens can reuse them as fixtures.
+Don't edit anything in packages/core/susanoo/schemas/ (frozen; see the contract-change skill). If the schemas don't exist yet, stop and report TICKET_BLOCKED.
+Acceptance: make types is deterministic; CI fails on a stale generated.ts; contract tests pass.
 ```
 
----
+### #4 — Generated apps run as sibling containers behind Caddy
+```
+Use the deploy-check skill and [PRD › Deployment] / [PRD › Deployment › Sandbox limits].
+Give the worker container access to the Docker API so it can start sibling containers, and make Caddy route run-<id>.<PREVIEW_DOMAIN> to a container by label. Prove it with a hello-world container started from the worker. Containers get CPU and memory caps and no host mounts.
+Use the label convention Muaaz's sandbox/docker.py expects; if docs/integration-points.md still says TBD for it, propose one there and report TICKET_BLOCKED so I can agree it with Muaaz.
+List any EC2 steps I must do by hand in your final report.
+```
 
-## Phase 1 — Database, auth, quota, projects (Sun 21:00–Mon 00:00)
+## Data, auth, projects
 
-▶ **1.1 Migration**
+### #5 — Full data model with row-level security
 ```
 Use prd-lookup for [PRD › Data model]. Write supabase/migrations/001_init.sql creating every table and column in the ER diagram (users, connections, projects, runs, intake_items, run_events, scenarios, iterations, results, diagnoses, patches, approvals), with FKs, sensible NOT NULLs, an index on run_events(run_id, seq) and on runs(status, created_at).
 Enable row-level security on every table so users only see their own rows (via projects.user_id). Store connection secrets in Supabase Vault; connections.vault_secret_id points to them.
 Don't create LangGraph's checkpoint tables; Muaaz's PostgresSaver.setup() does that.
-Show me the SQL before applying it.
+Test against a local Supabase (supabase start) only; never touch the hosted project. Write a test proving user B can't read or write user A's projects, runs or connections.
+Put the full SQL summary in your final report so I can review it before applying it to the hosted project.
 ```
 
-▶ **1.2 Auth**
+### #6 — emit_event writes ordered run events
+```
+Use the api-endpoint skill. In db.py add the session helper and emit_event(run_id, head, type, message, payload, trace_url=None), which writes a RunEvent row with seq increasing per run (safe under concurrency). Expose it so packages/core can import it without depending on apps/api, and record the import path in docs/integration-points.md for Muaaz.
+Tests: rows match the RunEvent shape; seq is strictly increasing per run under concurrent calls.
+```
+
+### #7 — Sign in and out (magic link + GitHub OAuth)
 ```
 Implement Supabase Auth per [PRD › Frontend (marketing site + app) and API › Auth flow]: email magic link + GitHub OAuth.
-- Frontend: lib/supabase.ts, the (auth)/login page, and middleware that redirects logged-out users away from (app) routes
-- Backend: apps/api/susanoo_api/auth.py verifies the Supabase JWT and provides a current_user dependency; deps.py and db.py with a db_session dependency
-Test: 401 without a token, 200 with one.
+- Frontend: lib/supabase.ts, the (auth)/login page, sign out, and middleware that redirects logged-out users away from (app) routes to /login
+- Backend: apps/api/susanoo_api/auth.py verifies the Supabase JWT and provides a current_user dependency; deps.py wires it
+/health, /demo/* and the marketing pages stay public.
+Tests: 401 without a token, 200 with one.
 ```
 
-▶ **1.3 Events helper, quota, projects**
+### #8 — Create and list projects
 ```
-Use the api-endpoint skill.
-1. In db.py add emit_event(run_id, head, type, message, payload, trace_url=None) that writes a RunEvent row with seq increasing per run (safe under concurrency). Expose it so packages/core can import it without depending on apps/api; agree the import path with Muaaz and document it in docs/integration-points.md.
-2. quota.py: enforce_run_quota dependency: 3 runs per user per day (RUNS_PER_USER_PER_DAY) plus the global daily cap (GLOBAL_DAILY_CAP_USD); 429 with a plain-English message.
-3. routers/projects.py: POST /projects, project list, PUT /projects/{id}/rules (rules as sentences).
-Tests: RLS isolation between two users, quota 429 on the 4th run, projects happy path.
-```
-
-▶ **Phase-close**
-```
-Phase 1 close-out: run the tests; apply the migration to Supabase; log in on the live site and create a project via the API. Commit (feat(db), feat(api)) with the commit-and-push skill and push. Tell Muaaz the emit_event import path and the label convention.
+Use the api-endpoint and frontend-screen skills.
+- routers/projects.py: POST /projects, project list, PUT /projects/{id}/rules (rules as sentences, [PRD › Non-technical users › Extra API]); all require auth
+- lib/api.ts: typed fetch using only types/generated.ts, with the auth header
+- (app)/projects: the user's projects and runs (status, held-out F1, cost)
+- (app)/projects/new: spec box, rules as sentences, connector picker (stub for now), example specs with the code reviewer pre-filled, Start
+Every screen: types only from generated.ts, loading/empty/error states, works at phone width, plain English by default.
+Tests: projects happy path; another user's projects never appear.
 ```
 
----
-
-## Phase 2 — All app screens on mock events (Mon 00:00–05:00)
-
-Muaaz commits `tests/fixtures/run_events.json` and `iteration_metrics.json` by Sun 23:00. If they're late, generate your own from the schemas and swap later.
-
-▶ **2.1 Plumbing**
+### #9 — Daily run quota and global cap
 ```
-Use the frontend-screen skill. Build lib/api.ts (typed fetch using only types/generated.ts, with auth header), and lib/sse.ts (EventSource for GET /runs/{id}/events, resume from last seq, dedupe by seq, plus a fixture mode that replays tests/fixtures/run_events.json on a timer).
-Make the run view's data source an event array, so live, fixture and demo replay share the same components.
+Use the api-endpoint skill and prd-lookup for [PRD › Connectors and API budget › Anthropic budget].
+quota.py: an enforce_run_quota dependency for Muaaz's POST /projects/{id}/runs: 3 runs per user per day (RUNS_PER_USER_PER_DAY) plus the global daily cap (GLOBAL_DAILY_CAP_USD); 429 with a plain-English message. Demo mode is never quota-limited.
+Show "runs left today" on the (app)/projects screen.
+Tests: 429 on the 4th run of the day; global cap refuses new runs; /demo/* unaffected.
 ```
 
-▶ **2.2 Run view (the demo centrepiece)**
+## App screens (on fixture events)
+
+If Muaaz's `tests/fixtures/run_events.json` and `iteration_metrics.json` aren't in the repo yet, use the contract samples from #3 and generate the rest from the schemas.
+
+### #10 — Live run view: heads graph and event log (on fixtures)
 ```
 Use frontend-screen and prd-lookup for [PRD › Frontend (marketing site + app) and API › Screens] and [PRD › LangGraph flow and shared state].
-Build (app)/runs/[id] with HeadsGraph (React Flow: Planner → Builder → Agent Smith → Simulator → Runner → Diagnostician → Fixer → Verifier, loop edge Verifier → Runner; states started/finished/error/approval_needed), EventLog (plain-English messages, links to traces and commits, a Details toggle), Scoreboard (line chart of recall, precision and held-out F1 per iteration; cost vs cap), FailureLedger (friendly layer badges, hypothesis, kept or rolled back) and ApprovalCard.
-Drive it from the fixtures. It must look great: this is what judges see in the video.
+- lib/sse.ts: EventSource for GET /runs/{id}/events, resume from last seq on reconnect, dedupe by seq, plus a fixture mode that replays the fixture events on a timer (unit-test resume and dedupe)
+- (app)/runs/[id] driven by an event array, so live, fixture and demo replay share the same components
+- HeadsGraph (React Flow): Planner → Builder → Agent Smith → Simulator → Runner → Diagnostician → Fixer → Verifier, loop edge Verifier → Runner; map event.head to the node and started/finished/error/approval_needed to its state; the active head glows and edges animate
+- EventLog: plain-English messages, links to neatlogs traces and commits, raw details behind a Details toggle
+It must look great: this is what judges see in the video. Loading/empty/error states; phone width.
 ```
 
-▶ **2.3 Intake screen**
+### #11 — Run view: scoreboard, failure ledger and approval card
 ```
-Use frontend-screen and prd-lookup for [PRD › Intake: questions and approved scenarios]. Build (app)/runs/[id]/intake: up to 5 questions (multiple choice + suggested default + why), then scenario cards to approve, edit or reject; Build unlocks only after approval. Wire to GET /runs/{id}/intake, POST …/intake/answers, POST …/intake/scenarios (mock them until Muaaz's router lands).
-```
-
-▶ **2.4 Remaining app screens**
-```
-Use frontend-screen. Build the remaining screens from the skill's table: (app)/projects, (app)/projects/new (code-reviewer example pre-filled from specs/code-review.md), (app)/connectors (UI only for now) and (app)/runs/[id]/agent (AgentCard, ReportCard, preview iframe, repo link, "Try it" with thumbs up/down that posts to /runs/{id}/feedback).
-Every screen needs loading, empty and error states and must work at phone width.
+Use frontend-screen. Add to (app)/runs/[id]: Scoreboard (line chart of recall, precision and held-out F1 per iteration; cost vs cap), FailureLedger (friendly layer badges, hypothesis, kept or rolled back) and ApprovalCard for test-layer changes.
+Drive it from the fixtures; the run view must animate through a full fixture run including an approval card. Loading/empty/error states; phone width.
 ```
 
-▶ **Phase-close**
+### #12 — Intake screen: questions and scenario approval (on fixtures)
 ```
-Phase 2 close-out: click through all screens on fixtures; the run view animates a full run including an approval card. Run make lint. Commit (feat(web)) and push. Record a 20-second screen capture of the run view for a #neatHack post.
+Use frontend-screen and prd-lookup for [PRD › Intake: questions and approved scenarios]. Build (app)/runs/[id]/intake: up to 5 questions (multiple choice + suggested default + why), then scenario cards to approve, edit or reject; Build unlocks only after approval.
+Wire to GET /runs/{id}/intake, POST …/intake/answers and POST …/intake/scenarios, mocked until Muaaz's router lands. Loading/empty/error states; phone width.
 ```
 
----
+### #13 — Agent screen: card, report, preview and Try it (on fixtures)
+```
+Use frontend-screen and prd-lookup for [PRD › Non-technical users]. Build (app)/runs/[id]/agent: AgentCard, ReportCard, a preview iframe of run-<id>.<domain>, the repo link, and "Try it" (paste a diff or pick a PR) with thumbs up/down that posts to /runs/{id}/feedback (mocked until Muaaz's router lands). Loading/empty/error states; phone width.
+```
 
-## Phase 3 — Marketing site (Mon 06:00–10:00)
+### #14 — Public demo replay
+```
+Use the api-endpoint skill. Implement routers/demo.py: GET /demo/{run_id} returns the stored RUN_EVENTS of a saved run, with no auth and no quota. Muaaz saves runs with scripts/save_demo_run.py; until one exists, seed a fixture run for tests.
+Build (marketing)/demo: the run view from #10/#11 fed by GET /demo/{run_id}, replayed on a timer, no login.
+Tests: demo replay works with no auth.
+```
 
-▶ **3.1 Landing page**
+## Connectors
+
+### #15 — Connect a GitHub repo
+```
+Use prd-lookup for [PRD › Connectors and API budget] and [PRD › Connectors and API budget › Credential handling].
+- packages/core/susanoo/connectors/: base.py (spec, guide, test_connection(), tools(), dry-run for writes), github.py (fine-grained token scoped to one repo: read pull requests + contents; comments optional and dry-run by default), guides/github.md
+- routers/connectors.py: GET /connectors, POST /connections (save to Vault), POST /connections/{id}/test, DELETE /connections/{id}; all require auth
+- (app)/connectors: available connectors, the setup guide beside each credential field, Test connection, revoke; the new-project connector picker lists real connections
+Never return or log tokens; redact them in logs and neatlogs spans.
+Tests: connector save/test/revoke, no secrets in any response.
+List the click-paths in guides/github.md that I must verify by hand against the current GitHub UI.
+```
+
+### #16 — Anthropic connector: own key or platform key
+```
+Use prd-lookup for [PRD › Connectors and API budget › Anthropic budget]. Add anthropic.py (the user's own key or the platform key, each with its cap) and guides/anthropic.md, using the connector contract from #15. The key never appears in responses, logs or traces.
+Tests: BYOK save/test/revoke; platform-key path applies the platform cap.
+List the click-paths in guides/anthropic.md that I must verify by hand against the current Anthropic Console.
+```
+
+## Marketing
+
+### #17 — Marketing landing page
 ```
 Use frontend-screen (load the frontend-design skill too, if available) and prd-lookup for [PRD › Frontend (marketing site + app) and API › Surface 1: Marketing site].
-Build (marketing)/page.tsx with the sections in the PRD's order: Hero ("AI agents are a many-headed mess. Susanoo tames them." with Start building and Watch the demo CTAs), How it works (eight heads animated in sequence), Proof (before/after numbers, placeholders until Muaaz's saved run), Use cases, Trust, Connectors, Pricing teaser, embedded Demo, Footer (repo, #neatHack, muaazshaikh.com, jugaadchhabra.dev).
+Build (marketing)/page.tsx with the sections in the PRD's order: Hero ("AI agents are a many-headed mess. Susanoo tames them." with Start building and Watch the demo CTAs), How it works (eight heads animated in sequence), Use cases (code review live; support, ops and compliance coming soon), Trust, Connectors (GitHub and Anthropic live; others roadmap), Footer (repo, #neatHack, muaazshaikh.com, jugaadchhabra.dev). Leave a slot for Proof and the embedded demo (#19).
 Enterprise-grade feel in the spirit of sierra.ai, but original design and copy: don't copy their layout, assets or text. Responsive at phone width; add OG image and meta tags.
 ```
 
-▶ **3.2 Pricing and demo pages**
+### #18 — Pricing page
 ```
-Build (marketing)/pricing (Free / Team / Enterprise per [PRD › Business model (inputs for cfo.ai)]; prices blank or "Contact us" until the cfo.ai model sets them) and (marketing)/demo (the run view fed by GET /demo/{run_id}, no login).
-```
-
-▶ **Phase-close**
-```
-Phase 3 close-out: check the marketing pages at desktop and phone width, run make lint, commit (feat(marketing)) and push. Draft a #neatHack post with a screenshot of the landing page.
+Build (marketing)/pricing: Free / Team / Enterprise per [PRD › Business model (inputs for cfo.ai)]; prices blank or "Contact us" until the cfo.ai model sets them. Responsive at phone width.
 ```
 
----
-
-## Phase 4 — Connectors, tests, going live (Mon 10:00–13:00, with Muaaz)
-
-▶ **4.1 Connectors**
+### #19 — Proof section and embedded demo on the landing page
 ```
-Use prd-lookup for [PRD › Connectors and API budget]. Implement packages/core/susanoo/connectors/: base.py (spec, guide, test_connection(), tools(), dry-run for writes), github.py (fine-grained token scoped to one repo: read pull requests + contents; comments optional and dry-run by default), anthropic.py (BYOK or platform key with caps), and guides/github.md and guides/anthropic.md.
-Then routers/connectors.py: GET /connectors, POST /connections (save to Vault), POST /connections/{id}/test, DELETE /connections/{id}. Never return or log tokens; redact them in spans.
-List the click-paths in the guides that I must verify manually against the current GitHub and Anthropic Console UIs.
+Fill the landing page's Proof slot with the real before/after from the saved demo run (held-out F1, recall, false alarms), linking to its neatlogs traces, and embed the demo replay from #14.
+Use the run_id in docs/integration-points.md. If it's still TBD, stop and report TICKET_BLOCKED; never ship placeholder numbers as proof.
 ```
 
-▶ **4.2 Demo endpoint**
+## Going live
+
+### #20 — End-to-end smoke test in CI
 ```
-Use the api-endpoint skill. Implement routers/demo.py: GET /demo/{run_id} returns the stored RUN_EVENTS of a saved run, with no auth. Muaaz saves runs with scripts/save_demo_run.py. Point (marketing)/demo and the landing-page demo at the run_id he gives me.
+Use prd-lookup for [PRD › Team and ownership › Testing]. Add tests/e2e/ (Playwright): log in → new project → intake → run view receives events (against demo mode, so it's deterministic) → agent page loads. Run it in ci.yml on every PR and push, and make sure a failing smoke test fails CI.
 ```
 
-▶ **4.3 Tests and CI**
-```
-Use prd-lookup for [PRD › Team and ownership › Testing]. Add:
-- tests/api/: auth required, RLS isolation, quota 429, connector save/test/revoke (no secrets in responses), demo replay
-- tests/contracts/: fixture payloads validate against the Pydantic models; generated.ts is current
-- tests/e2e/ (Playwright): log in → new project → intake → run view receives events (against demo mode, so it's deterministic) → agent page loads
-All of it runs in ci.yml on every push. Show me a green run.
-```
-
-▶ **4.4 Swap to real APIs and run the hero**
+### #21 — Hero spec end to end on the live site
+*ready-for-human: run by hand, with Muaaz.*
 ```
 Switch the app from fixtures to the real API and SSE (keep fixture mode behind a flag). With Muaaz, run the hero spec on the LIVE site using the deploy-check skill's checklist. Report anything broken with the exact screen and the response.
-```
-
-▶ **Phase-close**
-```
-Phase 4 close-out: a new user can sign up on the live site, connect GitHub, run the hero spec under quota, and watch it improve; CI is green. Commit and push. Go through the deploy-check skill's "Safety checks before going public" list and report each item.
+Then go through the "before going public" checklist in IMPLEMENTATION_JUGAAD.md §7 and report each item: auth on every (app) and API route except /health, /demo/* and marketing; RLS tested; quota and global cap enforced; Anthropic Console spend limit set; demo mode works with no login and no quota.
+Done when a new user can sign up on the live site, connect GitHub, run the hero spec under quota and watch it improve, and CI is green.
 ```
 
 ---
 
-## Phase 5 — After freeze (Mon 13:00–18:00, with Muaaz)
+## Not ticketed: after freeze (Mon 13:00–18:00, with Muaaz)
 
 ▶ **README and evidence**
 ```
@@ -215,8 +239,6 @@ Final check: CI green; deploy-check list passes on the live site; EVIDENCE.md ha
 Then draft our X submission post quoting the official neatlogs post: team, project name (Susanoo), public repo https://github.com/JugaadChhabra/Susanoo, live link and demo video link, with #neatHack. The submission window is Mon 19:00–23:55 IST; submit early.
 ```
 
----
-
 ## Relief backlog (when you're ahead; tell Muaaz first)
 
 ▶
@@ -228,5 +250,5 @@ I'm ahead of schedule. From IMPLEMENTATION_JUGAAD.md §6 (relief backlog), check
 
 ▶
 ```
-I'm behind schedule. Compare the repo against IMPLEMENTATION_JUGAAD.md and list what's done, what's missing, and the smallest set of tasks that keeps the live demo working by 13:00 (run view + demo mode + auth + quota first; marketing polish last). Only propose cuts that keep the PRD's must-haves ([PRD › Deployment] public-safety items, [PRD › Goals, non-goals, success metrics]).
+I'm behind schedule. Compare the open issues and the repo against IMPLEMENTATION_JUGAAD.md and list what's done, what's missing, and the smallest set of tickets that keeps the live demo working by 13:00 (run view + demo mode + auth + quota first; marketing polish last). Only propose cuts that keep the PRD's must-haves ([PRD › Deployment] public-safety items, [PRD › Goals, non-goals, success metrics]).
 ```
