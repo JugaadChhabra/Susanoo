@@ -63,6 +63,5 @@ describe("PLANS", () => {
   });
   it("shows no prices until the cost model sets them: paid plans say Contact us", () => {
     expect(PLANS.map((p) => p.price)).toEqual([null, "Contact us", "Contact us"]);
-    expect(PLANS.every((p) => !/[$€£₹]|\d/.test(p.price ?? ""))).toBe(true);
   });
 });

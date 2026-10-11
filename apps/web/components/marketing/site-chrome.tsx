@@ -15,6 +15,16 @@ const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-disp
 export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide)]";
 
+/** Focus ring for links on the dark ink background. */
+export const FOCUS_RING_DARK =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]";
+
+/** Kept in the footer because the header nav is hidden at phone width. */
+const FOOTER_PAGES = [
+  { label: "Pricing", href: "/pricing" },
+  { label: "Watch the demo", href: "/demo" },
+];
+
 export function Wordmark() {
   return (
     <span className="mk-display flex items-center gap-2 text-lg">
@@ -45,9 +55,9 @@ export function SiteHeader() {
         </Link>
         <nav aria-label="Main" className="hidden items-center gap-6 text-sm text-[var(--mk-storm)] md:flex">
           {NAV.map((item) => (
-            <a key={item.href} href={item.href} className={`rounded-sm hover:text-[var(--mk-ink)] ${FOCUS_RING}`}>
+            <Link key={item.href} href={item.href} className={`rounded-sm hover:text-[var(--mk-ink)] ${FOCUS_RING}`}>
               {item.label}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="flex items-center gap-2 text-sm">
@@ -80,13 +90,20 @@ export function SiteFooter() {
         </div>
         <nav aria-label="Footer">
           <ul className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-x-12">
+            {FOOTER_PAGES.map((page) => (
+              <li key={page.href}>
+                <Link href={page.href} className={`rounded-sm text-white underline-offset-4 hover:underline ${FOCUS_RING_DARK}`}>
+                  {page.label}
+                </Link>
+              </li>
+            ))}
             {FOOTER_LINKS.map((link) => (
               <li key={link.href}>
                 <a
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-sm text-white underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]"
+                  className={`rounded-sm text-white underline-offset-4 hover:underline ${FOCUS_RING_DARK}`}
                 >
                   {link.label}
                 </a>

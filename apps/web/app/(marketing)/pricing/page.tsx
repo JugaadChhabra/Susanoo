@@ -2,13 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FOCUS_RING, MarketingShell } from "@/components/marketing/site-chrome";
+import { FOCUS_RING, FOCUS_RING_DARK, MarketingShell } from "@/components/marketing/site-chrome";
 import { PLANS, TEAM_LINKS } from "@/lib/marketing";
 
+const TITLE = "Pricing · Susanoo";
+const OG_IMAGE = "/opengraph-image";
+const DESCRIPTION = "Free, Team and Enterprise plans for Susanoo. Try it free; talk to us about Team and Enterprise.";
+
 export const metadata: Metadata = {
-  title: "Pricing · Susanoo",
-  description: "Free, Team and Enterprise plans for Susanoo. Try it free; talk to us about Team and Enterprise.",
+  title: TITLE,
+  description: DESCRIPTION,
   alternates: { canonical: "/pricing" },
+  // Next replaces nested metadata objects rather than merging them (dropping the root preview image too), so repeat them.
+  openGraph: { type: "website", siteName: "Susanoo", title: TITLE, description: DESCRIPTION, url: "/pricing", images: OG_IMAGE },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: OG_IMAGE },
 };
 
 /** Free / Team / Enterprise. Prices stay blank or "Contact us" until the cfo.ai model sets them. [PRD › Business model (inputs for cfo.ai)] */
@@ -28,7 +35,7 @@ export default function Page() {
 
         <ul className="mt-12 grid gap-6 lg:grid-cols-3">
           {PLANS.map((plan) => {
-            const featured = plan.name === "Team";
+            const { featured } = plan;
             return (
               <li
                 key={plan.name}
@@ -57,12 +64,12 @@ export default function Page() {
                   className={cn(
                     "mt-8 inline-flex h-12 items-center justify-center rounded-full px-6 font-medium",
                     featured
-                      ? "bg-white text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]"
+                      ? `bg-white text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] ${FOCUS_RING_DARK}`
                       : `bg-[var(--mk-ink)] text-white hover:bg-[var(--mk-storm)] ${FOCUS_RING}`,
                   )}
                 >
                   {plan.cta.label}
-                  <span className="sr-only"> about the {plan.name} plan</span>
+                  {plan.price && <span className="sr-only"> about the {plan.name} plan</span>}
                 </Link>
               </li>
             );
@@ -81,7 +88,8 @@ export default function Page() {
               Talk to us
             </h2>
             <p className="mt-2 text-[var(--mk-storm)]">
-              Tell us what your team wants to automate and we&apos;ll set up a plan with you.
+              Tell us what your team wants to automate and we&apos;ll set up a plan with you. You can reach Muaaz and
+              Jugaad through their sites.
             </p>
           </div>
           <ul className="flex flex-col gap-3 sm:flex-row">

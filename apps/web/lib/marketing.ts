@@ -67,6 +67,8 @@ export type Plan = {
   /** Left blank or "Contact us" until the cfo.ai model sets real prices. */
   price: "Contact us" | null;
   features: string[];
+  /** The plan the pricing page highlights. */
+  featured?: boolean;
   cta: { label: string; href: string };
 };
 
@@ -84,14 +86,15 @@ export const PLANS: Plan[] = [
     who: "For startup engineering teams",
     price: "Contact us",
     features: ["More runs each month", "Private repos", "Your own custom rules and policies"],
-    cta: { label: "Contact us", href: "#contact" },
+    featured: true,
+    cta: { label: "Talk to us", href: "#contact" },
   },
   {
     name: "Enterprise",
     who: "For larger organisations automating their workflows",
     price: "Contact us",
     features: ["Single sign-on (SSO)", "Self-hosted runners", "Custom domains", "Dedicated support"],
-    cta: { label: "Contact us", href: "#contact" },
+    cta: { label: "Talk to us", href: "#contact" },
   },
 ];
 
