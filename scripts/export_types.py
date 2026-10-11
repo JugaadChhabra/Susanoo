@@ -1,6 +1,7 @@
 """Pydantic schemas -> apps/web/types/generated.ts.
 
-Until Muaaz lands packages/core/susanoo/schemas/, this writes an empty (but valid) file.
+Fields with defaults (AnswerKey.must_not_flag, RunEvent.trace_url, ...) are always present in API
+responses, so they are emitted as required, not optional.
 """
 
 import importlib
@@ -47,11 +48,9 @@ def repr_ts(value: object) -> str:
 def interface(name: str, schema: dict) -> str:
     if "enum" in schema:
         return f"export type {name} = {ts_type(schema)};\n"
-    required = set(schema.get("required", []))
-    lines = [
-        f"  {prop}{'' if prop in required else '?'}: {ts_type(sub)};"
-        for prop, sub in schema.get("properties", {}).items()
-    ]
+    props = schema.get("properties", {})
+    required = set(schema.get("required", [])) | {p for p, sub in props.items() if "default" in sub}
+    lines = [f"  {prop}{'' if prop in required else '?'}: {ts_type(sub)};" for prop, sub in props.items()]
     return f"export interface {name} {{\n" + "\n".join(lines) + "\n}\n"
 
 

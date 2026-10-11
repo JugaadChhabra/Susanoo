@@ -9,7 +9,7 @@ export interface AgentBundle {
 
 export interface AnswerKey {
   expected: Array<ExpectedIssue>;
-  must_not_flag?: Array<string>;
+  must_not_flag: Array<string>;
 }
 
 export interface Diagnosis {
@@ -79,7 +79,7 @@ export interface RunEvent {
   type: "started" | "progress" | "finished" | "error" | "question_needed" | "approval_needed" | "metrics";
   message: string;
   payload: Record<string, unknown>;
-  trace_url?: string | null;
+  trace_url: string | null;
   at: string;
 }
 
@@ -90,7 +90,7 @@ export interface Scenario {
   title: string;
   diff: string;
   answer_key: AnswerKey;
-  approved_by_user?: boolean;
+  approved_by_user: boolean;
 }
 
 export interface ScenarioResult {
@@ -103,5 +103,5 @@ export interface ScenarioResult {
   severity_correct: number;
   passed: boolean;
   trace_id: string;
-  error?: string | null;
+  error: string | null;
 }
