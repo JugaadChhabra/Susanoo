@@ -44,16 +44,11 @@ class FakeQuotaStore:
         self.since: datetime | None = None
         self.broken = False
 
-    async def runs_started_since(self, user_id: str, since: datetime) -> int:
+    async def usage_since(self, user_id: str, since: datetime) -> quota.Usage:
         if self.broken:
             raise RuntimeError("database down")
         self.since = since
-        return self.runs.get(user_id, 0)
-
-    async def spend_since_usd(self, since: datetime) -> float:
-        if self.broken:
-            raise RuntimeError("database down")
-        return self.spend_usd
+        return quota.Usage(self.runs.get(user_id, 0), self.spend_usd)
 
 
 @pytest.fixture
@@ -137,18 +132,21 @@ def test_runs_are_allowed_just_under_the_global_cap(client, store):
     assert start(client).status_code == 201
 
 
-def test_no_global_cap_configured_means_only_the_per_user_limit_applies(client, store, monkeypatch):
-    monkeypatch.delenv("GLOBAL_DAILY_CAP_USD")
-    store.spend_usd = 10_000.0
-    assert start(client).status_code == 201
-
-
-@pytest.mark.parametrize(("name", "value"), [("RUNS_PER_USER_PER_DAY", "three"), ("GLOBAL_DAILY_CAP_USD", "-5")])
-def test_a_bad_limit_setting_refuses_runs_instead_of_allowing_unlimited_ones(client, monkeypatch, name, value):
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("RUNS_PER_USER_PER_DAY", "three"),
+        ("RUNS_PER_USER_PER_DAY", "0"),
+        ("GLOBAL_DAILY_CAP_USD", ""),
+        ("GLOBAL_DAILY_CAP_USD", "-5"),
+        ("GLOBAL_DAILY_CAP_USD", "nan"),
+    ],
+)
+def test_a_missing_or_bad_limit_refuses_runs_instead_of_allowing_unlimited_ones(client, monkeypatch, name, value):
     monkeypatch.setenv(name, value)
-    response = start(client)
-    assert response.status_code == 503
-    assert "{" not in response.json()["error"]["message"]
+    for response in (start(client), client.get("/me/quota", headers=bearer(ALICE))):
+        assert response.status_code == 503
+        assert response.json()["error"]["message"] == quota._SWITCHED_OFF
 
 
 def test_quota_store_failure_refuses_runs_with_a_plain_english_503(client, store):

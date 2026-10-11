@@ -49,16 +49,22 @@ async def test_counts_only_this_users_runs_since_midnight(projects):
         "insert into public.runs (project_id, created_at) values (%s, now()), (%s, now()), (%s, %s), (%s, now())",
         (project_a, project_a, project_a, midnight() - timedelta(seconds=1), project_b),
     )
-    assert await PostgresQuotaStore().runs_started_since(a, midnight()) == 2
+    assert (await PostgresQuotaStore().usage_since(a, midnight())).runs_today == 2
 
 
-async def test_spend_adds_up_every_users_runs_since_midnight(projects):
-    _, project_a, _, project_b, c = projects
+async def test_spend_counts_todays_runs_and_in_flight_runs_at_their_cap(projects):
+    a, project_a, _, project_b, c = projects
     store = PostgresQuotaStore()
-    before = await store.spend_since_usd(midnight())
+    before = (await store.usage_since(a, midnight())).spend_usd
+    yesterday = midnight() - timedelta(seconds=1)
     c.execute(
-        "insert into public.runs (project_id, cost_usd, created_at) values (%s, 1.25, now()), (%s, 0.5, now()), "
-        "(%s, 9, %s)",
-        (project_a, project_b, project_a, midnight() - timedelta(seconds=1)),
+        """
+        insert into public.runs (project_id, status, cost_usd, cost_cap_usd, created_at) values
+            (%(a)s, 'done', 1.25, 2, now()),               -- finished today: what it cost
+            (%(b)s, 'running', 0.5, 2, now()),             -- in flight: its cap, it may still spend that
+            (%(a)s, 'awaiting_approval', 0.1, 2, %(y)s),   -- started yesterday, still in flight: its cap
+            (%(a)s, 'done', 9, 2, %(y)s)                   -- finished yesterday: not today's spend
+        """,
+        {"a": project_a, "b": project_b, "y": yesterday},
     )
-    assert await store.spend_since_usd(midnight()) - before == pytest.approx(1.75)
+    assert (await store.usage_since(a, midnight())).spend_usd - before == pytest.approx(1.25 + 2 + 2)

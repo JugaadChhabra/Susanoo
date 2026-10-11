@@ -3,15 +3,18 @@
 `enforce_run_quota` is the dependency for Muaaz's `POST /projects/{id}/runs`: each user may start
 RUNS_PER_USER_PER_DAY runs (default 3) per UTC day, and nobody may start one once the platform's spend
 today reaches GLOBAL_DAILY_CAP_USD. Past either limit it answers 429 in plain English. /demo/* never
-depends on this, so demo mode stays available.
+depends on this, so demo mode stays available. Every run counts: Susanoo's own heads always use the
+platform key (BYOK only covers the generated agent's calls, [PRD › Connectors and API budget]).
 
 Counts come from the runs table itself (runs created since midnight UTC), so there is no counter to reset.
+The check runs before the start-run route inserts its row, so two requests racing in the same instant can
+both pass; the per-run cost cap and the Anthropic Console spend limit bound what that can cost.
 """
 
 import logging
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Protocol
+from typing import Annotated, NamedTuple, Protocol
 
 from fastapi import Depends, HTTPException
 
@@ -23,37 +26,37 @@ logger = logging.getLogger("susanoo_api.quota")
 
 DEFAULT_RUNS_PER_DAY = 3
 _UNAVAILABLE = "We couldn't check how many runs you have left today. Please try again in a minute."
-_warned_no_cap = False
-_MISCONFIGURED = "Starting new runs is switched off right now. Please try again later, or watch the demo."
+_SWITCHED_OFF = "Starting new runs is switched off right now. You can still watch the demo."
+
+
+class Usage(NamedTuple):
+    runs_today: int  # runs this user started since midnight UTC
+    spend_usd: float  # platform spend counted against today's global cap
 
 
 class QuotaStore(Protocol):
-    async def runs_started_since(self, user_id: str, since: datetime) -> int: ...
-    async def spend_since_usd(self, since: datetime) -> float: ...
+    async def usage_since(self, user_id: str, since: datetime) -> Usage: ...
 
 
 class PostgresQuotaStore:
-    async def runs_started_since(self, user_id: str, since: datetime) -> int:
+    async def usage_since(self, user_id: str, since: datetime) -> Usage:
+        """Runs still in flight count at their cost cap, whenever they started: that much may still be spent."""
         async with session() as conn:
             cur = await conn.execute(
                 """
-                select count(*) as n from public.runs r
-                join public.projects p on p.id = r.project_id
-                where p.user_id = %s and r.created_at >= %s
+                select
+                    (select count(*) from public.runs r join public.projects p on p.id = r.project_id
+                     where p.user_id = %(user)s and r.created_at >= %(since)s) as runs_today,
+                    (select coalesce(sum(case when status in ('running', 'awaiting_approval')
+                                              then greatest(cost_usd, cost_cap_usd) else cost_usd end), 0)
+                     from public.runs
+                     where created_at >= %(since)s or status in ('running', 'awaiting_approval')) as spend_usd
                 """,
-                (user_id, since),
+                {"user": user_id, "since": since},
             )
             row = await cur.fetchone()
-            return int(row["n"]) if row else 0
-
-    async def spend_since_usd(self, since: datetime) -> float:
-        """What every run started today has cost so far, across all users."""
-        async with session() as conn:
-            cur = await conn.execute(
-                "select coalesce(sum(cost_usd), 0) as usd from public.runs where created_at >= %s", (since,)
-            )
-            row = await cur.fetchone()
-            return float(row["usd"]) if row else 0.0
+            assert row is not None
+            return Usage(int(row["runs_today"]), float(row["spend_usd"]))
 
 
 def quota_store() -> QuotaStore:
@@ -68,48 +71,37 @@ def _start_of_day(now: datetime) -> datetime:
     return now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _runs_per_day() -> int:
-    raw = os.environ.get("RUNS_PER_USER_PER_DAY", "").strip()
-    if not raw:
-        return DEFAULT_RUNS_PER_DAY
-    value = int(raw)  # ValueError on a typo; the caller refuses runs rather than guess
-    if value < 0:
-        raise ValueError("RUNS_PER_USER_PER_DAY must not be negative")
-    return value
-
-
-def _global_cap_usd() -> float | None:
-    raw = os.environ.get("GLOBAL_DAILY_CAP_USD", "").strip()
-    if not raw:
-        return None
-    value = float(raw)
-    if not value >= 0:  # also rejects nan
+def _limits() -> tuple[int, float]:
+    """(runs per user per day, global daily cap in USD). Raises ValueError when either is missing or invalid."""
+    raw_runs = os.environ.get("RUNS_PER_USER_PER_DAY", "").strip()
+    runs = int(raw_runs) if raw_runs else DEFAULT_RUNS_PER_DAY
+    if runs < 1:
+        raise ValueError("RUNS_PER_USER_PER_DAY must be at least 1")
+    # No default: the PRD requires a global cap, so an unset one refuses runs rather than allow unlimited spend.
+    cap = float(os.environ.get("GLOBAL_DAILY_CAP_USD", "").strip())
+    if not cap >= 0:  # also rejects nan
         raise ValueError("GLOBAL_DAILY_CAP_USD must be a non-negative number")
-    return value
+    return runs, cap
 
 
 async def current_quota(user_id: str, store: QuotaStore, now: datetime | None = None) -> RunQuota:
     """The caller's runs left today. Raises a plain-English 503 if the limits or the counts can't be read."""
     since = _start_of_day(now or datetime.now(UTC))
     try:
-        per_day, cap = _runs_per_day(), _global_cap_usd()
+        per_day, cap = _limits()
     except ValueError:
-        logger.exception("Run quota settings are invalid; refusing new runs until they are fixed")
-        raise HTTPException(503, _MISCONFIGURED) from None
-    global _warned_no_cap
-    if cap is None and not _warned_no_cap:
-        logger.warning("GLOBAL_DAILY_CAP_USD is not set; only the per-user daily run limit applies")
-        _warned_no_cap = True
+        logger.exception("RUNS_PER_USER_PER_DAY / GLOBAL_DAILY_CAP_USD are missing or invalid; refusing new runs")
+        raise HTTPException(503, _SWITCHED_OFF) from None
     try:
-        used = await store.runs_started_since(user_id, since)
-        paused = cap is not None and await store.spend_since_usd(since) >= cap
+        usage = await store.usage_since(user_id, since)
     except Exception:
         logger.exception("Could not read the run quota for user %s", user_id)
         raise HTTPException(503, _UNAVAILABLE) from None
+    paused = usage.spend_usd >= cap
     return RunQuota(
         runs_per_day=per_day,
-        runs_used_today=used,
-        runs_left_today=0 if paused else max(per_day - used, 0),
+        runs_used_today=usage.runs_today,
+        runs_left_today=0 if paused else max(per_day - usage.runs_today, 0),
         paused=paused,
         resets_at=(since + timedelta(days=1)).isoformat(),
     )
