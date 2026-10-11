@@ -56,16 +56,24 @@ ticket_prompt() {
   ' "$PROMPTBOOK"
 }
 
+# GitHub's issue list and dependency summaries lag a few seconds behind a close, so:
+# tickets merged in this run are remembered in DONE, and every candidate is re-read directly.
+SKIPPED=" "
+DONE=" "
 open_blockers() {
-  gh api "repos/$REPO/issues/$1" --jq '.issue_dependencies_summary.blocked_by // 0'
+  local b count=0
+  for b in $(gh api "repos/$REPO/issues/$1/dependencies/blocked_by" --jq '.[] | select(.state == "open") | .number'); do
+    [[ "$DONE" == *" $b "* ]] || count=$((count + 1))
+  done
+  echo "$count"
 }
 
-SKIPPED=" "
 next_ticket() {
   local n
   for n in $(gh issue list -R "$REPO" --state open --label ready-for-agent --limit 100 \
                --json number --jq '.[].number' | sort -n); do
-    [[ "$SKIPPED" == *" $n "* ]] && continue
+    [[ "$SKIPPED$DONE" == *" $n "* ]] && continue
+    [ "$(gh api "repos/$REPO/issues/$n" --jq .state)" = open ] || continue
     [ "$(open_blockers "$n")" = 0 ] && { echo "$n"; return; }
   done
 }
@@ -171,7 +179,7 @@ while :; do
   git branch -q -d "$branch"
   log "#$n merged ($range) and closed."
 
-  merged=$((merged + 1))
+  merged=$((merged + 1)); DONE+="$n "
   [ "$MAX_TICKETS" -gt 0 ] && [ "$merged" -ge "$MAX_TICKETS" ] && { log "Reached MAX_TICKETS=$MAX_TICKETS."; break; }
 done
 
