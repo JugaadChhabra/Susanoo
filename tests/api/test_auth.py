@@ -50,7 +50,11 @@ def test_me_with_valid_token_is_200(client):
     "token",
     [
         "not-a-jwt",
-        jwt.encode({"sub": USER_ID, "aud": "authenticated", "exp": int(time.time()) + 60}, "wrong-secret-wrong-secret-wrong-secret", algorithm="HS256"),
+        jwt.encode(
+            {"sub": USER_ID, "aud": "authenticated", "exp": int(time.time()) + 60},
+            "wrong-secret-wrong-secret-wrong-secret",
+            algorithm="HS256",
+        ),
         make_token(exp=int(time.time()) - 10),
         make_token(aud="someone-else"),
         make_token(sub=None),
