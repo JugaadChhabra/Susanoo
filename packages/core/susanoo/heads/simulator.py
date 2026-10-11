@@ -65,6 +65,7 @@ MIN_SCENARIO_COUNT = 8
 MAX_SCENARIO_COUNT = 40
 BATCH_SIZE = 6  # scenarios (or worlds) per model call, to keep each answer small
 HELDOUT_FRACTION = 0.30
+REPAIR_INSTRUCTION = "Your previous reply could not be read as JSON matching the format; reply with only the JSON."
 MAX_WORLD_FILE_CHARS = 20_000
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -624,7 +625,12 @@ async def _generate_batch(
     seeds: list[Scenario],
     batch: list[Slot],
 ) -> list[Any]:
-    """One model call for one batch of slots; returns the raw scenarios. Raises ValueError if unreadable."""
+    """One model call for one batch of slots; returns the raw scenarios. Raises ValueError if unreadable.
+
+    If the first answer cannot be read (not JSON, or not the {"scenarios": [...]} shape), the batch is asked once
+    more with a short repair instruction. The retry is budget-checked like any call and its cost is added to the
+    head's spend; only when it also fails does the ValueError reach the caller, which skips the batch.
+    """
     message = "\n".join(
         [
             "<task>scenarios</task>",
@@ -637,7 +643,14 @@ async def _generate_batch(
             _data("requests", [asdict(s) for s in batch]),
         ]
     )
-    result = await _ask(state, spend, message)
+    try:
+        return _scenario_items(await _ask(state, spend, message))
+    except ValueError:
+        log.warning("a scenario batch of %d was unreadable; asking once more", len(batch))
+    return _scenario_items(await _ask(state, spend, f"{message}\n{REPAIR_INSTRUCTION}"))  # may raise BudgetExceeded
+
+
+def _scenario_items(result: llm.LLMResult) -> list[Any]:
     data = result.json()
     items = data.get("scenarios") if isinstance(data, dict) else None
     if not isinstance(items, list):
@@ -848,10 +861,15 @@ async def _run(state: SusanooState) -> dict:
             )
         parts.extend(gen_bits)
     if seed_drops:
-        parts.append(
-            f"Skipped {sum(seed_drops.values())} of {len(raw_seeds) + unreadable} starter examples "
-            f"({_reasons(seed_drops)})."
-        )
+        n_seed_drops, n_seeds = sum(seed_drops.values()), len(raw_seeds) + unreadable
+        if seed_drops["rules"] * 2 >= n_seeds:  # a different spec than the hero: expected, so say it plainly
+            others = Counter({c: n for c, n in seed_drops.items() if c != "rules"})
+            parts.append(
+                f"Skipped {seed_drops['rules']} of {n_seeds} starter examples because they test rules this app "
+                "doesn't have" + (f" (and {_reasons(others)} for other reasons)." if others else ".")
+            )
+        else:
+            parts.append(f"Skipped {n_seed_drops} of {n_seeds} starter examples ({_reasons(seed_drops)}).")
     if parts:
         await emit(
             state,

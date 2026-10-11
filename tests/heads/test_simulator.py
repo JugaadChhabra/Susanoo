@@ -108,11 +108,15 @@ class FakeLLM:
         cost: float = 0.01,
         mutate: Callable[[list[dict]], list[dict]] | None = None,
         bad_batches: int = 0,
+        flaky_batches: int = 0,
         worlds: str = "valid",
     ):
         self.cost = cost
         self.mutate = mutate
-        self.bad_batches = bad_batches
+        self.bad_batches = bad_batches  # the first N batches are unreadable on every attempt
+        self.flaky_batches = flaky_batches  # the next N are unreadable on the first attempt only
+        self._batches: list[str] = []
+        self._attempts: dict[str, int] = {}
         self.worlds = worlds
         self.calls: list[dict] = []
         self._scenario_calls = 0
@@ -125,7 +129,12 @@ class FakeLLM:
             items = [raw_for(s) for s in slots]
             if self.mutate is not None and self._scenario_calls == 0:
                 items = self.mutate(items)
-            bad = self._scenario_calls < self.bad_batches
+            key = ",".join(s["id"] for s in slots)
+            if key not in self._batches:
+                self._batches.append(key)
+            n = self._batches.index(key)
+            self._attempts[key] = self._attempts.get(key, 0) + 1
+            bad = n < self.bad_batches or (n < self.bad_batches + self.flaky_batches and self._attempts[key] == 1)
             self._scenario_calls += 1
             text = "this is not json" if bad else json.dumps({"scenarios": items})
         else:
@@ -364,6 +373,50 @@ async def test_unreadable_batch_is_skipped(repo, fake, sink):
     new = [s for s in out["scenarios"] if s.id.startswith("sim-")]
     assert len(new) == 24 - simulator.BATCH_SIZE
     assert any("1 group of new scenarios came back unreadable and was skipped." in m for m in messages(sink))
+
+
+async def test_unreadable_then_good_batch_is_retried_and_kept(repo, fake, sink):
+    f = fake(flaky_batches=1)
+    out = await simulator.run(make_state(repo))
+    new = [s for s in out["scenarios"] if s.id.startswith("sim-")]
+    assert len(new) == 24  # nothing lost
+    assert not any("unreadable" in m for m in messages(sink))
+    asks = [c["content"] for c in f.calls if "<task>scenarios</task>" in c["content"]]
+    assert len(asks) == 5  # four batches plus one retry
+    assert [simulator.REPAIR_INSTRUCTION in c for c in asks] == [False, True, False, False, False]
+    assert simulator.REPAIR_INSTRUCTION.startswith("Your previous reply could not be read as JSON")
+    assert out["cost_usd"] == pytest.approx(0.5 + 0.01 * len(f.calls))  # the retry's cost is counted
+
+
+async def test_unreadable_twice_is_skipped_after_one_retry(repo, fake, sink):
+    f = fake(bad_batches=1)
+    out = await simulator.run(make_state(repo))
+    new = [s for s in out["scenarios"] if s.id.startswith("sim-")]
+    assert len(new) == 24 - simulator.BATCH_SIZE
+    assert any("1 group of new scenarios came back unreadable and was skipped." in m for m in messages(sink))
+    asks = [c["content"] for c in f.calls if "<task>scenarios</task>" in c["content"]]
+    assert len(asks) == 5  # asked twice, not more
+    assert sum(simulator.REPAIR_INSTRUCTION in c for c in asks) == 1
+
+
+async def test_budget_exceeded_before_the_retry_propagates(repo, fake, sink, monkeypatch):
+    monkeypatch.setenv("RUN_COST_CAP_USD", "0.015")
+    f = fake(cost=0.01, bad_batches=1)
+    with pytest.raises(budget.BudgetExceeded):
+        await simulator.run(make_state(repo, cost_usd=0.0))
+    assert len(f.calls) == 2  # the first (unreadable) answer used the budget; the retry was refused
+    assert not any(e.type == "finished" for e in sink.events)
+    assert not list((repo / "scenarios" / "train").glob("*.json"))
+
+
+async def test_mostly_unfit_seeds_are_reported_plainly(repo, fake, sink):
+    plan = make_plan([r for r in ALL_RULES if r.id == "no-pii-logs"])
+    fake()
+    await simulator.run(make_state(repo, plan=plan))
+    skipped = [m for m in messages(sink, "progress") if m.startswith("Skipped")]
+    assert len(skipped) == 1
+    assert "starter examples because they test rules this app doesn't have" in skipped[0]
+    assert "Skipped 5 of 10 starter examples" in skipped[0] and "1 whose kind" in skipped[0]
 
 
 async def test_several_unreadable_batches_use_plural_grammar(repo, fake, sink):
