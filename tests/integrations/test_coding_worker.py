@@ -282,6 +282,41 @@ def test_searching_a_parent_of_nonempty_heldout_is_denied(repo):
     assert cw.check_tool_use(repo, "Grep", {"pattern": "x", "path": "backend"}) is None
 
 
+@pytest.mark.parametrize("folder", ["acceptance", "Acceptance", "ACCEPTANCE"])
+@pytest.mark.parametrize("tool", ["Read", "Write", "Edit", "MultiEdit", "NotebookEdit"])
+def test_the_acceptance_folder_is_off_limits_to_every_tool(repo, tool, folder):
+    key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+    for rel in (f"scenarios/{folder}/ac-1.json", f"scenarios/{folder}/../{folder}/ac-1.json", f"scenarios/{folder}"):
+        assert "approved scenarios are off limits" in cw.check_tool_use(repo, tool, {key: rel})
+        assert cw.check_tool_use(repo, tool, {key: rel}, ["scenarios/"])
+
+
+def test_searching_inside_acceptance_is_denied_even_with_an_empty_looking_path(repo):
+    (repo / "scenarios" / "acceptance").mkdir(parents=True)
+    (repo / "scenarios" / "acceptance" / "ac-1.json").write_text("{}")
+    assert cw.check_tool_use(repo, "Grep", {"pattern": "x", "path": "scenarios/acceptance"})
+    assert cw.check_tool_use(repo, "Glob", {"pattern": "*.json", "path": "scenarios/Acceptance"})
+
+
+def test_searching_a_parent_of_nonempty_acceptance_is_denied(repo):
+    (repo / "scenarios" / "acceptance").mkdir(parents=True)
+    (repo / "scenarios" / "acceptance" / ".gitkeep").write_text("")
+    assert cw.check_tool_use(repo, "Grep", {"pattern": "x"}) is None  # only a .gitkeep in there
+    (repo / "scenarios" / "acceptance" / "ac-1.json").write_text("{}")
+    assert "approved scenarios" in cw.check_tool_use(repo, "Grep", {"pattern": "x"})
+    assert cw.check_tool_use(repo, "Glob", {"pattern": "**/*.json", "path": "scenarios"})
+    assert cw.check_tool_use(repo, "Grep", {"pattern": "x", "path": "backend"}) is None
+    (repo / "scenarios" / "train").mkdir()
+    assert cw.check_tool_use(repo, "Grep", {"pattern": "x", "path": "scenarios/train"}) is None
+
+
+def test_a_symlink_into_acceptance_is_denied(repo):
+    (repo / "scenarios" / "acceptance").mkdir(parents=True)
+    (repo / "scenarios" / "acceptance" / "ac-1.json").write_text("{}")
+    (repo / "backend" / "peek").symlink_to(repo / "scenarios" / "acceptance", target_is_directory=True)
+    assert cw.check_tool_use(repo, "Read", {"file_path": "backend/peek/ac-1.json"})
+
+
 def test_the_hook_and_can_use_tool_callbacks_deny_the_same_calls(repo):
     can_use_tool, hooks = cw._tool_guards(repo)
     hook = hooks["PreToolUse"][0].hooks[0]

@@ -54,6 +54,9 @@ from susanoo.integrations.tracing import REDACTED, redact, scrub_text
 AGENT_TOOLS = ["Read", "Edit", "Write", "Glob", "Grep"]
 DISALLOWED_TOOLS = ["Bash", "BashOutput", "KillShell", "WebFetch", "WebSearch", "Task", "Agent", "NotebookEdit"]
 HELDOUT_DIR = "scenarios/heldout"
+ACCEPTANCE_DIR = "scenarios/acceptance"  # user-approved scenarios: locked, and as hidden from the agent as held-out
+# (folder, what to call it) -- no tool may read, search or write inside these.
+HIDDEN_DIRS = ((HELDOUT_DIR, "held-out"), (ACCEPTANCE_DIR, "approved"))
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 _PATH_KEYS = ("file_path", "path", "notebook_path")
 DEFAULT_MAX_TURNS = 30
@@ -286,14 +289,15 @@ def check_tool_use(
 ) -> str | None:
     """Why this tool call must be refused, or None if it may run. Plain English, safe to show.
 
-    Only the file tools exist. Every path must stay inside `repo`, out of scenarios/heldout/ and out of `.git/`
-    (compared case-insensitively, since macOS disks are). When `allowed` is given, writing tools may only
+    Only the file tools exist. Every path must stay inside `repo`, out of scenarios/heldout/, out of
+    scenarios/acceptance/ (the user-approved scenarios) and out of `.git/` (compared case-insensitively, since
+    macOS disks are). When `allowed` is given, writing tools may only
     target those repo-relative paths, judged on the fully resolved target so a symlink cannot lead out.
     """
     if tool_name not in AGENT_TOOLS and tool_name not in WRITE_TOOLS:
         return f"The tool {tool_name} is not available here."
     root = repo.resolve()
-    heldout = root / HELDOUT_DIR
+    hidden = [(root / rel, label) for rel, label in HIDDEN_DIRS]
     gitdir = root / ".git"
     for key in _PATH_KEYS:
         raw = tool_input.get(key)
@@ -302,8 +306,9 @@ def check_tool_use(
         target = _resolve(root, str(raw))
         if not _inside(target, root):
             return "That path is outside the project folder, so it is off limits."
-        if _inside_ci(target, heldout):
-            return "The held-out scenarios are off limits."
+        for folder, label in hidden:
+            if _inside_ci(target, folder):
+                return f"The {label} scenarios are off limits."
         if _inside_ci(target, gitdir):
             return "Git's own files are off limits."
         if tool_name in WRITE_TOOLS and allowed is not None:
@@ -316,8 +321,9 @@ def check_tool_use(
         if isinstance(pattern, str) and (pattern.startswith(("/", "~")) or ".." in PurePosixPath(pattern).parts):
             return "Search patterns must stay inside the project folder."
         search_root = _resolve(root, str(tool_input.get("path") or root))
-        if _inside_ci(heldout, search_root) and _has_real_files(heldout):
-            return "Search a specific subfolder instead; the held-out scenarios are off limits."
+        for folder, label in hidden:
+            if _inside_ci(folder, search_root) and _has_real_files(folder):
+                return f"Search a specific subfolder instead; the {label} scenarios are off limits."
     return None
 
 
