@@ -1,0 +1,1 @@
+Build a review app for the tests in our Python services. Developers paste a diff of test files and get a review. Rules: every test must assert something; no time.sleep in tests; skipped tests need a reason; unit tests must not make real network calls; never swallow exceptions in a test with except: pass. Severity: block, warn, or nit.
