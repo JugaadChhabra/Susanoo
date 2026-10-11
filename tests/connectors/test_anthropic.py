@@ -10,7 +10,12 @@ import pytest
 from pydantic import SecretStr
 
 from susanoo.connectors import Credential, InvalidCredential, redact, registry
-from susanoo.connectors.anthropic import AnthropicConnector, agent_model_access, platform_model_access
+from susanoo.connectors.anthropic import (
+    AnthropicConnector,
+    PlatformKeyMissing,
+    agent_model_access,
+    platform_model_access,
+)
 from susanoo.guards.budget import DEFAULT_RUN_COST_CAP_USD
 
 KEY = "sk-ant-api03-" + "Ab1_-" * 16  # built at runtime so it never looks like a real key in git
@@ -50,6 +55,7 @@ def test_validate_trims_the_key_and_keeps_no_settings():
         ("sk-ant-admin01-" + "a" * 60, "Admin key"),
         ("sk-proj-" + "a" * 40, "sk-ant-"),
         ("sk-ant-api03-abc def", "sk-ant-"),
+        ("sk-ant-api03-", "sk-ant-"),  # a paste cut short
     ],
 )
 def test_validate_rejects_bad_keys_without_echoing_them(key, hint):
@@ -111,7 +117,7 @@ def test_byok_env_carries_the_users_key_and_no_platform_cap():
 
 
 def test_byok_is_used_when_the_user_connected_a_key(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", PLATFORM_KEY)
     access = agent_model_access(cred())
     assert access.source == "byok"
     assert access.cap_usd is None  # the user's own Console spend limit is the cap
@@ -119,7 +125,7 @@ def test_byok_is_used_when_the_user_connected_a_key(monkeypatch):
 
 
 def test_platform_key_is_used_without_a_connection_and_applies_the_platform_cap(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", PLATFORM_KEY)
     monkeypatch.delenv("RUN_COST_CAP_USD", raising=False)
     access = agent_model_access(None)
     assert access.source == "platform"
@@ -127,30 +133,37 @@ def test_platform_key_is_used_without_a_connection_and_applies_the_platform_cap(
     assert access.env() == {
         "ANTHROPIC_API_KEY": PLATFORM_KEY,
         "SUSANOO_ANTHROPIC_KEY_SOURCE": "platform",
-        "SUSANOO_AGENT_COST_CAP_USD": "2.00",
+        "SUSANOO_AGENT_COST_CAP_USD": "2.0",
     }
 
 
+def test_a_tiny_platform_cap_is_not_rounded_to_zero(monkeypatch):
+    monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("RUN_COST_CAP_USD", "0.004")
+    assert platform_model_access().env()["SUSANOO_AGENT_COST_CAP_USD"] == "0.004"
+
+
 def test_platform_cap_follows_the_configured_per_run_cap(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", PLATFORM_KEY)
     monkeypatch.setenv("RUN_COST_CAP_USD", "0.5")
     access = platform_model_access()
     assert access.cap_usd == 0.5
-    assert access.env()["SUSANOO_AGENT_COST_CAP_USD"] == "0.50"
+    assert access.env()["SUSANOO_AGENT_COST_CAP_USD"] == "0.5"
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
 def test_platform_key_missing_fails_loudly_without_a_fallback(monkeypatch, value):
     if value is None:
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("GENERATED_APPS_ANTHROPIC_API_KEY", raising=False)
     else:
-        monkeypatch.setenv("ANTHROPIC_API_KEY", value)
-    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", value)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", PLATFORM_KEY)  # the heads' own key is never lent to an agent
+    with pytest.raises(PlatformKeyMissing, match="Connect your own Anthropic key"):
         agent_model_access(None)
 
 
 def test_model_access_never_shows_the_key(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("GENERATED_APPS_ANTHROPIC_API_KEY", PLATFORM_KEY)
     for access in (agent_model_access(cred()), agent_model_access(None)):
         text = f"{access!r} {access!s}"
         assert KEY not in text and PLATFORM_KEY not in text

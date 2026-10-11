@@ -2,8 +2,11 @@
 
 Two ways to pay, each with its cap:
 - BYOK: the user connects their own API key; their Anthropic Console spend limit is the cap.
-- Platform key: without a connection the agent uses Susanoo's key (ANTHROPIC_API_KEY), capped at the
-  per-run cost cap and, like every run, behind the daily run quota and global daily cap in quota.py.
+- Platform key: without a connection the agent uses Susanoo's key for generated apps
+  (GENERATED_APPS_ANTHROPIC_API_KEY, never the heads' own ANTHROPIC_API_KEY, [PRD › Before development:
+  first-hour checklist]). The agent is told its cap, the per-run cost cap, through SUSANOO_AGENT_COST_CAP_USD;
+  the run behind it sits under the daily run quota and global daily cap in quota.py, and the Console spend
+  limit on that key is the hard backstop.
 
 `agent_model_access()` picks between them; its `env()` is what the generated app's container gets at start.
 The key only ever goes into an x-api-key header or that env; it is never logged or returned.
@@ -11,6 +14,7 @@ The key only ever goes into an x-api-key header or that env; it is never logged 
 
 import logging
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -34,7 +38,14 @@ logger = logging.getLogger("susanoo.connectors.anthropic")
 
 API = "https://api.anthropic.com"
 API_VERSION = "2023-06-01"
-PLATFORM_KEY_ENV = "ANTHROPIC_API_KEY"
+PLATFORM_KEY_ENV = "GENERATED_APPS_ANTHROPIC_API_KEY"
+
+_KEY = re.compile(r"^sk-ant-[A-Za-z0-9_\-]{20,}$")  # the same shape base.redact() hides
+
+
+class PlatformKeyMissing(RuntimeError):
+    """Susanoo's key for generated apps isn't configured; the message is plain English for the run's status."""
+
 
 SPEC = ConnectorSpec(
     id="anthropic",
@@ -71,7 +82,7 @@ class AnthropicConnector(Connector):
                 "This is an Admin key, which can manage your whole Anthropic organisation. "
                 "Please make a normal API key for Susanoo instead."
             )
-        if not key.startswith("sk-ant-") or any(c.isspace() for c in key):
+        if not _KEY.match(key):
             raise InvalidCredential("That doesn't look like an Anthropic API key. It should start with sk-ant-.")
         return SecretStr(key), {}
 
@@ -134,15 +145,19 @@ class ModelAccess:
     def env(self) -> dict[str, str]:
         env = {"ANTHROPIC_API_KEY": self.key.get_secret_value(), "SUSANOO_ANTHROPIC_KEY_SOURCE": self.source}
         if self.cap_usd is not None:
-            env["SUSANOO_AGENT_COST_CAP_USD"] = f"{self.cap_usd:.2f}"
+            env["SUSANOO_AGENT_COST_CAP_USD"] = str(self.cap_usd)  # no rounding, so a tiny cap never reads as 0
         return env
 
 
 def platform_model_access() -> ModelAccess:
-    """Susanoo's own key, capped at the per-run cost cap. Raises RuntimeError if the key isn't configured."""
+    """Susanoo's key for generated apps, capped at the per-run cost cap. Raises PlatformKeyMissing if unset."""
     key = os.environ.get(PLATFORM_KEY_ENV, "").strip()
     if not key:
-        raise RuntimeError(f"{PLATFORM_KEY_ENV} is not set, so agents without their own key can't call Claude")
+        logger.error("%s is not set, so agents without their own Anthropic key can't call Claude", PLATFORM_KEY_ENV)
+        raise PlatformKeyMissing(
+            "Susanoo can't lend your agent a Claude key right now. "
+            "Connect your own Anthropic key on the Connectors page, or try again later."
+        )
     return ModelAccess(source="platform", key=SecretStr(key), cap_usd=run_cost_cap_usd())
 
 
