@@ -163,8 +163,9 @@ async def save_connection(
         secret, settings = connector.validate(body.values)
     except InvalidCredential as exc:
         raise HTTPException(422, str(exc)) from None
+    writes_enabled = body.writes_enabled and any(a.write for a in connector.spec.actions)  # nothing to switch on
     try:
-        return await store.save(user.id, body.connector, secret, settings, body.writes_enabled)
+        return await store.save(user.id, body.connector, secret, settings, writes_enabled)
     except Exception:
         raise _unavailable("save a connection", user.id) from None
 

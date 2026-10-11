@@ -336,3 +336,9 @@ def test_an_admin_key_is_refused_before_it_is_stored(byok_client, store):
     response = save_key(byok_client, admin)
     assert response.status_code == 422 and "Admin key" in response.json()["error"]["message"]
     assert admin not in response.text and store.rows == {}
+
+
+def test_a_connector_without_write_actions_never_stores_writes_on(byok_client):
+    body = {"connector": "anthropic", "values": {"api_key": ANTHROPIC_KEY}, "writes_enabled": True}
+    saved = byok_client.post("/connections", headers=bearer(ALICE), json=body)
+    assert saved.status_code == 201 and saved.json()["writes_enabled"] is False
