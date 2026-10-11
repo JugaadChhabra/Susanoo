@@ -390,7 +390,7 @@ async def test_no_credential_value_appears_in_any_file_or_commit(repo, fake_llm,
 async def test_a_tool_with_a_hardcoded_secret_is_refused(repo, fake_llm, sink, monkeypatch):
     monkeypatch.setattr(_connectors, "load_connectors", lambda names: [fake_connector([leaky_tool])])
     before = git(repo, "rev-parse", "HEAD")
-    with pytest.raises(agent_smith.AgentSmithError, match="secret"):
+    with pytest.raises(agent_smith.AgentSmithError, match="hard-coded (secret|credential)"):
         await run(make_state(repo, connectors=["github"]))
     assert git(repo, "rev-parse", "HEAD") == before
     assert SECRET not in (repo / "agent" / "tools.py").read_text()
