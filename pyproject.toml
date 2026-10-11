@@ -21,6 +21,7 @@ dev = [
     "susanoo-core",
     "susanoo-api",
     "susanoo-worker",
+    "psycopg[binary]>=3.2",
 ]
 
 [tool.ruff]
