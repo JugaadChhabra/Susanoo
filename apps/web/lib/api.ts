@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/supabase";
+import type { NewProject, ProjectRules, ProjectSummary } from "@/types/generated";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -66,3 +67,17 @@ export const decideApproval = (runId: string, patchId: string, decision: Approva
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decision }),
   });
+
+const sendJson = (method: "POST" | "PUT", body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/** The signed-in user's projects with their runs, newest first. */
+export const listProjects = () => apiFetch<ProjectSummary[]>("/projects", { cache: "no-store" });
+
+export const createProject = (body: NewProject) => apiFetch<ProjectSummary>("/projects", sendJson("POST", body));
+
+export const updateProjectRules = (projectId: string, body: ProjectRules) =>
+  apiFetch<ProjectSummary>(`/projects/${encodeURIComponent(projectId)}/rules`, sendJson("PUT", body));
