@@ -48,3 +48,29 @@ SQL_FINDING = {
     "severity": "block",
     "message": "The query is built with an f-string. Pass the name as a query parameter.",
 }
+
+
+def text_response(text: str) -> Any:
+    return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)], stop_reason="end_turn")
+
+
+def tool_response(*calls: tuple[str, str, Any]) -> Any:
+    blocks = [SimpleNamespace(type="tool_use", id=i, name=n, input=a) for i, n, a in calls]
+    return SimpleNamespace(content=blocks, stop_reason="tool_use")
+
+
+class ScriptedMessages:
+    """Replays a fixed list of responses; repeats the last one if the script runs out."""
+
+    def __init__(self, responses: list[Any]) -> None:
+        self.responses = responses
+        self.calls: list[dict[str, Any]] = []
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        return self.responses[min(len(self.calls) - 1, len(self.responses) - 1)]
+
+
+class ScriptedClient:
+    def __init__(self, responses: list[Any]) -> None:
+        self.messages = ScriptedMessages(responses)

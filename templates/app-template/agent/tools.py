@@ -6,6 +6,7 @@ the network, the disk outside agent/, or the host.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -187,3 +188,91 @@ def lookup_rule(rule_id: str, rules: list[Rule] | None = None) -> Rule | None:
         if rule.id == rule_id:
             return rule
     return None
+
+
+# --- Tool-use wiring: what the model is offered and how its calls are answered ---------------
+
+MAX_TOOL_ROUNDS = 6
+TOOL_ERROR_PREFIX = "Error: "
+
+TOOL_SCHEMAS: list[dict] = [
+    {
+        "name": "parse_diff",
+        "description": (
+            "Show the submitted diff again, split by file, with the new-file line number printed next to every "
+            "added (+), unchanged and removed (-) line. Use it to re-check a line number."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file": {"type": "string", "description": "Optional. Only show this file path."},
+            },
+        },
+    },
+    {
+        "name": "get_file_context",
+        "description": (
+            "View the lines around a line of a file, as far as the submitted diff shows them (new-file line "
+            "numbers). Lines the diff does not show are reported as not shown in this change."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file": {"type": "string", "description": "File path exactly as shown after '=== FILE:'."},
+                "line": {"type": "integer", "description": "New-file line number to centre on."},
+                "radius": {"type": "integer", "description": "How many lines either side to show (default 3, max 20)."},
+            },
+            "required": ["file", "line"],
+        },
+    },
+    {
+        "name": "lookup_rule",
+        "description": "Get the exact text and default severity of one team rule by its id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"rule_id": {"type": "string", "description": "A rule id from the rules in force."}},
+            "required": ["rule_id"],
+        },
+    },
+]
+
+
+def _format_lines(lines: list[DiffLine]) -> str:
+    out = []
+    for ln in lines:
+        if ln.kind == "remove":
+            out.append(f"{'':>6} - {ln.text}")
+        else:
+            out.append(f"{ln.new_line:>6} {'+' if ln.kind == 'add' else ' '} {ln.text}")
+    return "\n".join(out)
+
+
+def call_tool(name: str, args: dict | None, *, diff: str, policy: list[Rule]) -> str:
+    """Run one read-only tool for the model and return its result as text.
+
+    Never raises: problems come back as a string starting with TOOL_ERROR_PREFIX so the model can recover.
+    """
+    args = args if isinstance(args, dict) else {}
+    try:
+        if name == "parse_diff":
+            files = parse_diff(diff)
+            wanted = args.get("file")
+            if wanted:
+                files = [f for f in files if f.path == wanted]
+            return annotate_diff(files) if files else "Not shown in this change."
+        if name == "get_file_context":
+            path, line = args.get("file"), args.get("line")
+            if not isinstance(path, str) or isinstance(line, bool) or not isinstance(line, int):
+                return f"{TOOL_ERROR_PREFIX}get_file_context needs a file (text) and a line (whole number)."
+            radius = args.get("radius", 3)
+            radius = radius if isinstance(radius, int) and not isinstance(radius, bool) else 3
+            lines = get_file_context(parse_diff(diff), path, line, radius=max(0, min(radius, 20)))
+            return _format_lines(lines) if lines else "Not shown in this change."
+        if name == "lookup_rule":
+            rule = lookup_rule(str(args.get("rule_id", "")), policy)
+            if rule is None:
+                return "No rule with that id. Valid ids: " + ", ".join(r.id for r in policy)
+            return json.dumps(rule.model_dump())
+    except Exception as exc:  # a tool bug must not crash the review
+        return f"{TOOL_ERROR_PREFIX}{name} failed ({type(exc).__name__})."
+    return f"{TOOL_ERROR_PREFIX}unknown tool '{name}'. Available tools: " + ", ".join(t["name"] for t in TOOL_SCHEMAS)

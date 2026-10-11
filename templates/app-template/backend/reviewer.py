@@ -11,7 +11,17 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from agent.tools import Rule, annotate_diff, load_rules, lookup_rule, parse_diff
+from agent.tools import (
+    MAX_TOOL_ROUNDS,
+    TOOL_ERROR_PREFIX,
+    TOOL_SCHEMAS,
+    Rule,
+    annotate_diff,
+    call_tool,
+    load_rules,
+    lookup_rule,
+    parse_diff,
+)
 
 logger = logging.getLogger("app.reviewer")
 
@@ -89,19 +99,46 @@ class Reviewer:
         body = body.replace("</diff>", "<\\/diff>")  # the diff cannot close its own data block
         return f"Review this change.\n\n<diff>\n{body}\n</diff>"
 
-    async def review(self, diff: str) -> list[Finding]:
+    async def _create(self, system: str, messages: list[dict[str, Any]]) -> Any:
         try:
-            response = await self.client.messages.create(
+            return await self.client.messages.create(
                 model=self.model,
                 max_tokens=MAX_OUTPUT_TOKENS,
-                system=self.system_prompt(),
-                messages=[{"role": "user", "content": self.user_message(diff)}],
+                system=system,
+                messages=list(messages),
+                tools=TOOL_SCHEMAS,
             )
         except Exception as exc:  # anthropic.APIError and network failures; never leak details or keys
             logger.error("model call failed: %s", type(exc).__name__)
             raise ReviewFailed(
                 "The review could not be completed because the AI service did not answer. Please try again in a moment."
             ) from exc
+
+    async def review(self, diff: str) -> list[Finding]:
+        system = self.system_prompt()
+        messages: list[dict[str, Any]] = [{"role": "user", "content": self.user_message(diff)}]
+        response = await self._create(system, messages)
+
+        for _ in range(MAX_TOOL_ROUNDS):
+            tool_calls = [b for b in response.content if getattr(b, "type", "") == "tool_use"]
+            if not tool_calls:
+                break
+            results = []
+            for call in tool_calls:
+                output = call_tool(call.name, call.input, diff=diff, policy=self.rules)
+                block: dict[str, Any] = {"type": "tool_result", "tool_use_id": call.id, "content": output}
+                if output.startswith(TOOL_ERROR_PREFIX):
+                    block["is_error"] = True
+                results.append(block)
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": results})
+            response = await self._create(system, messages)
+
+        if any(getattr(b, "type", "") == "tool_use" for b in response.content):
+            logger.error("reviewer still asking for tools after %d rounds", MAX_TOOL_ROUNDS)
+            raise ReviewFailed(
+                "The review took too many steps to finish, so no findings are shown. Please try again."
+            )
 
         text = "".join(getattr(b, "text", "") for b in response.content if getattr(b, "type", "") == "text")
         return self.parse_findings(text)
