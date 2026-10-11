@@ -61,13 +61,51 @@ export const CONNECTORS: { name: string; live: boolean; body: string }[] = [
   { name: "Postgres", live: false, body: "Read-only access to your data." },
 ];
 
+export type Plan = {
+  name: "Free" | "Team" | "Enterprise";
+  who: string;
+  /** Left blank or "Contact us" until the cfo.ai model sets real prices. */
+  price: "Contact us" | null;
+  features: string[];
+  cta: { label: string; href: string };
+};
+
+/** [PRD › Business model (inputs for cfo.ai) › Pricing hypothesis] */
+export const PLANS: Plan[] = [
+  {
+    name: "Free",
+    who: "For individuals trying it out",
+    price: null,
+    features: ["A limited number of runs each month", "Demo templates to start from"],
+    cta: { label: "Start building", href: "/projects/new" },
+  },
+  {
+    name: "Team",
+    who: "For startup engineering teams",
+    price: "Contact us",
+    features: ["More runs each month", "Private repos", "Your own custom rules and policies"],
+    cta: { label: "Contact us", href: "#contact" },
+  },
+  {
+    name: "Enterprise",
+    who: "For larger organisations automating their workflows",
+    price: "Contact us",
+    features: ["Single sign-on (SSO)", "Self-hosted runners", "Custom domains", "Dedicated support"],
+    cta: { label: "Contact us", href: "#contact" },
+  },
+];
+
 export const REPO_URL = "https://github.com/JugaadChhabra/Susanoo";
+
+export const TEAM_LINKS: { label: string; href: string }[] = [
+  { label: "muaazshaikh.com", href: "https://muaazshaikh.com" },
+  { label: "jugaadchhabra.dev", href: "https://jugaadchhabra.dev" },
+];
 
 export const FOOTER_LINKS: { label: string; href: string }[] = [
   { label: "Source on GitHub", href: REPO_URL },
   { label: "#neatHack", href: "https://x.com/hashtag/neatHack" },
-  { label: "muaazshaikh.com", href: "https://muaazshaikh.com" },
-  { label: "jugaadchhabra.dev", href: "https://jugaadchhabra.dev" },
+  ...TEAM_LINKS,
 ];
 
 function parseHost(value: string | undefined): URL | null {

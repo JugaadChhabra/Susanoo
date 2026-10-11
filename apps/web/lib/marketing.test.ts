@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HEADS } from "./run-state";
-import { CONNECTORS, FOOTER_LINKS, HEAD_STEPS, USE_CASES, nextHeadIndex, siteUrl } from "./marketing";
+import { CONNECTORS, FOOTER_LINKS, HEAD_STEPS, PLANS, USE_CASES, nextHeadIndex, siteUrl } from "./marketing";
 
 describe("HEAD_STEPS", () => {
   it("lists the eight heads in graph order, grouped into the PRD's phases in order", () => {
@@ -52,5 +52,17 @@ describe("siteUrl", () => {
     expect(siteUrl({ NEXT_PUBLIC_SITE_URL: "http://", VERCEL_PROJECT_PRODUCTION_URL: "s.vercel.app" }).href).toBe(
       "https://s.vercel.app/",
     );
+  });
+});
+
+describe("PLANS", () => {
+  it("lists Free, Team and Enterprise with the PRD's features", () => {
+    expect(PLANS.map((p) => p.name)).toEqual(["Free", "Team", "Enterprise"]);
+    expect(PLANS.map((p) => p.features.length)).toEqual([2, 3, 4]);
+    expect(PLANS[2].features.join(" ")).toMatch(/SSO.*self-hosted.*custom domains.*support/i);
+  });
+  it("shows no prices until the cost model sets them: paid plans say Contact us", () => {
+    expect(PLANS.map((p) => p.price)).toEqual([null, "Contact us", "Contact us"]);
+    expect(PLANS.every((p) => !/[$€£₹]|\d/.test(p.price ?? ""))).toBe(true);
   });
 });
