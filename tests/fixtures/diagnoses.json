@@ -1,0 +1,18 @@
+[
+  {
+    "id": "dx-1",
+    "scenario_ids": ["sc-planted-raw-sql"],
+    "layer": "prompt_policy",
+    "hypothesis": "The reviewer treats string-built queries as style issues, so it reports them as nits instead of blocking them. The policy never says that raw SQL built from user input must block.",
+    "evidence_span_ids": ["span-a1", "span-a2"],
+    "target_files": ["agent/policy.yaml"]
+  },
+  {
+    "id": "dx-2",
+    "scenario_ids": ["sc-clean-rename", "sc-adversarial-comment"],
+    "layer": "tool",
+    "hypothesis": "The diff parser reports line numbers from the old file, so findings land a few lines off and never match the expected lines.",
+    "evidence_span_ids": ["span-b1"],
+    "target_files": ["agent/tools.py"]
+  }
+]
