@@ -20,6 +20,8 @@ Second hero run, **hero-3** (05:00 IST, same script, 20 generated scenarios; `do
 
 Takeaway for the human: in both runs the first diagnosis is a real answer-key conflict caused by the intake default for "which calls need error handling". Answering that question with "HTTP only" at intake, or approving the test change at the gate, would let the loop move on to the remaining failures.
 
+Backup spec, **backup-2** (05:20 IST; `docs/evidence/backup-2-run.json`): Susanoo built "Python Test Review" from `specs/backup.md` with its own 5 rules (`assertion-required`, `no-sleep`, `skip-reason-required`, `no-network-calls`, `no-swallowed-exceptions`): 32 scenarios (15 practice, 7 hidden, 10 from intake). Iteration 0: training F1 1.000, held-out F1 1.000, acceptance 0.90 (one intake example failed; acceptance examples are never shown to the Diagnostician, so it stopped). $0.89. This shows the same pipeline working on a second product.
+
 ## 2. We used neatlogs
 - First traced call (Haiku, via `scripts/traced_haiku_call.py`, 02:50 IST): trace id `5f0f1f3aabb3dfc3708cd3ea40e28e34`. TODO(Muaaz): paste the dashboard URL.
 - Hero run hero-2: one trace per scenario run (e.g. `5dbfa67df744d0103b14d1d0d195ec43`); all 28 final-iteration trace ids are in `docs/evidence/hero-2-run.json`. TODO(Muaaz): dashboard links.
@@ -46,4 +48,4 @@ Takeaway for the human: in both runs the first diagnosis is a real answer-key co
 
 ## 7. We wrote the code during the hackathon
 - Public repo: https://github.com/JugaadChhabra/Susanoo
-- First commit (after Sat 10 Oct 2026, 12:30 PM IST):
+- First commit (after Sat 10 Oct 2026, 12:30 PM IST): `46709f3` "Initial commit", Sun 11 Oct 2026 17:40 IST (repo created in GitHub's web UI). All 142 commits on main are dated after the start.

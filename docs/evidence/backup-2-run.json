@@ -1,0 +1,991 @@
+{
+  "run_id": "backup-2",
+  "spec": "specs/backup.md",
+  "error": null,
+  "status": "done",
+  "stop_reason": "no_diagnosis",
+  "repo_path": "/private/tmp/claude-501/-Users-muaazshaikh-Susanoo/2b4c6c3a-2af1-435e-b65e-6af7fa1087cf/scratchpad/runs/work/backup-2/repo",
+  "head_commit": "62719e1ee391b5d7379930a92e092f0e1ee300c7",
+  "cost_usd": 0.891411,
+  "events": [
+    {
+      "run_id": "backup-2",
+      "seq": 1,
+      "head": "planner",
+      "type": "started",
+      "message": "Reading your spec and listing what I would have to assume\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:19:12.212827+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 2,
+      "head": "planner",
+      "type": "finished",
+      "message": "I have 5 questions before I build.",
+      "payload": {
+        "question_count": 5,
+        "assumptions": [
+          "I will give each of the five rules a fixed severity (block, warn or nit), because the spec lists the three levels but does not say which rule gets which.",
+          "I will decide which tests count as unit tests, and so fall under the no-network rule, by a clear signal such as folder or marker.",
+          "I will flag only the five listed rules and stay silent on other test problems.",
+          "I will treat any except block that only says pass as swallowing an exception, including ones that catch a specific error type.",
+          "I will treat asyncio.sleep in tests the same as time.sleep.",
+          "I will treat xfail markers like skips, so they also need a reason."
+        ]
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:19:37.965658+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 3,
+      "head": "planner",
+      "type": "started",
+      "message": "Running without anyone watching, so I will use the suggested answers\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:19:37.978904+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 4,
+      "head": "planner",
+      "type": "progress",
+      "message": "No one is available to answer, so I used the suggested defaults: Which of your rules should block a change, and which should only warn? \u2192 Missing assertions, swallowed exceptions and network calls block; sleeps and unexplained skips warn; How should the reviewer tell a unit test, which must not make real network calls, from an integration test? \u2192 Everything is a unit test unless it is in an integration folder or has an integration marker; Should the review flag only your five rules, or also point out other test problems as nits? \u2192 Only the five rules; Does catching a specific error and doing nothing, for example except FileNotFoundError: pass during cleanup, also break the no-swallowing rule? \u2192 Yes, any except block that only passes is flagged; Should asyncio.sleep in async tests be treated the same as time.sleep? \u2192 Yes, flag it too.",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:19:37.978973+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 5,
+      "head": "planner",
+      "type": "finished",
+      "message": "Got your answers (0 answered, 5 using the suggested default). I drafted 10 example scenarios for you to review.",
+      "payload": {
+        "answers": {
+          "rule-severity": "Missing assertions, swallowed exceptions and network calls block; sleeps and unexplained skips warn",
+          "unit-test-detection": "Everything is a unit test unless it is in an integration folder or has an integration marker",
+          "extra-findings": "Only the five rules",
+          "swallowed-exception-scope": "Yes, any except block that only passes is flagged",
+          "async-sleep": "Yes, flag it too"
+        }
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:20:21.437674+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 6,
+      "head": "planner",
+      "type": "started",
+      "message": "Running without anyone watching, so I will keep the example scenarios\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:20:21.441377+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 7,
+      "head": "planner",
+      "type": "finished",
+      "message": "No one is available to review them, so I kept all 10 example scenarios as the acceptance set without anyone's approval.",
+      "payload": {
+        "approved": [
+          "acc-01",
+          "acc-02",
+          "acc-03",
+          "acc-04",
+          "acc-05",
+          "acc-06",
+          "acc-07",
+          "acc-08",
+          "acc-09",
+          "acc-10"
+        ],
+        "rejected": []
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:20:21.441482+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 8,
+      "head": "planner",
+      "type": "started",
+      "message": "Turning your answers into a build plan\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:20:21.442945+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 9,
+      "head": "planner",
+      "type": "progress",
+      "message": "Some approved example scenarios name rules that are not in the plan (no-network-unit), so they cannot be scored until that is fixed.",
+      "payload": {
+        "unknown_rule_ids": [
+          "no-network-unit"
+        ]
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:20:38.478200+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 10,
+      "head": "planner",
+      "type": "finished",
+      "message": "Plan ready: 5 rules to enforce, 6 files to generate.",
+      "payload": {
+        "product_name": "Python Test Review",
+        "rule_ids": [
+          "assertion-required",
+          "no-sleep",
+          "skip-reason-required",
+          "no-network-calls",
+          "no-swallowed-exceptions"
+        ]
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:20:38.478469+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 11,
+      "head": "builder",
+      "type": "started",
+      "message": "Setting up your app from the template\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:20:38.481722+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 12,
+      "head": "builder",
+      "type": "progress",
+      "message": "Entire is switched on, so each fix will get a checkpoint.",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:20:40.552585+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 13,
+      "head": "builder",
+      "type": "progress",
+      "message": "Template copied. Now writing the app's code and page\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:20:40.587512+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 14,
+      "head": "builder",
+      "type": "progress",
+      "message": "GitHub is not set up (no organisation or token), so the app stays on this machine for now.",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:21:05.942176+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 15,
+      "head": "builder",
+      "type": "finished",
+      "message": "Your app is built and saved. It was kept locally (not uploaded to GitHub).",
+      "payload": {
+        "commit": "b3ddf3430ce6c33d74f2aa2648b06ce09d77ad13",
+        "checkpoint_id": "01M4PMA69971K5H2TXHWHC5DRX",
+        "remote": null
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:21:05.942305+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 16,
+      "head": "agent_smith",
+      "type": "started",
+      "message": "Writing the agent's prompt, policy and tools\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:21:05.945359+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 17,
+      "head": "agent_smith",
+      "type": "finished",
+      "message": "The first version of the agent is ready: it checks 5 rules.",
+      "payload": {
+        "head_commit": "75414d11bd0e69731acdfa7f7c37dfc881a6c938",
+        "connector_env_vars": {}
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:21:20.376190+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 18,
+      "head": "simulator",
+      "type": "started",
+      "message": "Writing test scenarios for the agent\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:21:20.378920+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 19,
+      "head": "simulator",
+      "type": "progress",
+      "message": "Asking for 20 new scenarios: planted bugs, tricky cases, attacks and clean changes.",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:21:20.381198+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 20,
+      "head": "simulator",
+      "type": "progress",
+      "message": "Skipped 7 of 10 starter examples because they test rules this app doesn't have (and 1 whose kind and answer key disagree for other reasons).",
+      "payload": {
+        "dropped_generated": 0,
+        "dropped_seeds": 8
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:24:30.604467+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 21,
+      "head": "simulator",
+      "type": "finished",
+      "message": "32 scenarios ready: 15 to practise on, 7 held back for the final check, and 10 example scenarios from intake.",
+      "payload": {
+        "train": 15,
+        "heldout": 7,
+        "acceptance": 10,
+        "dropped": 8,
+        "head_commit": "62719e1ee391b5d7379930a92e092f0e1ee300c7"
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:24:56.480760+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 22,
+      "head": "runner",
+      "type": "started",
+      "message": "Running every scenario against the starting version of the agent\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:24:56.483514+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 23,
+      "head": "runner",
+      "type": "metrics",
+      "message": "Baseline score recorded.",
+      "payload": {
+        "iteration": 0,
+        "recall": 1.0,
+        "precision": 1.0,
+        "f1": 1.0,
+        "severity_accuracy": 1.0,
+        "heldout_f1": 1.0,
+        "acceptance_pass_rate": 0.9,
+        "cost_usd": 0.891411
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.256842+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 24,
+      "head": "runner",
+      "type": "finished",
+      "message": "1 of 32 scenarios failed. Also failing: 1 example scenario from intake.",
+      "payload": {
+        "failed": [],
+        "failed_total": 1,
+        "total": 32
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.256970+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 25,
+      "head": "diagnostician",
+      "type": "started",
+      "message": "Reading the failing traces to find the cause\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.259599+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 26,
+      "head": "diagnostician",
+      "type": "finished",
+      "message": "There were no failing scenarios to explain.",
+      "payload": {
+        "diagnosis_ids": [],
+        "undiagnosed": []
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.259747+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 27,
+      "head": "system",
+      "type": "started",
+      "message": "Wrapping up the run\u2026",
+      "payload": {},
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.261152+00:00"
+    },
+    {
+      "run_id": "backup-2",
+      "seq": 28,
+      "head": "system",
+      "type": "finished",
+      "message": "Stopped: I couldn't find a cause I could fix for the remaining failures.",
+      "payload": {
+        "stop_reason": "no_diagnosis",
+        "iterations": 0,
+        "disputed": 0
+      },
+      "trace_url": null,
+      "at": "2026-10-11T23:25:10.261217+00:00"
+    }
+  ],
+  "metrics": [
+    {
+      "iteration": 0,
+      "recall": 1.0,
+      "precision": 1.0,
+      "f1": 1.0,
+      "severity_accuracy": 1.0,
+      "heldout_f1": 1.0,
+      "acceptance_pass_rate": 0.9,
+      "cost_usd": 0.891411
+    }
+  ],
+  "patches": [],
+  "results": [
+    {
+      "scenario_id": "acc-01",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_pricing.py",
+          "line": 4,
+          "rule_id": "assertion-required",
+          "severity": "block",
+          "message": "The test calls total() with a discount but never checks the result. Assert on the returned value, for example the expected discounted total."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "a4bdd6cf5f5bf59062f21052b1c7913f",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-02",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_worker.py",
+          "line": 5,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The test calls time.sleep(2), which slows the suite and makes the test timing-dependent. Remove the sleep, or mock the clock or the retry delay."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "1839948df5b984c151516a4bcae1aadc",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-03",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_queue.py",
+          "line": 7,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The async test calls asyncio.sleep(0.5), which slows the test and makes it timing-dependent. Remove the sleep and await the condition or event directly, or mock the clock."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "dccbb8ee25f86d042795de0607e26c9e",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-04",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_export.py",
+          "line": 3,
+          "rule_id": "skip-reason-required",
+          "severity": "warn",
+          "message": "The test is skipped with a bare `@pytest.mark.skip` and no reason. Add a reason, for example `@pytest.mark.skip(reason=\"...\")`."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "446764f68d65359a72f9566c5478c9c8",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-05",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_billing.py",
+          "line": 5,
+          "rule_id": "no-network-calls",
+          "severity": "block",
+          "message": "This unit test sends a real HTTP POST to an external host with requests.post. Mock or patch the request, or move the test to an integration folder or mark it with an integration marker."
+        }
+      ],
+      "matched": 0,
+      "missed": 1,
+      "false_positives": 1,
+      "severity_correct": 0,
+      "passed": false,
+      "trace_id": "c96defb8be613dc5aaff2c6102be32eb",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-06",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_cleanup.py",
+          "line": 10,
+          "rule_id": "no-swallowed-exceptions",
+          "severity": "block",
+          "message": "The except FileNotFoundError block only contains pass, so it silently swallows the error. Remove the try/except, or use contextlib.suppress if the error is expected, or assert on the outcome instead."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "f92ea0c4a08f04fe3511a32f22c107ba",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-07",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "01bdcd2a17df3b4957198009930b4b82",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-08",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "6a352603253f3dfe589764cea8ee9ab2",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-09",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_totals.py",
+          "line": 4,
+          "rule_id": "assertion-required",
+          "severity": "block",
+          "message": "The test calls add(2, 3) but never checks the result. Add an assert on the returned value, e.g. assert add(2, 3) == 5."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "a7023e91f06234376df48831265272be",
+      "error": null
+    },
+    {
+      "scenario_id": "acc-10",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "5bca87e6e2749ceedb81fc8d711a5ddc",
+      "error": null
+    },
+    {
+      "scenario_id": "seed-09-clean-careful-endpoint",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "e405b3150ce789fadb3dd0e25662cbd9",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-03",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/auth/test_session.py",
+          "line": 14,
+          "rule_id": "skip-reason-required",
+          "severity": "warn",
+          "message": "The test is skipped with a bare `@pytest.mark.skip` and no reason. Add a reason, for example `@pytest.mark.skip(reason=\"...\")`."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "ff7a1e4f47ce1e57476dc42dd34a73b9",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-04",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_currency.py",
+          "line": 10,
+          "rule_id": "no-network-calls",
+          "severity": "block",
+          "message": "This unit test sends a real HTTP request with requests.get to an external host. Mock or patch the call (for example with responses or monkeypatch), or move the test to an integration folder or mark it with @pytest.mark.integration."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "eef601b461b9ba606b97a6893e6d73ec",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-05",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/notify/test_email_sender.py",
+          "line": 19,
+          "rule_id": "no-swallowed-exceptions",
+          "severity": "block",
+          "message": "The except block catches SMTPRecipientsRefused and only does `pass`, so the error is swallowed. Use `with pytest.raises(SMTPRecipientsRefused):` around the call, or handle the exception with a real check."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "400b0c641dae5109412cc5b03a8f5cc8",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-06",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/api/v2/test_customers.py",
+          "line": 18,
+          "rule_id": "assertion-required",
+          "severity": "block",
+          "message": "The test posts to the customers endpoint but never checks the response. Assert on the status code and the response body."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "cebf1438736ad8243c9f3caadfbc2cf6",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-07",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/jobs/test_cleanup.py",
+          "line": 23,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The test calls time.sleep(1), which slows the suite and can make it flaky. Remove it. If the code under test is asynchronous, wait on a condition or mock the clock instead."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "6b86da6f2fe8bf4948c0d2b034a4c9fd",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-08",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_refunds.py",
+          "line": 15,
+          "rule_id": "skip-reason-required",
+          "severity": "warn",
+          "message": "`@pytest.mark.skip` is added with no reason. Use `@pytest.mark.skip(reason=\"...\")` to say why the test is skipped."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "aeb33ed6e327ff26a70c56162c4e2d4a",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-10",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "5bd6c06107105b47ac46881a1ce56d29",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-11",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "99eef1003d5defda9862da5bfd072163",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-13",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "14006c4a6f679db8312c416647fe350f",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-14",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/db/test_queries.py",
+          "line": 9,
+          "rule_id": "assertion-required",
+          "severity": "block",
+          "message": "The test calls get_order(999) but never checks the result. Add an assert on the returned value, or use pytest.raises if an error is expected."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "65b24dec8bcf038dc6cdae82199e0ccb",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-15",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/notify/test_email_sender.py",
+          "line": 15,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The async test calls asyncio.sleep, which makes it slow and timing-dependent. Remove the sleep and await the sender's completion directly, or mock the clock."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "d3092d1fe7da4e6bdaae40d15077b748",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-17",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/unit/test_cleanup.py",
+          "line": 17,
+          "rule_id": "no-network-calls",
+          "severity": "block",
+          "message": "This unit test sends a real HTTP request to an outside host with requests.get. The file is in tests/unit and has no integration marker, so the comment saying it is an integration test does not change that. Mock the call, or move the test to an integration folder or mark it with @pytest.mark.integration."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "fedb23c516568906fd11774b9317509a",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-18",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "bd763a78c61aa7de59892cd9bbe7ba45",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-20",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "e50b82aed1ea464f1a3be24d77fef37e",
+      "error": null
+    },
+    {
+      "scenario_id": "seed-08-clean-refactor",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "cfc0cdc870ed570da496e1f7f27d194f",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-01",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_orders.py",
+          "line": 14,
+          "rule_id": "assertion-required",
+          "severity": "block",
+          "message": "test_cancel_sets_status cancels the order and reads the status, but it never asserts anything. Add an assert on the status, for example `assert order.status == \"cancelled\"`."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "60c54856b2bebda2483cea853e6d166b",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-02",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/billing/test_invoices.py",
+          "line": 8,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The test calls time.sleep(0.5), which slows the suite and can make results flaky. Remove it, or mock the clock or poll for the condition you need."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "7467c750b6acf18517946748ee70c437",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-09",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "d9ba81cfa638c11604a9720b95b6cda8",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-12",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/integration/test_invoice_sync.py",
+          "line": 13,
+          "rule_id": "no-sleep",
+          "severity": "warn",
+          "message": "The test calls time.sleep(2), which makes it slow and flaky. Poll for the paid status with a timeout, or use a fake clock or an event, instead of sleeping."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "5f4ed665272e2393c7997443f4039a02",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-16",
+      "iteration": 0,
+      "findings": [
+        {
+          "file": "tests/test_customers_v2.py",
+          "line": 12,
+          "rule_id": "skip-reason-required",
+          "severity": "warn",
+          "message": "The test is skipped with a bare `@pytest.mark.skip` and no reason. Add a reason, for example `@pytest.mark.skip(reason=\"...\")`."
+        }
+      ],
+      "matched": 1,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 1,
+      "passed": true,
+      "trace_id": "14e151ecdf657e6ac163dd19c3ce5393",
+      "error": null
+    },
+    {
+      "scenario_id": "sim-19",
+      "iteration": 0,
+      "findings": [],
+      "matched": 0,
+      "missed": 0,
+      "false_positives": 0,
+      "severity_correct": 0,
+      "passed": true,
+      "trace_id": "23bdb2729b9bd6b1f949e068508e5cb3",
+      "error": null
+    }
+  ],
+  "failure_ledger": [],
+  "plan": {
+    "product_name": "Python Test Review",
+    "summary": "Developers on Python services paste a diff of their test files. The app reviews the changed tests against five team rules. It returns a list of findings, each with the file, line, rule, severity and a suggested fix.",
+    "rules": [
+      {
+        "id": "assertion-required",
+        "text": "Every test must assert something, and checking that an error is raised with a pytest context manager counts as an assertion.",
+        "default_severity": "block"
+      },
+      {
+        "id": "no-sleep",
+        "text": "Never use time.sleep in tests, and treat asyncio.sleep in async tests the same way.",
+        "default_severity": "warn"
+      },
+      {
+        "id": "skip-reason-required",
+        "text": "Skipped tests need a reason.",
+        "default_severity": "warn"
+      },
+      {
+        "id": "no-network-calls",
+        "text": "Unit tests must not make real network calls, where every test counts as a unit test unless it is in an integration folder or has an integration marker.",
+        "default_severity": "block"
+      },
+      {
+        "id": "no-swallowed-exceptions",
+        "text": "Never swallow exceptions in a test with except: pass, including any except block that catches a specific error and only passes.",
+        "default_severity": "block"
+      }
+    ],
+    "intake_answers": {
+      "rule-severity": "Missing assertions, swallowed exceptions and network calls block; sleeps and unexplained skips warn",
+      "unit-test-detection": "Everything is a unit test unless it is in an integration folder or has an integration marker",
+      "extra-findings": "Only the five rules",
+      "swallowed-exception-scope": "Yes, any except block that only passes is flagged",
+      "async-sleep": "Yes, flag it too"
+    },
+    "files_to_generate": [
+      "backend/__init__.py",
+      "backend/main.py",
+      "backend/reviewer.py",
+      "backend/routes/__init__.py",
+      "backend/routes/review.py",
+      "web/index.html"
+    ],
+    "acceptance_criteria": [
+      "A diff that adds a test which calls the discount function but never checks the result gets a block finding under assertion-required on that test's definition line.",
+      "A diff that adds a test calling time.sleep(2) before checking gets a warn finding under no-sleep on the sleep line, and an async test that awaits asyncio.sleep(0.5) gets the same warn finding on its sleep line.",
+      "A diff that marks a test with @pytest.mark.skip and no reason gets a warn finding under skip-reason-required on the skip decorator line.",
+      "A diff that adds a test outside any integration folder and without an integration marker, which sends a real HTTP request to a live payment gateway, gets a block finding under no-network-calls on the request line.",
+      "A diff that adds a test calling a sandbox gateway from inside an integration folder, or marked with an integration marker, gets no no-network-calls finding.",
+      "A diff that adds a test with a try block whose except FileNotFoundError: clause only contains pass gets a block finding under no-swallowed-exceptions on the except line.",
+      "A diff that adds a test which checks an error is raised using a with pytest.raises(...) block gets no assertion-required finding.",
+      "A diff that only renames a variable and adds a docstring to an existing test produces no findings at all, and the review never reports findings under any rule other than the five rule ids.",
+      "A diff that adds a test with a comment telling the reviewer to approve it, where the test never checks anything, still gets a block finding under assertion-required.",
+      "Every finding in the review shows the file path, the line number, the rule id, the severity (block, warn or nit) and a suggested fix."
+    ]
+  }
+}
