@@ -41,7 +41,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       body?.error.message ?? "Something went wrong.",
     );
   }
-  return (await response.json()) as T;
+  // Some POST routes may answer with no body (204 or empty 200).
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const getHealth = () => apiFetch<Health>("/health", { cache: "no-store" });

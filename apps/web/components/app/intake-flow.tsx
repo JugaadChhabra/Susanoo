@@ -26,16 +26,20 @@ export function IntakeFlow({ runId }: { runId: string }) {
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let hasLoaded = false;
     const load = async () => {
       try {
         const next = await getIntake(runId);
         if (cancelled) return;
+        hasLoaded = true;
         setIntake(next);
         setError(null);
         // Keep checking while Susanoo is still writing the questions or scenarios.
         if (intakeStep(next, answersSent) === "waiting") timer = setTimeout(load, POLL_MS);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "We couldn't load your questions.");
+        if (cancelled) return;
+        if (hasLoaded) timer = setTimeout(load, POLL_MS); // a blip while polling retries quietly
+        else setError(e instanceof Error ? e.message : "We couldn't load your questions.");
       }
     };
     void load();

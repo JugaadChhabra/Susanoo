@@ -18,8 +18,11 @@ export function IntakeForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const complete = shown.every((q) => (answers[q.id] ?? "").trim() !== "");
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!complete) return;
     setSending(true);
     setError(null);
     try {
@@ -78,7 +81,7 @@ export function IntakeForm({
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
-        disabled={sending}
+        disabled={sending || !complete}
         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-5 text-sm font-medium text-background hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 sm:w-auto"
       >
         {sending && <Loader2 className="size-4 animate-spin" aria-hidden />}

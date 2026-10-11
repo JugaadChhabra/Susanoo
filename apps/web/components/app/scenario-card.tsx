@@ -72,7 +72,7 @@ export function ScenarioCard({
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" aria-pressed={decision.action === "approve"} onClick={() => onChange({ action: "approve" })} className={BTN}>
+            <button type="button" aria-pressed={decision.action === "approve"} onClick={() => decision.action !== "edit" && onChange({ action: "approve" })} className={BTN}>
               <Check className="size-4" aria-hidden /> Approve
             </button>
             <button
