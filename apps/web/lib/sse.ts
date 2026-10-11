@@ -128,8 +128,10 @@ export function replayEvents(
       onDone?.();
       return;
     }
-    onEvent(events[index++]);
-    timer = setTimeout(tick, intervalMs);
+    const event = events[index++];
+    onEvent(event);
+    // Linger on an approval request so a viewer can read the card before the replay answers it.
+    timer = setTimeout(tick, event.type === "approval_needed" ? intervalMs * 4 : intervalMs);
   };
   timer = setTimeout(tick, 0);
 

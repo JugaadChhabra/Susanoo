@@ -45,3 +45,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 }
 
 export const getHealth = () => apiFetch<Health>("/health", { cache: "no-store" });
+
+export type ApprovalDecision = "approve" | "reject";
+
+/** Answer a gated (test-layer) change. The PRD lists the route but not the body, so we send `{decision}`. */
+export const decideApproval = (runId: string, patchId: string, decision: ApprovalDecision) =>
+  apiFetch<unknown>(`/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(patchId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision }),
+  });
