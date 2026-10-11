@@ -562,7 +562,11 @@ def _summary(scenarios: Sequence[Scenario], results: Sequence[ScenarioResult]) -
         if held:
             bits.append(f"{held} hidden check{'s' if held != 1 else ''}")
         if accept:
-            bits.append(f"{accept} of your approved example{'s' if accept != 1 else ''}")
+            approved = all(
+                by_id[r.scenario_id].approved_by_user for r in failed if by_id[r.scenario_id].split == "acceptance"
+            )
+            noun = "your approved example" if approved else "example scenario from intake"
+            bits.append(f"{accept} {noun}{'s' if accept != 1 else ''}")
         parts.append("Also failing: " + " and ".join(bits) + ".")
     payload = {
         "failed": [r.scenario_id for r in train_failed],  # train only; held-out ids are not listed
