@@ -48,6 +48,11 @@ export interface IterationMetrics {
   cost_usd: number;
 }
 
+export interface NewProject {
+  spec: string;
+  rules: Array<string>;
+}
+
 export interface Patch {
   id: string;
   diagnosis_id: string;
@@ -66,6 +71,19 @@ export interface Plan {
   acceptance_criteria: Array<string>;
 }
 
+export interface ProjectRules {
+  rules: Array<string>;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  spec: string;
+  rules: Array<string>;
+  repo_url: string | null;
+  runs: Array<RunSummary>;
+}
+
 export interface Rule {
   id: string;
   text: string;
@@ -81,6 +99,15 @@ export interface RunEvent {
   payload: Record<string, unknown>;
   trace_url: string | null;
   at: string;
+}
+
+export interface RunSummary {
+  id: string;
+  status: "running" | "awaiting_approval" | "done" | "failed";
+  heldout_f1: number | null;
+  cost_usd: number;
+  cost_cap_usd: number;
+  created_at: string;
 }
 
 export interface Scenario {
