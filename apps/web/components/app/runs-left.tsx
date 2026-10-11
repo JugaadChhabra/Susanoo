@@ -18,7 +18,7 @@ export function RunsLeft() {
   if (state.status === "error") {
     return (
       <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        We couldn&apos;t check how many runs you have left today.
+        {state.message}
         <button
           type="button"
           onClick={state.retry}

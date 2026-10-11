@@ -3,6 +3,7 @@ import type { RunQuota, RunSummary } from "@/types/generated";
 import {
   EXAMPLE_SPECS,
   formatCost,
+  formatResetTime,
   formatScore,
   parseRules,
   rulesProblem,
@@ -95,14 +96,18 @@ describe("runsLeftLabel", () => {
   });
 
   it("says plainly when today's runs are used up", () => {
-    expect(runsLeftLabel(quota({ runs_used_today: 3, runs_left_today: 0 }))).toBe(
-      "You've used all 3 runs for today. More after midnight UTC.",
+    expect(runsLeftLabel(quota({ runs_used_today: 3, runs_left_today: 0 }), "UTC")).toBe(
+      "You've used all 3 runs for today. More at 12:00 AM.",
     );
   });
 
   it("explains a platform-wide pause before the personal count", () => {
-    expect(runsLeftLabel(quota({ paused: true, runs_left_today: 0 }))).toBe(
-      "New runs are paused for today because Susanoo hit its daily spending limit. The demo still works.",
+    expect(runsLeftLabel(quota({ paused: true, runs_left_today: 0 }), "UTC")).toBe(
+      "New runs are paused until 12:00 AM because Susanoo hit its daily spending limit. The demo still works.",
     );
+  });
+
+  it("shows the reset in the viewer's own time zone", () => {
+    expect(formatResetTime("2026-10-13T00:00:00+00:00", "Asia/Kolkata")).toBe("5:30 AM");
   });
 });

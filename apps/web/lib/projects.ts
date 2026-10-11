@@ -38,13 +38,18 @@ const STATUS_LABELS: Record<RunSummary["status"], string> = {
 
 export const runStatusLabel = (status: RunSummary["status"]) => STATUS_LABELS[status];
 
+/** When the daily counts start over, in the viewer's own clock (e.g. "5:30 AM"). */
+export const formatResetTime = (resetsAt: string, timeZone?: string) =>
+  new Date(resetsAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+
 /** Runs left today, in plain English. [PRD › Connectors and API budget › Anthropic budget] */
-export function runsLeftLabel(quota: RunQuota): string {
+export function runsLeftLabel(quota: RunQuota, timeZone?: string): string {
   const runs = quota.runs_per_day === 1 ? "run" : "runs";
+  const resets = formatResetTime(quota.resets_at, timeZone);
   if (quota.paused) {
-    return "New runs are paused for today because Susanoo hit its daily spending limit. The demo still works.";
+    return `New runs are paused until ${resets} because Susanoo hit its daily spending limit. The demo still works.`;
   }
-  if (quota.runs_left_today === 0) return `You've used all ${quota.runs_per_day} ${runs} for today. More after midnight UTC.`;
+  if (quota.runs_left_today === 0) return `You've used all ${quota.runs_per_day} ${runs} for today. More at ${resets}.`;
   return `${quota.runs_left_today} of ${quota.runs_per_day} ${runs} left today`;
 }
 
