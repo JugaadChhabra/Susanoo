@@ -4,15 +4,18 @@ Only runs listed in DEMO_RUN_IDS (comma-separated UUIDs) can be replayed, so thi
 expose a real user's run. Muaaz saves a run with scripts/save_demo_run.py and tells Jugaad the id.
 """
 
+import logging
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from susanoo.db import session
 from susanoo.schemas import RunEvent
 
 router = APIRouter(prefix="/demo", tags=["demo"])
+
+logger = logging.getLogger("susanoo_api.demo")
 
 _NOT_FOUND = "We couldn't find that demo run."
 
@@ -45,14 +48,19 @@ async def load_events(run_id: str) -> list[RunEvent]:
 
 
 @router.get("/{run_id}", response_model=list[RunEvent])
-async def get_demo_run(run_id: str) -> list[RunEvent]:
+async def get_demo_run(run_id: str, response: Response) -> list[RunEvent]:
     try:
         canonical = str(UUID(run_id))
     except ValueError:
         raise HTTPException(404, _NOT_FOUND) from None
     if canonical not in demo_run_ids():
         raise HTTPException(404, _NOT_FOUND)
-    events = await load_events(canonical)
+    try:
+        events = await load_events(canonical)
+    except Exception:
+        logger.exception("Could not load demo run %s", canonical)
+        raise HTTPException(503, "The demo is unavailable right now. Please try again in a minute.") from None
     if not events:
         raise HTTPException(404, _NOT_FOUND)
+    response.headers["Cache-Control"] = "public, max-age=300"  # a saved run never changes
     return events

@@ -45,3 +45,15 @@ def test_unknown_or_malformed_id_is_not_found(client, monkeypatch):
     monkeypatch.setenv("DEMO_RUN_IDS", f"{RUN_ID}, not-a-uuid, {other}")
     assert client.get(f"/demo/{other}").status_code == 404  # listed but nothing saved
     assert client.get("/demo/not-a-uuid").status_code == 404
+
+
+def test_replay_is_cacheable_and_database_trouble_is_plain_english(client, monkeypatch):
+    assert client.get(f"/demo/{RUN_ID}").headers["cache-control"] == "public, max-age=300"
+
+    async def broken(run_id: str) -> list[RunEvent]:
+        raise RuntimeError("DATABASE_URL is not set")
+
+    monkeypatch.setattr(demo, "load_events", broken)
+    response = client.get(f"/demo/{RUN_ID}")
+    assert response.status_code == 503
+    assert "unavailable" in response.json()["error"]["message"]

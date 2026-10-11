@@ -23,8 +23,10 @@ describe("fetchDemoEvents", () => {
     await expect(fetchDemoEvents("r 1")).resolves.toBe(events);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
+    const headers = new Headers(init?.headers);
     expect(url).toMatch(/\/demo\/r%201$/);
-    expect(init).toBeUndefined();
+    expect(headers.has("authorization")).toBe(false);
+    expect(init?.credentials ?? "omit").toBe("omit");
   });
   it("throws a plain-English error when the run is missing", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
