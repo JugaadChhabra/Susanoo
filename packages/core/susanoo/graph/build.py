@@ -3,6 +3,7 @@
     [*] -> Intake -> UserQuestions | ScenarioApproval -> Planner -> Builder -> AgentSmith -> Simulator -> Runner
     Runner -> Done | Diagnostician;  Diagnostician -> Fixer | HumanGate;  HumanGate -> Fixer | Runner
     Fixer -> Verifier;  Verifier -> Runner | Diagnostician | Done;  Done -> [*]
+    plus stop-only edges: any node -> Done when a head sets stop_reason "budget" or "no_diagnosis".
 
 Node callables are injected through `Heads`, so real heads replace stubs without touching edges.
 Heads are async, so run the compiled graph with `ainvoke`/`astream`. Resume paused runs with
@@ -25,6 +26,7 @@ from susanoo.graph import stubs
 from susanoo.graph.pause import ALREADY_ANNOUNCED
 from susanoo.graph.state import GraphState
 from susanoo.guards import budget
+from susanoo.schemas import Patch
 
 Head = Callable[[GraphState], Awaitable[dict]]
 
@@ -57,12 +59,99 @@ async def _already_paused(graph_ref: list, name: str) -> bool:
 
 
 def _or_done(route: Callable[[GraphState], str]) -> Callable[[GraphState], str]:
-    """Edge function: a budget stop goes to Done, anything else follows `route`."""
+    """Edge function: a head-set stop (budget, no_diagnosis) goes to Done, anything else follows `route`."""
 
     def router(state: GraphState) -> str:
-        return r.DONE if state.get("stop_reason") == "budget" else route(state)
+        return r.DONE if state.get("stop_reason") in r.HEAD_STOP_REASONS else route(state)
 
     return router
+
+
+def _diagnostician_node(head: Head) -> Head:
+    """A new diagnosis voids any earlier HumanGate approval, so an approval is never replayed."""
+
+    async def node(state: GraphState) -> dict:
+        update = await head(state)
+        if len(update.get("failure_ledger", [])) > len(state.get("failure_ledger", [])):
+            update = {**update, "gate_decision": None, "gate_diagnosis_id": None}
+        return update
+
+    return node
+
+
+def _refused_update(state: GraphState, dx: Any, reason: str, *, cost: float | None, head_commit: str | None) -> dict:
+    """Record a Fixer that produced no usable patch as a rolled-back one; the Verifier only does the bookkeeping."""
+    patches = list(state.get("patches", []))
+    sha = head_commit or state.get("head_commit") or "none"
+    patch = Patch(
+        id=f"patch-{len(patches) + 1}-refused",
+        diagnosis_id=dx.id,
+        commit_sha=sha,
+        checkpoint_id=None,
+        lines_changed=0,
+        verdict="rolled_back",
+    )
+    update: dict = {"patches": [*patches, patch], "fix_rejection_reason": reason}
+    if cost is not None:
+        update["cost_usd"] = cost
+    if head_commit:
+        update["head_commit"] = head_commit
+    return update
+
+
+def _fixer_node(head: Head) -> Head:
+    """Turn FixRefused / FixRejected into a rolled-back patch; also enforce the gate <-> diagnosis match.
+
+    - A test-layer diagnosis may only be fixed if the HumanGate approved THAT diagnosis (`gate_diagnosis_id`).
+    - FixRefused / FixRejected (heads/fixer.py) become a Patch(verdict="rolled_back") with the run's cost and
+      repo head taken from the exception, plus `fix_rejection_reason`; so does a Fixer that changed nothing. A
+      FixRejected whose revert failed (head_commit None) propagates, as do other exceptions and
+      BudgetExceeded (the budget guard in `_guarded` handles it).
+    """
+
+    async def node(state: GraphState) -> dict:
+        from susanoo.heads import fixer as fixer_head  # lazy: heads import graph.pause
+
+        ledger = state.get("failure_ledger", [])
+        dx = ledger[-1] if ledger else None
+        if (
+            dx is not None
+            and dx.layer == "test"
+            and not (state.get("gate_decision") == "approved" and state.get("gate_diagnosis_id") == dx.id)
+        ):
+            reason = "This fix changes a test, and you have not approved it for this cause, so I changed nothing."
+            await emit(state, "fixer", "started", "Writing the smallest fix for the diagnosed cause…")
+            await emit(state, "fixer", "error", reason, {"refused": True})
+            return _refused_update(state, dx, reason, cost=None, head_commit=None)
+        from susanoo.integrations import coding_worker
+
+        try:
+            update = await head(state)
+        except coding_worker.NoChange:
+            if dx is None:
+                raise
+            # Nothing was changed, so the repo is as it was: record a refused fix and re-diagnose.
+            return _refused_update(
+                state, dx, "The fixer finished without changing anything.", cost=None, head_commit=None
+            )
+        except (fixer_head.FixRefused, fixer_head.FixRejected) as exc:
+            if dx is None:
+                raise
+            rejected = isinstance(exc, fixer_head.FixRejected)
+            if rejected and exc.head_commit is None:
+                # The patch was rejected AND its revert failed: the bad commit is still in the repo. Never record
+                # that as a clean rollback; fail the run loudly so a human can roll it back.
+                raise
+            return _refused_update(
+                state,
+                dx,
+                str(exc),
+                cost=exc.cost_usd if rejected else None,
+                head_commit=exc.head_commit if rejected else None,
+            )
+        return {**update, "fix_rejection_reason": None}
+
+    return node
 
 
 def _next(dst: str) -> Callable[[GraphState], str]:
@@ -126,7 +215,7 @@ def real_heads() -> Heads:
 
     Imported here, not at module top, because the heads themselves import graph.pause and graph.resume.
     """
-    from susanoo.heads import agent_smith, builder, planner, runner, simulator
+    from susanoo.heads import agent_smith, builder, diagnostician, fixer, planner, runner, simulator, verifier
 
     return Heads(
         intake=planner.intake,
@@ -137,6 +226,9 @@ def real_heads() -> Heads:
         agent_smith=agent_smith.run,
         simulator=simulator.run,
         runner=runner.run,
+        diagnostician=diagnostician.run,
+        fixer=fixer.run,
+        verifier=verifier.run,
     )
 
 
@@ -155,9 +247,9 @@ def build_graph(heads: Heads | None = None, checkpointer: BaseCheckpointSaver | 
         r.AGENT_SMITH: h.agent_smith,
         r.SIMULATOR: h.simulator,
         r.RUNNER: h.runner,
-        r.DIAGNOSTICIAN: h.diagnostician,
+        r.DIAGNOSTICIAN: _diagnostician_node(h.diagnostician),
         r.HUMAN_GATE: h.human_gate,
-        r.FIXER: h.fixer,
+        r.FIXER: _fixer_node(h.fixer),
         r.VERIFIER: h.verifier,
     }
     for name, head in guarded_nodes.items():

@@ -82,13 +82,48 @@ def _loop_heads(f1_for):
     return Heads(runner=runner, diagnostician=diagnostician)
 
 
-async def test_always_test_layer_and_always_reject_ends_at_the_iteration_cap():
+async def test_always_test_layer_and_always_reject_stops_for_no_gain_whatever_the_score():
+    # rejected gates are rounds without a kept patch; a rising held-out F1 does not count as improvement
     run = await run_graph(heads=_loop_heads(lambda i: 0.1 * (i + 1)), answers={"gate": {"approved": False}})
-    assert run.final["stop_reason"] == "iteration_cap"
-    assert run.final["iteration"] == MAX_ITERATIONS
-    assert run.nodes.count("HumanGate") == MAX_ITERATIONS
+    assert run.final["stop_reason"] == "no_gain"
+    assert run.final["iteration"] == 2
+    assert run.final["gate_rejected_rounds"] == [1, 2]
+    assert run.nodes.count("HumanGate") == 2
     assert run.nodes[-2:] == ["Runner", "Done"]
     assert run.final["status"] == "done"
+
+
+async def test_kept_patch_every_round_ends_at_the_iteration_cap():
+    from susanoo.schemas import Patch
+
+    heads = _loop_heads(lambda i: 0.1 * (i + 1))
+
+    async def diagnostician(state):
+        failing = [r.scenario_id for r in state["results"] if not r.passed]
+        dx = Diagnosis(
+            id=f"dx-{len(state['failure_ledger']) + 1}", scenario_ids=failing, layer="code", hypothesis="h",
+            evidence_span_ids=[], target_files=[],
+        )  # fmt: skip
+        return {"failure_ledger": [*state["failure_ledger"], dx]}
+
+    async def fixer(state):
+        dx = state["failure_ledger"][-1]
+        n = len(state["patches"]) + 1
+        patch = Patch(
+            id=f"p{n}", diagnosis_id=dx.id, commit_sha=f"c{n}", checkpoint_id=None, lines_changed=1, verdict="pending"
+        )
+        return {"patches": [*state["patches"], patch]}
+
+    async def verifier(state):
+        patches = list(state["patches"])
+        patches[-1] = patches[-1].model_copy(update={"verdict": "kept"})
+        return {"patches": patches, "iteration": state["iteration"] + 1}
+
+    run = await run_graph(heads=Heads(runner=heads.runner, diagnostician=diagnostician, fixer=fixer, verifier=verifier))
+    assert run.final["stop_reason"] == "iteration_cap"
+    assert run.final["iteration"] == MAX_ITERATIONS
+    assert run.nodes.count("Verifier") == MAX_ITERATIONS
+    assert run.nodes[-2:] == ["Verifier", "Done"]
 
 
 async def test_flat_score_while_rejecting_stops_for_no_gain():

@@ -10,10 +10,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from susanoo.guards import budget
-from susanoo.schemas import IterationMetrics, ScenarioResult
+from susanoo.schemas import ScenarioResult
 
 MAX_ITERATIONS = 5  # [PRD › Improvement loop and guardrails › Budgets]
-MAX_ITERATIONS_WITHOUT_GAIN = 2
+MAX_ITERATIONS_WITHOUT_GAIN = 2  # consecutive rounds without a KEPT patch
+
+# stop_reason values a HEAD may set to end the run at Done (every other value is set by Done itself).
+HEAD_STOP_REASONS = frozenset({"budget", "no_diagnosis"})
 
 # Node names, exactly as in the PRD state diagram.
 INTAKE = "Intake"
@@ -47,16 +50,24 @@ def all_passed(state: Mapping[str, Any]) -> bool:
     return has_results and not current_failures(state)
 
 
-def iterations_without_gain(metrics: list[IterationMetrics]) -> int:
-    """How many of the most recent iterations failed to beat the best earlier held-out F1."""
-    ordered = sorted(metrics, key=lambda m: m.iteration)
-    streak = 0
-    for i in range(len(ordered) - 1, 0, -1):
-        best_before = max(m.heldout_f1 for m in ordered[:i])
-        if ordered[i].heldout_f1 > best_before:
-            break
-        streak += 1
-    return streak
+def iterations_without_gain(state: Mapping[str, Any]) -> int:
+    """How many of the most recent rounds produced no KEPT patch (the "improvement" signal).
+
+    A round is one Fixer -> Verifier pass (the patch is "kept" or "rolled_back", Fixer-refused patches are
+    rolled back) or one rejected HumanGate (no patch at all). A patch is only kept if it fixed its targets,
+    caused no regressions and did not lower held-out F1, so "kept" is the improvement signal; held-out F1
+    values from different test levels are not compared. Rounds are numbered 1..`iteration`; the rounds
+    listed in `gate_rejected_rounds` have no patch, so the judged patches map in order onto the others.
+    """
+    iteration = int(state.get("iteration", 0))
+    gate_rejected = set(state.get("gate_rejected_rounds", []))
+    patch_rounds = [n for n in range(1, iteration + 1) if n not in gate_rejected]
+    judged = [p for p in state.get("patches", []) if p.verdict in ("kept", "rolled_back")]
+    last_kept = 0
+    for k, patch in enumerate(judged):
+        if patch.verdict == "kept":
+            last_kept = patch_rounds[k] if k < len(patch_rounds) else iteration
+    return max(0, iteration - last_kept)
 
 
 def stop_reason(state: Mapping[str, Any]) -> str | None:
@@ -65,7 +76,7 @@ def stop_reason(state: Mapping[str, Any]) -> str | None:
         return "budget"
     if state.get("iteration", 0) >= MAX_ITERATIONS:
         return "iteration_cap"
-    if iterations_without_gain(state.get("metrics", [])) >= MAX_ITERATIONS_WITHOUT_GAIN:
+    if iterations_without_gain(state) >= MAX_ITERATIONS_WITHOUT_GAIN:
         return "no_gain"
     return None
 
@@ -84,7 +95,16 @@ def after_runner(state: Mapping[str, Any]) -> str:
     return DONE if all_passed(state) or stop_reason(state) is not None else DIAGNOSTICIAN
 
 
+def head_stop_status(state: Mapping[str, Any], reason: str) -> str:
+    """Status when a head-set stop ends the run: "done" if at least a before score exists, else "failed"."""
+    if reason not in HEAD_STOP_REASONS:
+        raise ValueError(f"Not a head stop reason: {reason!r}")
+    return budget_stop_status(state)
+
+
 def after_diagnostician(state: Mapping[str, Any]) -> str:
+    if state.get("stop_reason") == "no_diagnosis":
+        return DONE  # nothing was diagnosed; failure_ledger[-1] (if any) is an older, already-handled diagnosis
     ledger = state.get("failure_ledger", [])
     if not ledger:
         raise ValueError("Diagnostician finished without recording a diagnosis")

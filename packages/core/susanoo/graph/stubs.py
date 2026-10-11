@@ -16,7 +16,13 @@ from typing import Any
 from susanoo.emit import emit
 from susanoo.graph.pause import pause
 from susanoo.graph.resume import validate_resume
-from susanoo.graph.routing import MAX_ITERATIONS, all_passed, budget_stop_status, stop_reason
+from susanoo.graph.routing import (
+    HEAD_STOP_REASONS,
+    MAX_ITERATIONS,
+    all_passed,
+    head_stop_status,
+    stop_reason,
+)
 from susanoo.graph.state import GraphState, IntakeQuestion
 from susanoo.guards import budget
 from susanoo.schemas import (
@@ -346,7 +352,11 @@ async def human_gate(state: GraphState) -> dict:
     approved = isinstance(reply, dict) and reply.get("approved") is True
     if approved:
         await emit(state, head, "finished", "You approved the test change.", {"decision": "approved"})
-        return {"gate_decision": "approved", "status": "running"}
+        return {
+            "gate_decision": "approved",
+            "gate_diagnosis_id": dx.id,  # the Fixer only accepts this approval for this very diagnosis
+            "status": "running",
+        }
     disputed = sorted(set(state.get("disputed_scenario_ids", [])) | set(dx.scenario_ids))
     # TODO(NEEDS HUMAN): the Scenario contract has no `disputed` field. Disputed ids are kept in the
     # graph-internal `disputed_scenario_ids` and in this payload until the contract gains one.
@@ -360,8 +370,10 @@ async def human_gate(state: GraphState) -> dict:
     # A rejected gate uses up one iteration, so rejecting forever still hits the iteration cap.
     return {
         "gate_decision": "rejected",
+        "gate_diagnosis_id": None,
         "disputed_scenario_ids": disputed,
         "iteration": state.get("iteration", 0) + 1,
+        "gate_rejected_rounds": [*state.get("gate_rejected_rounds", []), state.get("iteration", 0) + 1],
         "status": "running",
     }
 
@@ -415,8 +427,8 @@ async def verifier(state: GraphState) -> dict:
 async def done(state: GraphState) -> dict:
     head = "system"
     await emit(state, head, "started", "Wrapping up the run…")
-    if state.get("stop_reason") == "budget":  # set by the budget guard in build.py
-        reason = "budget"
+    if state.get("stop_reason") in HEAD_STOP_REASONS:  # set by the budget guard in build.py or the Diagnostician
+        reason = state["stop_reason"]
     else:
         reason = "all_passed" if all_passed(state) else (stop_reason(state) or "unknown")
     disputed = len(state.get("disputed_scenario_ids", []))
@@ -433,11 +445,13 @@ async def done(state: GraphState) -> dict:
     text = {
         "all_passed": all_passed_text,
         "iteration_cap": f"Stopped after the {MAX_ITERATIONS}-round limit. Here is the best version so far.",
-        "no_gain": "Stopped because two rounds in a row did not improve the score. Here is the best version so far.",
+        "no_gain": "Stopped because two rounds in a row did not produce a fix worth keeping. "
+        "Here is the best version so far.",
+        "no_diagnosis": "Stopped: I couldn't find a cause I could fix for the remaining failures.",
         "budget": budget_text,
         "unknown": "The run ended without a clear reason. Here is the best version so far.",
     }[reason]
-    status = budget_stop_status(state) if reason == "budget" else "done"
+    status = head_stop_status(state, reason) if reason in HEAD_STOP_REASONS else "done"
     await emit(
         state,
         head,
