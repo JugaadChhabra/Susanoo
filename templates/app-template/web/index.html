@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code review</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #5b6573; --line: #d9dee5;
+    --accent: #2848c9; --block: #b42318; --block-bg: #fdecea;
+    --warn: #8a5a00; --warn-bg: #fff4d6; --nit: #3b5b80; --nit-bg: #e8f0f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --card: #1b2028; --text: #e8ebef; --muted: #9aa5b4; --line: #2c3440;
+      --accent: #7d95ff; --block: #ff8a80; --block-bg: #3a1c1a;
+      --warn: #f4c15a; --warn-bg: #3a2f14; --nit: #8fb4dd; --nit-bg: #1c2a3a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 16px; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  textarea {
+    width: 100%; min-height: 220px; resize: vertical; padding: 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  textarea:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 24px; }
+  button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; min-height: 44px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #0b0e14; } }
+  button:disabled { opacity: .6; cursor: progress; }
+  #status { margin-bottom: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); }
+  #status.error { border-color: var(--block); background: var(--block-bg); color: var(--block); }
+  #status[hidden] { display: none; }
+  .summary { color: var(--muted); margin: 0 0 12px; }
+  ul.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li.finding { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .where { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+  .badge { font-size: .8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+  .badge.block { color: var(--block); background: var(--block-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .badge.nit { color: var(--nit); background: var(--nit-bg); }
+  .rule { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  .message { margin: 0; overflow-wrap: anywhere; }
+  .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px; padding: 18px 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Code review</h1>
+  <p class="lead">Paste a diff and get a review against your team's rules.</p>
+
+  <label for="diff">Your diff</label>
+  <textarea id="diff" spellcheck="false" placeholder="Paste the output of git diff here"></textarea>
+  <div class="actions">
+    <button id="go" class="primary" type="button">Review this diff</button>
+    <button id="example" type="button">Try an example</button>
+    <button id="clear" type="button">Clear</button>
+  </div>
+
+  <div id="status" role="status" aria-live="polite" hidden></div>
+  <section id="results" aria-live="polite">
+    <div class="empty">Your review will appear here. Paste a diff above and press "Review this diff".</div>
+  </section>
+</main>
+<script>
+(function () {
+  var diffEl = document.getElementById("diff");
+  var goBtn = document.getElementById("go");
+  var statusEl = document.getElementById("status");
+  var resultsEl = document.getElementById("results");
+
+  var EXAMPLE = [
+    "diff --git a/app/db/queries.py b/app/db/queries.py",
+    "--- a/app/db/queries.py",
+    "+++ b/app/db/queries.py",
+    "@@ -4,3 +4,9 @@",
+    " def get_order(order_id: int):",
+    "     conn = get_connection()",
+    "     return conn.execute(\"SELECT * FROM orders WHERE id = %s\", (order_id,)).fetchone()",
+    "+",
+    "+",
+    "+def search_orders(customer_name: str):",
+    "+    conn = get_connection()",
+    "+    query = f\"SELECT * FROM orders WHERE customer = '{customer_name}'\"",
+    "+    return conn.execute(query).fetchall()",
+    ""
+  ].join("\n");
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function setStatus(message, isError) {
+    statusEl.hidden = !message;
+    statusEl.textContent = message || "";
+    statusEl.className = isError ? "error" : "";
+  }
+
+  function showEmpty(text) {
+    resultsEl.replaceChildren(el("div", "empty", text));
+  }
+
+  function render(review) {
+    var findings = review.findings || [];
+    if (!findings.length) {
+      showEmpty("No problems found. Nothing in this change breaks your team's rules.");
+      return;
+    }
+    var list = el("ul", "findings");
+    findings.forEach(function (f) {
+      var item = el("li", "finding");
+      var meta = el("div", "meta");
+      meta.appendChild(el("span", "badge " + f.severity, f.severity));
+      meta.appendChild(el("span", "where", f.file + ":" + f.line));
+      meta.appendChild(el("span", "rule", f.rule_id));
+      item.appendChild(meta);
+      item.appendChild(el("p", "message", f.message));
+      list.appendChild(item);
+    });
+    var count = findings.length + (findings.length === 1 ? " problem" : " problems") + " found";
+    resultsEl.replaceChildren(el("p", "summary", count + " (review " + review.id + ")"), list);
+  }
+
+  async function run() {
+    var diff = diffEl.value.trim();
+    if (!diff) {
+      setStatus("Paste a diff first, then press \"Review this diff\".", true);
+      return;
+    }
+    goBtn.disabled = true;
+    setStatus("Reviewing your diff. This can take up to half a minute.", false);
+    showEmpty("Working on it...");
+    try {
+      var res = await fetch("review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diff: diff })
+      });
+      var data = null;
+      try { data = await res.json(); } catch (e) { /* not JSON */ }
+      if (!res.ok) {
+        var msg = data && typeof data.detail === "string" ? data.detail : "Something went wrong while reviewing. Please try again.";
+        setStatus(msg, true);
+        showEmpty("No review yet.");
+        return;
+      }
+      setStatus("", false);
+      render(data);
+    } catch (e) {
+      setStatus("We could not reach the review service. Check your connection and try again.", true);
+      showEmpty("No review yet.");
+    } finally {
+      goBtn.disabled = false;
+    }
+  }
+
+  goBtn.addEventListener("click", run);
+  document.getElementById("example").addEventListener("click", function () { diffEl.value = EXAMPLE; setStatus("", false); });
+  document.getElementById("clear").addEventListener("click", function () {
+    diffEl.value = ""; setStatus("", false);
+    showEmpty("Your review will appear here. Paste a diff above and press \"Review this diff\".");
+  });
+})();
+</script>
+</body>
+</html>

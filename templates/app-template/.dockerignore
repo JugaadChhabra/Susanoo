@@ -1,0 +1,9 @@
+tests/
+scenarios/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+requirements-dev.txt
+pytest.ini

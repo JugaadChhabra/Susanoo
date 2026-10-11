@@ -1,0 +1,18 @@
+# The team's review rules. Compiled from the plain-English spec in specs/code-review.md.
+# Every finding the reviewer returns must use one of these ids.
+rules:
+  - id: no-pii-logs
+    text: Never write personal data (emails, names, phone numbers, addresses, IDs of a person, tokens) into logs or print output.
+    default_severity: block
+  - id: auth-required
+    text: Every FastAPI endpoint must require an authenticated user (for example through a Depends(...) auth dependency).
+    default_severity: block
+  - id: no-raw-sql
+    text: Never build SQL by formatting strings (f-strings, % formatting, .format(), or concatenation) with variable data; use parameterised queries.
+    default_severity: block
+  - id: no-secrets
+    text: No secrets in code (API keys, passwords, tokens, private keys); read them from the environment or a secret store.
+    default_severity: block
+  - id: external-call-errors
+    text: Calls to outside services (HTTP APIs, third-party SDKs) must handle failure, with a timeout and a clear error path.
+    default_severity: warn
