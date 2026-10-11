@@ -1,0 +1,14 @@
+# API_DOMAIN comes from /opt/susanoo/.env, e.g. api.susanoo.jugaadchhabra.dev.
+# Caddy gets and renews the HTTPS certificate on its own.
+{$API_DOMAIN} {
+	reverse_proxy api:8000
+}
+
+# Live previews (#4): wildcard needs a DNS-challenge certificate, so this stays
+# off until the Cloudflare DNS plugin and token are set up.
+# *.susanoo.jugaadchhabra.dev {
+# 	@run host run-*.susanoo.jugaadchhabra.dev
+# 	handle @run {
+# 		reverse_proxy <generated-app-container>
+# 	}
+# }
