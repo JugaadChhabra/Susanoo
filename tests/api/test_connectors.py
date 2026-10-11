@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from susanoo.connectors import Credential, redact
+from susanoo.connectors.anthropic import AnthropicConnector
 from susanoo.connectors.github import GitHubConnector
 from susanoo_api import main
 from susanoo_api.models import ConnectionStatus, ConnectionSummary, ConnectionTest, ConnectorInfo
@@ -269,3 +270,69 @@ def test_a_connector_that_crashes_reports_a_plain_failure(client, store, monkeyp
     result = client.post(f"/connections/{connection_id}/test", headers=bearer(ALICE)).json()
     assert result["ok"] is False and result["connection"]["status"] == "failed"
     assert "couldn't check" in result["message"]
+
+
+ANTHROPIC_KEY = "sk-ant-api03-" + "Ab1_-" * 16  # built at runtime so it never looks like a real key in git
+
+
+@pytest.fixture
+def byok_client(monkeypatch, store) -> TestClient:
+    """The Anthropic connector against a stub that only accepts ANTHROPIC_KEY. [PRD › Anthropic budget]"""
+
+    def anthropic_api(request: httpx.Request) -> httpx.Response:
+        if request.headers.get("x-api-key") != ANTHROPIC_KEY:
+            return httpx.Response(401, json={"error": {"type": "authentication_error", "message": "invalid x-api-key"}})
+        return httpx.Response(200, json={"data": [], "has_more": False})
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", SECRET)
+    app = main.create_app()
+    app.dependency_overrides[connectors.connection_store] = lambda: store
+    app.dependency_overrides[connectors.connectors] = lambda: {
+        "anthropic": AnthropicConnector(transport=httpx.MockTransport(anthropic_api))
+    }
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def save_key(client: TestClient, key: str = ANTHROPIC_KEY) -> httpx.Response:
+    return client.post(
+        "/connections", headers=bearer(ALICE), json={"connector": "anthropic", "values": {"api_key": key}}
+    )
+
+
+def test_byok_key_saves_tests_and_revokes(byok_client, store, caplog):
+    with caplog.at_level(logging.DEBUG):
+        saved = save_key(byok_client)
+        assert saved.status_code == 201
+        connection = ConnectionSummary.model_validate(saved.json())
+        assert connection.connector == "anthropic" and connection.settings == {}
+        assert store.rows[connection.id][2].get_secret_value() == ANTHROPIC_KEY  # the key went to the store (Vault)
+
+        tested = byok_client.post(f"/connections/{connection.id}/test", headers=bearer(ALICE))
+        result = ConnectionTest.model_validate(tested.json())
+        assert result.ok and result.connection.status == "connected"
+        assert "Connected to Anthropic" in result.message
+
+        listed = byok_client.get("/connectors", headers=bearer(ALICE))
+        assert listed.json()[0]["connection"]["status"] == "connected"
+
+        revoked = byok_client.delete(f"/connections/{connection.id}", headers=bearer(ALICE))
+        assert revoked.status_code == 204 and store.rows == {}
+
+    for response in (saved, tested, listed, revoked):
+        assert ANTHROPIC_KEY not in response.text
+    assert ANTHROPIC_KEY not in caplog.text
+
+
+def test_a_rejected_byok_key_marks_the_connection_failed(byok_client):
+    wrong = "sk-ant-api03-" + "Zz9_-" * 16
+    connection_id = save_key(byok_client, wrong).json()["id"]
+    result = byok_client.post(f"/connections/{connection_id}/test", headers=bearer(ALICE)).json()
+    assert result["ok"] is False and result["connection"]["status"] == "failed"
+    assert "didn't accept this key" in result["message"] and wrong not in result["message"]
+
+
+def test_an_admin_key_is_refused_before_it_is_stored(byok_client, store):
+    admin = "sk-ant-admin01-" + "a" * 60
+    response = save_key(byok_client, admin)
+    assert response.status_code == 422 and "Admin key" in response.json()["error"]["message"]
+    assert admin not in response.text and store.rows == {}
