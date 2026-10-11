@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { Bricolage_Grotesque } from "next/font/google";
 import { FOOTER_LINKS } from "@/lib/marketing";
 
 const NAV = [
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Use cases", href: "#use-cases" },
-  { label: "Trust", href: "#trust" },
-  { label: "Connectors", href: "#connectors" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Use cases", href: "/#use-cases" },
+  { label: "Trust", href: "/#trust" },
+  { label: "Connectors", href: "/#connectors" },
   { label: "Pricing", href: "/pricing" },
 ];
+
+const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display" });
 
 export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide)]";
@@ -93,5 +96,24 @@ export function SiteFooter() {
         </nav>
       </div>
     </footer>
+  );
+}
+
+/** Palette, display font, skip link, header and footer shared by every marketing page. */
+export function MarketingShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className={`mk ${display.variable} flex min-h-full flex-1 flex-col`}>
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-md bg-white px-4 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to content
+      </a>
+      <SiteHeader />
+      <main id="main" className="flex-1">
+        {children}
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
