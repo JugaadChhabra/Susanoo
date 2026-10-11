@@ -1,0 +1,7 @@
+# Extended regexes (case-insensitive). Any commit message line matching one is
+# stripped by commit-msg and rejected by pre-push and CI.
+^[[:space:]]*Co-Authored-By:.*(claude|anthropic|openai|copilot|cursor|bot|noreply@anthropic\.com)
+^[[:space:]]*Claude-Session:
+Generated with \[?Claude( Code)?
+claude\.ai/code/session
+^[[:space:]]*🤖

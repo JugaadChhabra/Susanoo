@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Blocks commits from anyone other than the allowed identities.
+set -euo pipefail
+. "$(git rev-parse --show-toplevel)/.githooks/_lib.sh"
+
+author_ident="$(git var GIT_AUTHOR_IDENT)"
+committer_ident="$(git var GIT_COMMITTER_IDENT)"
+parse_name()  { echo "$1" | sed -E 's/^(.*) <.*$/\1/'; }
+parse_email() { echo "$1" | sed -E 's/^.*<([^>]*)>.*$/\1/'; }
+
+for ident in "$author_ident" "$committer_ident"; do
+  n="$(parse_name "$ident")"; e="$(parse_email "$ident")"
+  if ! is_allowed_identity "$n" "$e"; then
+    echo "✖ Commit blocked: identity '$n <$e>' is not allowed." >&2
+    echo "  Only these GitHub users may commit: $(allowed_names)" >&2
+    echo "  Fix: git config user.name \"<your GitHub username>\"  (see .devkit/allowed-identities)" >&2
+    exit 1
+  fi
+done
+
+# Never commit secrets.
+staged_env="$(git diff --cached --name-only | grep -E '(^|/)\.env(\..+)?$' | grep -v '\.env\.example$' || true)"
+if [ -n "$staged_env" ]; then
+  echo "✖ Commit blocked: environment file staged: $staged_env" >&2
+  exit 1
+fi
+if git diff --cached -U0 | grep -E -q '^\+.*(sk-ant-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (RSA |EC )?PRIVATE KEY-----)'; then
+  echo "✖ Commit blocked: staged changes look like they contain a secret (API key, token or private key)." >&2
+  exit 1
+fi

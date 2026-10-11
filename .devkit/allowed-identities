@@ -1,0 +1,11 @@
+# Identities allowed to author and commit to this repo.
+# Format: name:<git user.name>  or  email:<git user.email>
+# A commit passes when its name OR its email matches an entry.
+# Set your git user.name to your GitHub username exactly:
+#   git config user.name "MuaazSM"        (Muaaz)
+#   git config user.name "JugaadChhabra"  (Jugaad)
+name:MuaazSM
+name:JugaadChhabra
+# Optional: add your commit emails below (e.g. your GitHub noreply address).
+# email:12345678+MuaazSM@users.noreply.github.com
+# email:87654321+JugaadChhabra@users.noreply.github.com
