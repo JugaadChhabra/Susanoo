@@ -713,7 +713,7 @@
     "message": "Done. The reviewer now catches 21 of 22 planted problems, up from 14. This run cost $1.18 of the $2.00 limit.",
     "payload": {
       "status": "done",
-      "stop_reason": "all_acceptance_scenarios_pass",
+      "stop_reason": "all_passed",
       "iterations": 2,
       "patches_kept": 2,
       "patches_rolled_back": 1,
