@@ -100,6 +100,14 @@ def _get_default_client() -> anthropic.AsyncAnthropic:
     return _default_client
 
 
+def default_client() -> anthropic.AsyncAnthropic:
+    """The shared client `call` uses (built on first use, after tracing.setup() so it is traced).
+
+    For callers that wrap it to inspect raw responses (the Runner's tool loop) and pass it back as `client=`.
+    """
+    return _get_default_client()
+
+
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
     price = PRICING_USD_PER_MTOK[model]
     return (input_tokens * price["input"] + output_tokens * price["output"]) / 1_000_000

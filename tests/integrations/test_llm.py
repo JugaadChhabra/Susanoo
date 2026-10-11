@@ -233,3 +233,9 @@ def test_non_api_errors_are_not_retried(sleeps):
     with pytest.raises(RuntimeError):
         run_call(client)
     assert len(client.requests) == 1
+
+
+def test_default_client_is_the_shared_client(monkeypatch):
+    monkeypatch.setattr(llm, "_default_client", None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    assert llm.default_client() is llm.default_client() is llm._get_default_client()
