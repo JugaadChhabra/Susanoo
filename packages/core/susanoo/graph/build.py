@@ -126,7 +126,7 @@ def real_heads() -> Heads:
 
     Imported here, not at module top, because the heads themselves import graph.pause and graph.resume.
     """
-    from susanoo.heads import agent_smith, builder, planner
+    from susanoo.heads import agent_smith, builder, planner, simulator
 
     return Heads(
         intake=planner.intake,
@@ -135,6 +135,7 @@ def real_heads() -> Heads:
         planner=planner.planner,
         builder=builder.run,
         agent_smith=agent_smith.run,
+        simulator=simulator.run,
     )
 
 
