@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { createProject } from "@/lib/api";
+import { Loader2, RotateCw } from "lucide-react";
+import { createProject, listConnectors } from "@/lib/api";
+import { connectionLabel, connectionStatusLabel } from "@/lib/connectors";
 import { EXAMPLE_SPECS, parseRules, rulesProblem, rulesToText, type ExampleSpec } from "@/lib/projects";
+import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
-
-// Live connectors per [PRD › Connectors and API budget]. Stubbed: picking one isn't saved yet.
-const CONNECTORS = [
-  { id: "github", name: "GitHub", what: "Lets your agent read pull requests." },
-  { id: "anthropic", name: "Anthropic", what: "Use your own Claude key instead of Susanoo's daily allowance." },
-];
 
 const field = "mt-1 w-full rounded-lg border border-border bg-background p-3 text-sm";
 
@@ -97,28 +94,7 @@ export function NewProjectForm() {
         <textarea id="rules" value={rules} onChange={(e) => setRules(e.target.value)} rows={6} className={field} />
       </div>
 
-      <fieldset>
-        <legend className="text-sm font-medium">Connect your accounts (optional)</legend>
-        <p className="text-sm text-muted-foreground">Coming soon: your choice here isn&rsquo;t saved yet.</p>
-        <div className="mt-2 space-y-2">
-          {CONNECTORS.map((c) => (
-            <label key={c.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4"
-                checked={connectors.includes(c.id)}
-                onChange={(e) =>
-                  setConnectors((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id)))
-                }
-              />
-              <span>
-                <span className="font-medium">{c.name}</span>
-                <span className="block text-muted-foreground">{c.what}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <ConnectorPicker picked={connectors} onChange={setConnectors} />
 
       {error && (
         <p role="alert" className="text-sm text-red-600">
@@ -133,5 +109,72 @@ export function NewProjectForm() {
         {sending && <Loader2 className="size-4 animate-spin" aria-hidden />} Start
       </button>
     </form>
+  );
+}
+
+/** The user's real connections to pick from. [PRD › Frontend and API › Screens › New project] */
+function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (ids: string[]) => void }) {
+  const state = useAsync(listConnectors, "connectors");
+  const connected = state.status === "ready" ? state.data.filter((c) => c.connection) : [];
+
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium">Accounts your agent may use (optional)</legend>
+      <p className="text-sm text-muted-foreground">Coming soon: your choice here isn&rsquo;t saved with the project yet.</p>
+      {state.status === "loading" && (
+        <div className="mt-2 h-14 animate-pulse rounded-lg bg-muted" aria-busy="true" aria-label="Loading your connections" />
+      )}
+      {state.status === "error" && (
+        <p role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-red-600">
+          {state.message}
+          <button
+            type="button"
+            onClick={state.retry}
+            className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-foreground underline underline-offset-2 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <RotateCw className="size-3.5" aria-hidden /> Try again
+          </button>
+        </p>
+      )}
+      {state.status === "ready" && connected.length === 0 && (
+        <p className="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+          You haven&rsquo;t connected any accounts yet.{" "}
+          <Link href="/connectors" className="font-medium text-foreground underline underline-offset-2">
+            Connect GitHub
+          </Link>{" "}
+          so your agent can read real pull requests.
+        </p>
+      )}
+      {connected.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {connected.map(({ spec, connection }) =>
+            connection ? (
+              <label
+                key={connection.id}
+                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4"
+                  checked={picked.includes(connection.id)}
+                  onChange={(e) =>
+                    onChange(e.target.checked ? [...picked, connection.id] : picked.filter((id) => id !== connection.id))
+                  }
+                />
+                <span className="min-w-0">
+                  <span className="font-medium break-words">{connectionLabel(spec, connection)}</span>
+                  <span className="block text-muted-foreground">
+                    {connectionStatusLabel(connection.status)} · {spec.summary}
+                  </span>
+                </span>
+              </label>
+            ) : null,
+          )}
+          <Link href="/connectors" className="inline-block text-sm underline underline-offset-2">
+            Manage connections
+          </Link>
+        </div>
+      )}
+    </fieldset>
   );
 }
