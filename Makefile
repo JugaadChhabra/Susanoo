@@ -34,7 +34,7 @@ types:
 	uv run python scripts/export_types.py
 
 types-check: types
-	git diff --exit-code -- apps/web/types/generated.ts
+	@test -z "$$(git status --porcelain -- apps/web/types/generated.ts)" || (echo "✖ apps/web/types/generated.ts is stale or uncommitted; run make types and commit it"; exit 1)
 
 check-identity:
 	@. .githooks/_lib.sh; is_allowed_identity "$$(git config user.name)" "$$(git config user.email)" && echo "✓ identity ok" || (echo "✖ set git user.name to MuaazSM or JugaadChhabra"; exit 1)

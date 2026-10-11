@@ -42,7 +42,7 @@ def test_fixture_has_no_unknown_fields(name: str, model: type[BaseModel]) -> Non
 @pytest.mark.parametrize(("name", "model"), CASES)
 def test_fixture_round_trips(name: str, model: type[BaseModel]) -> None:
     for payload in load(name):
-        assert model.model_validate(payload).model_dump() == payload
+        assert model.model_validate(payload).model_dump(mode="json") == payload
 
 
 def test_run_events_are_ordered_and_one_run() -> None:
@@ -56,3 +56,9 @@ def test_invalid_payload_is_rejected() -> None:
         RunEvent.model_validate({"run_id": "x", "seq": 1, "head": "nobody", "type": "started"})
     with pytest.raises(ValueError):
         Diagnosis.model_validate({**load("diagnoses.json")[0], "layer": "vibes"})
+
+
+def test_diagnoses_reference_known_scenarios() -> None:
+    known = {s["id"] for s in load("scenarios.json")}
+    for diagnosis in load("diagnoses.json"):
+        assert set(diagnosis["scenario_ids"]) <= known
