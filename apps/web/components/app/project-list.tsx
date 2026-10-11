@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, RotateCw } from "lucide-react";
 import { listProjects, updateProjectRules } from "@/lib/api";
-import { formatCost, formatScore, parseRules, rulesToText, runStatusLabel } from "@/lib/projects";
+import { formatCost, formatScore, parseRules, rulesProblem, rulesToText, runStatusLabel } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
 import type { ProjectSummary, RunSummary } from "@/types/generated";
@@ -24,7 +24,8 @@ const STATUS_TONE: Record<RunSummary["status"], string> = {
 /** The signed-in user's projects and their runs. [PRD › Frontend and API › Screens › Projects] */
 export function ProjectList() {
   const state = useAsync(listProjects, "projects");
-  const [edited, setEdited] = useState<Record<string, ProjectSummary>>({});
+  // Only the rules are overridden after a save, so runs and statuses always come from the latest load.
+  const [savedRules, setSavedRules] = useState<Record<string, string[]>>({});
 
   if (state.status === "loading") {
     return (
@@ -66,8 +67,8 @@ export function ProjectList() {
       {state.data.map((project) => (
         <ProjectCard
           key={project.id}
-          project={edited[project.id] ?? project}
-          onSaved={(saved) => setEdited((prev) => ({ ...prev, [saved.id]: saved }))}
+          project={project.id in savedRules ? { ...project, rules: savedRules[project.id] } : project}
+          onSaved={(saved) => setSavedRules((prev) => ({ ...prev, [saved.id]: saved.rules }))}
         />
       ))}
     </ul>
@@ -114,10 +115,16 @@ function RulesEditor({ project, onSaved }: { project: ProjectSummary; onSaved: (
   const fieldId = `rules-${project.id}`;
 
   async function save() {
+    const rules = parseRules(text);
+    const problem = rulesProblem(rules);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      onSaved(await updateProjectRules(project.id, { rules: parseRules(text) }));
+      onSaved(await updateProjectRules(project.id, { rules }));
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "We couldn't save your rules.");
@@ -144,6 +151,7 @@ function RulesEditor({ project, onSaved }: { project: ProjectSummary; onSaved: (
           type="button"
           onClick={() => {
             setText(rulesToText(project.rules));
+            setError(null);
             setEditing(true);
           }}
           className={cn(outlineButton, "mt-2")}

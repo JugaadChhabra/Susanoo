@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createProject } from "@/lib/api";
-import { EXAMPLE_SPECS, parseRules, rulesToText, type ExampleSpec } from "@/lib/projects";
+import { EXAMPLE_SPECS, parseRules, rulesProblem, rulesToText, type ExampleSpec } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 
 // Live connectors per [PRD › Connectors and API budget]. Stubbed: picking one isn't saved yet.
@@ -26,6 +26,8 @@ export function NewProjectForm() {
   const [error, setError] = useState<string | null>(null);
 
   function pickExample(next: ExampleSpec) {
+    const changed = spec !== example.spec || rules !== rulesToText(example.rules);
+    if (changed && !window.confirm("Replace what you've written with this example?")) return;
     setExample(next);
     setSpec(next.spec);
     setRules(rulesToText(next.rules));
@@ -38,10 +40,16 @@ export function NewProjectForm() {
       setError("Describe what you want to build first.");
       return;
     }
+    const parsed = parseRules(rules);
+    const problem = rulesProblem(parsed);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setSending(true);
     setError(null);
     try {
-      await createProject({ spec: spec.trim(), rules: parseRules(rules) });
+      await createProject({ spec: spec.trim(), rules: parsed });
       router.push("/projects");
     } catch (err) {
       setError(err instanceof Error ? err.message : "We couldn't create your project.");
@@ -76,7 +84,7 @@ export function NewProjectForm() {
           What should Susanoo build?
         </label>
         <p className="text-sm text-muted-foreground">Describe the product and its agent in plain English.</p>
-        <textarea id="spec" value={spec} onChange={(e) => setSpec(e.target.value)} rows={6} required className={field} />
+        <textarea id="spec" value={spec} onChange={(e) => setSpec(e.target.value)} rows={6} required maxLength={20_000} className={field} />
       </div>
 
       <div>

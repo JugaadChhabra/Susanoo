@@ -1,11 +1,23 @@
 import type { RunSummary } from "@/types/generated";
 
-/** One rule per line; leading bullets and blank lines are ignored. [PRD › Non-technical users] */
+/** One rule per line; a leading "- ", "* " or "• " bullet and blank lines are ignored. [PRD › Non-technical users] */
 export function parseRules(text: string): string[] {
   return text
     .split("\n")
-    .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
+    .map((line) => line.replace(/^\s*[-*•]\s+/, "").trim())
     .filter(Boolean);
+}
+
+// Mirror the API's limits (apps/api/susanoo_api/models.py) so people get a plain-English hint before saving.
+export const MAX_RULES = 30;
+export const MAX_RULE_LENGTH = 500;
+
+/** A plain-English problem with these rules, or null if they can be saved. */
+export function rulesProblem(rules: string[]): string | null {
+  if (rules.length > MAX_RULES) return `Please keep it to ${MAX_RULES} rules or fewer (you have ${rules.length}).`;
+  const long = rules.findIndex((r) => r.length > MAX_RULE_LENGTH);
+  if (long !== -1) return `Rule ${long + 1} is too long. Please keep each rule under ${MAX_RULE_LENGTH} characters.`;
+  return null;
 }
 
 export const rulesToText = (rules: string[]) => rules.join("\n");

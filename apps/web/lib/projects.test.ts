@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunSummary } from "@/types/generated";
-import { EXAMPLE_SPECS, formatCost, formatScore, parseRules, rulesToText, runStatusLabel } from "./projects";
+import { EXAMPLE_SPECS, formatCost, formatScore, parseRules, rulesProblem, rulesToText, runStatusLabel } from "./projects";
 
 const run = (overrides: Partial<RunSummary> = {}): RunSummary => ({
   id: "r1",
@@ -21,9 +21,24 @@ describe("parseRules", () => {
     ]);
   });
 
+  it("keeps a leading - or * that is part of the rule itself", () => {
+    expect(parseRules("**kwargs must be typed.\n-1 is never a valid id.")).toEqual([
+      "**kwargs must be typed.",
+      "-1 is never a valid id.",
+    ]);
+  });
+
   it("round-trips through rulesToText", () => {
     const rules = ["One.", "Two."];
     expect(parseRules(rulesToText(rules))).toEqual(rules);
+  });
+});
+
+describe("rulesProblem", () => {
+  it("explains too many or too long rules in plain English", () => {
+    expect(rulesProblem(["Fine."])).toBeNull();
+    expect(rulesProblem(Array.from({ length: 31 }, (_, i) => `Rule ${i}.`))).toMatch(/30 rules or fewer/);
+    expect(rulesProblem(["Fine.", "x".repeat(501)])).toMatch(/Rule 2 is too long/);
   });
 });
 
