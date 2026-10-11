@@ -410,3 +410,158 @@ def test_trace_url_uses_template(monkeypatch):
 def test_trace_url_ignores_template_without_placeholder(monkeypatch):
     monkeypatch.setenv("NEATLOGS_TRACE_URL_TEMPLATE", "https://app.example/traces")
     assert tracing.trace_url("abc123") is None
+
+
+# --- local span recorder -------------------------------------------------------------------------------------
+
+
+def _record_demo_trace():
+    """Spans shaped like the neatlogs Anthropic wrapper's, on a private provider with the recorder attached."""
+    import json
+
+    from opentelemetry.sdk.trace import TracerProvider
+
+    recorder = tracing._Recorder()
+    provider = TracerProvider()
+    provider.add_span_processor(recorder)
+    tracer = provider.get_tracer("t")
+    key = "sk-ant-" + "api03-" + "D" * 30
+    with tracer.start_as_current_span(
+        "runner.scenario",
+        attributes={"scenario_id": "t1", "split": "train", "iteration": 0, "level": 1, "api_key": "hunter2hunter2"},
+    ) as root:
+        trace_id = f"{root.get_span_context().trace_id:032x}"
+        r1 = tracer.start_span(
+            "anthropic.messages.create",
+            attributes={
+                "neatlogs.span.kind": "llm",
+                "neatlogs.llm.input_messages.0.role": "system",
+                "neatlogs.llm.input_messages.0.content": "SYSTEM PROMPT",
+                "neatlogs.llm.input_messages.1.role": "user",
+                "neatlogs.llm.input_messages.1.content": "review this diff",
+                "neatlogs.llm.tool_calls.0.id": "tu_1",
+                "neatlogs.llm.tool_calls.0.name": "read_file",
+                "neatlogs.llm.tool_calls.0.arguments": json.dumps({"path": "app/db.py"}),
+                "neatlogs.llm.finish_reason": "tool_use",
+                "neatlogs.llm.token_count.prompt": 10,
+            },
+        )
+        r1.end()
+        results = [{"type": "tool_result", "tool_use_id": "tu_1", "content": f"line 1: token {key}", "is_error": True}]
+        r2 = tracer.start_span(
+            "anthropic.messages.create",
+            attributes={
+                "neatlogs.span.kind": "llm",
+                "neatlogs.llm.input_messages.0.role": "system",
+                "neatlogs.llm.input_messages.0.content": "SYSTEM PROMPT",
+                "neatlogs.llm.input_messages.1.role": "user",
+                "neatlogs.llm.input_messages.1.content": "review this diff",
+                "neatlogs.llm.input_messages.2.role": "assistant",
+                "neatlogs.llm.input_messages.2.content": "[]",
+                "neatlogs.llm.input_messages.3.role": "user",
+                "neatlogs.llm.input_messages.3.content": json.dumps(results),
+                "neatlogs.llm.output_messages.0.content": '{"findings": []}',
+                "neatlogs.llm.finish_reason": "end_turn",
+            },
+        )
+        r2.end()
+    return recorder, trace_id, key
+
+
+def test_recorder_turns_model_call_spans_into_the_trace_excerpt():
+    import json
+
+    recorder, trace_id, key = _record_demo_trace()
+    spans = tracing.trace_excerpt(recorder.get(trace_id))
+    assert [s["name"] for s in spans] == ["runner.scenario", "anthropic.messages.create", "anthropic.messages.create"]
+    root, first, second = spans
+    assert root["parent_id"] is None and root["status"] == "ok"
+    assert root["attrs"]["scenario_id"] == "t1" and root["attrs"]["level"] == 1
+    assert root["attrs"]["api_key"] == REDACTED
+    assert first["parent_id"] == root["span_id"] and len(first["span_id"]) == 16
+    assert (first["round"], second["round"]) == (1, 2)
+    assert first["stop_reason"] == "tool_use" and first["tool_results_in"] == []
+    assert first["tool_calls_out"] == [{"name": "read_file", "input": {"path": "app/db.py"}}]
+    assert second["tool_calls_out"] == [] and second["text_out"] == '{"findings": []}'
+    (answer,) = second["tool_results_in"]
+    assert answer["name"] == "read_file" and answer["is_error"] is True and key not in answer["content"]
+    assert "SYSTEM PROMPT" not in json.dumps(recorder.get(trace_id))  # repeated every round, so not stored
+    assert set(root) == {"span_id", "name", "parent_id", "status", "attrs"}
+
+
+def test_recorder_marks_errors_and_is_a_bounded_lru():
+    import json
+
+    from opentelemetry.sdk.trace import TracerProvider
+
+    recorder = tracing._Recorder(max_traces=2, max_spans=3)
+    provider = TracerProvider()
+    provider.add_span_processor(recorder)
+    tracer = provider.get_tracer("t")
+    ids = []
+    for i in range(3):
+        with tracer.start_as_current_span(f"root{i}") as s:
+            ids.append(f"{s.get_span_context().trace_id:032x}")
+    assert recorder.get(ids[0]) == []  # oldest trace evicted
+    assert len(recorder.get(ids[1])) == 1 and len(recorder.get(ids[2])) == 1
+
+    with tracer.start_as_current_span("many") as s:
+        many = f"{s.get_span_context().trace_id:032x}"
+        for j in range(6):
+            tracer.start_span(f"c{j}").end()
+    assert len(recorder.get(many)) == 3  # per-trace cap
+
+    with pytest.raises(RuntimeError):
+        with tracer.start_as_current_span("bad", record_exception=False, set_status_on_exception=True) as s:
+            bad = f"{s.get_span_context().trace_id:032x}"
+            raise RuntimeError("password=hunter2hunter2 failed")
+    (failed,) = tracing.trace_excerpt(recorder.get(bad))
+    assert failed["status"] == "error" and "hunter2hunter2" not in json.dumps(failed)
+    assert "RuntimeError" in failed["attrs"]["error"]
+
+
+def test_tracing_span_is_recorded_and_readable_by_trace_id():
+    tracing.setup()
+    tracing._install_recorder()
+    tracing._install_recorder()  # idempotent
+    with tracing.span("runner.scenario", kind="AGENT", scenario_id="t9", split="train", iteration=1, level=1):
+        trace_id, span_id = tracing.current_ids()
+    spans = tracing.recorded_spans(trace_id)
+    assert [s["span_id"] for s in spans] == [span_id]
+    assert spans[0]["attrs"]["scenario_id"] == "t9" and spans[0]["attrs"]["iteration"] == 1
+    assert tracing.recorded_spans("0" * 32) == []
+    tracing.clear_recorded_spans()
+    assert tracing.recorded_spans(trace_id) == []
+
+
+def test_recorder_failure_never_breaks_setup(monkeypatch):
+    import neatlogs._wrap_utils as wrap
+
+    def boom():
+        raise RuntimeError("no provider")
+
+    monkeypatch.setattr(wrap, "get_neatlogs_provider", boom)
+    tracing._install_recorder()  # logs a warning, does not raise
+
+
+def test_recorder_total_character_budget_evicts_oldest_traces_first():
+    from opentelemetry.sdk.trace import TracerProvider
+
+    recorder = tracing._Recorder(max_traces=100, max_spans=10, max_chars=2500)
+    provider = TracerProvider()
+    provider.add_span_processor(recorder)
+    tracer = provider.get_tracer("t")
+    ids = []
+    for i in range(5):
+        with tracer.start_as_current_span(f"root{i}", attributes={"blob": "x" * 900}) as s:
+            ids.append(f"{s.get_span_context().trace_id:032x}")
+    kept = [i for i in ids if recorder.get(i)]
+    assert kept == ids[-2:]  # only the newest traces fit in the budget
+    assert recorder._total <= 2500 and recorder._total == sum(recorder._sizes.values())
+
+    # a single span bigger than the whole budget is not stored, and does not evict the others
+    with tracer.start_as_current_span("huge", attributes={"blob": "y" * 3000}) as s:
+        huge = f"{s.get_span_context().trace_id:032x}"
+    assert recorder.get(huge) == [] and [i for i in ids if recorder.get(i)] == ids[-2:]
+    recorder.clear()
+    assert recorder._total == 0 and recorder._sizes == {}
