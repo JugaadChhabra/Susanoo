@@ -284,3 +284,38 @@ async def test_wrapper_tags_in_the_spec_cannot_close_the_prompt_section(fake):
     assert msg.count("</spec>") == 1 and msg.count("<spec>") == 1
     assert msg.count("<intake_answers>") == 1 and msg.count("</intake_answers>") == 1
     assert "&lt;/spec>" in msg
+
+
+# --- answer keys must be scorable: no repeated expected issue ------------------------------------------------
+
+
+def _issue(line: int, rule: str = "no-pii-logs", file: str = "app/m.py") -> dict:
+    return {"file": file, "line_start": line, "line_end": line, "rule_id": rule, "severity": "block"}
+
+
+def _flat_card(expected: list[dict]) -> dict:
+    body = "".join(f"+line {i}\n" for i in range(1, 21))
+    diff = f"--- /dev/null\n+++ b/app/m.py\n@@ -0,0 +1,20 @@\n{body}"
+    return card(1, diff=diff, expected=expected)
+
+
+@pytest.mark.parametrize(
+    "expected",
+    [[_issue(3), _issue(3)], [_issue(3), _issue(5)], [_issue(1), _issue(8)]],
+)
+def test_card_listing_the_same_problem_twice_is_rejected(expected):
+    with pytest.raises(simulator.CardDraftError, match="same problem twice"):
+        simulator._check_card(_flat_card(expected))
+
+
+def test_card_with_distinguishable_issues_is_accepted():
+    for expected in ([_issue(1), _issue(9)], [_issue(3), _issue(3, rule="no-secrets")]):
+        _kind, _title, _diff, key = simulator._check_card(_flat_card(expected))
+        assert len(key.expected) == 2
+
+
+async def test_drafted_card_with_repeated_issue_is_dropped(fake):
+    dup = card(99, expected=[_issue(12, file="app/f99.py")] * 2)
+    fake(json.dumps({"cards": [card(i) for i in range(1, 7)] + [dup]}))
+    cards = await simulator.draft_cards(STATE)
+    assert len(cards) == 6 and all(len(c.answer_key.expected) == 1 for c in cards)
