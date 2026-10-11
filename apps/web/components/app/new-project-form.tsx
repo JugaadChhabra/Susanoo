@@ -9,6 +9,7 @@ import { connectionLabel, connectionStatusLabel } from "@/lib/connectors";
 import { EXAMPLE_SPECS, parseRules, rulesProblem, rulesToText, type ExampleSpec } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
+import type { ConnectionSummary, ConnectorInfo } from "@/types/generated";
 
 const field = "mt-1 w-full rounded-lg border border-border bg-background p-3 text-sm";
 
@@ -115,7 +116,10 @@ export function NewProjectForm() {
 /** The user's real connections to pick from. [PRD › Frontend and API › Screens › New project] */
 function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (ids: string[]) => void }) {
   const state = useAsync(listConnectors, "connectors");
-  const connected = state.status === "ready" ? state.data.filter((c) => c.connection) : [];
+  const connected =
+    state.status === "ready"
+      ? state.data.filter((c): c is ConnectorInfo & { connection: ConnectionSummary } => c.connection !== null)
+      : [];
 
   return (
     <fieldset>
@@ -147,9 +151,8 @@ function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (id
       )}
       {connected.length > 0 && (
         <div className="mt-2 space-y-2">
-          {connected.map(({ spec, connection }) =>
-            connection ? (
-              <label
+          {connected.map(({ spec, connection }) => (
+            <label
                 key={connection.id}
                 className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm"
               >
@@ -168,8 +171,7 @@ function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (id
                   </span>
                 </span>
               </label>
-            ) : null,
-          )}
+          ))}
           <Link href="/connectors" className="inline-block text-sm underline underline-offset-2">
             Manage connections
           </Link>
