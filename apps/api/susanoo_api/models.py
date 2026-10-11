@@ -5,7 +5,9 @@ scripts/export_types.py exports these into apps/web/types/generated.ts next to t
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, Field, SecretStr, StringConstraints
+
+from susanoo.connectors.base import ConnectorGuide, ConnectorSpec
 
 MAX_RULES = 30
 MAX_RULE_LENGTH = 500
@@ -61,3 +63,37 @@ class RunQuota(BaseModel):
     runs_left_today: int  # never negative; 0 when paused too
     paused: bool  # the platform hit its global daily spending cap, so nobody can start a run today
     resets_at: str  # ISO timestamp of the next midnight UTC, when the counts start over
+
+
+ConnectionStatus = Literal["untested", "connected", "failed"]
+
+
+class ConnectionSummary(BaseModel):
+    """A saved connection. It never carries the secret: that lives only in Vault. [PRD › Credential handling]"""
+
+    id: str
+    connector: str
+    status: ConnectionStatus
+    writes_enabled: bool  # off means write actions are dry-run
+    settings: dict[str, str]  # the non-secret fields, e.g. {"repo": "acme/payments-api"}
+
+
+class ConnectorInfo(BaseModel):
+    """One available connector with its setup guide, and the caller's connection to it if they have one."""
+
+    spec: ConnectorSpec
+    guide: ConnectorGuide
+    connection: ConnectionSummary | None
+
+
+class NewConnection(BaseModel):
+    connector: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+    # Every value is a SecretStr so no field (token or not) can show up in a repr, a log line or a traceback.
+    values: Annotated[dict[str, Annotated[SecretStr, Field(max_length=1000)]], Field(max_length=10)]
+    writes_enabled: bool = False
+
+
+class ConnectionTest(BaseModel):
+    ok: bool
+    message: str  # plain English, e.g. "Connected to acme/payments-api, read access confirmed."
+    connection: ConnectionSummary

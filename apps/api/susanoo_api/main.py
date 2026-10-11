@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from susanoo.connectors import install_log_redaction
 from susanoo_api.routers import mount_routers
 
 logger = logging.getLogger("susanoo_api")
@@ -56,6 +57,7 @@ async def _check_supabase() -> dict[str, str]:
 
 
 def create_app() -> FastAPI:
+    install_log_redaction()  # tokens never reach a log line, whoever logs them [PRD › Credential handling]
     app = FastAPI(title="Susanoo API")
 
     # Added before CORS so it sits inside it: 500 responses still get CORS headers.

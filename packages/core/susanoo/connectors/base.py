@@ -214,7 +214,15 @@ class RedactingFilter(logging.Filter):
         cleaned = redact(message)
         if cleaned != message:
             record.msg, record.args = cleaned, None
+        # Exception messages can carry a token too; handlers reuse exc_text instead of re-formatting.
+        if record.exc_info and not record.exc_text:
+            record.exc_text = redact(_formatter.formatException(record.exc_info))
+        if record.stack_info:
+            record.stack_info = redact(record.stack_info)
         return True
+
+
+_formatter = logging.Formatter()
 
 
 def install_log_redaction() -> None:

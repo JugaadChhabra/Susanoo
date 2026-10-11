@@ -12,6 +12,54 @@ export interface AnswerKey {
   must_not_flag: Array<string>;
 }
 
+export interface ConnectionSummary {
+  id: string;
+  connector: string;
+  status: "untested" | "connected" | "failed";
+  writes_enabled: boolean;
+  settings: Record<string, string>;
+}
+
+export interface ConnectionTest {
+  ok: boolean;
+  message: string;
+  connection: ConnectionSummary;
+}
+
+export interface ConnectorAction {
+  name: string;
+  description: string;
+  write: boolean;
+}
+
+export interface ConnectorField {
+  name: string;
+  label: string;
+  help: string;
+  secret: boolean;
+  placeholder: string;
+}
+
+export interface ConnectorGuide {
+  steps: Array<string>;
+  notes: Array<string>;
+}
+
+export interface ConnectorInfo {
+  spec: ConnectorSpec;
+  guide: ConnectorGuide;
+  connection: ConnectionSummary | null;
+}
+
+export interface ConnectorSpec {
+  id: string;
+  name: string;
+  summary: string;
+  fields: Array<ConnectorField>;
+  scopes: Array<string>;
+  actions: Array<ConnectorAction>;
+}
+
 export interface Diagnosis {
   id: string;
   scenario_ids: Array<string>;
@@ -46,6 +94,12 @@ export interface IterationMetrics {
   heldout_f1: number;
   acceptance_pass_rate: number;
   cost_usd: number;
+}
+
+export interface NewConnection {
+  connector: string;
+  values: Record<string, string>;
+  writes_enabled: boolean;
 }
 
 export interface NewProject {
