@@ -30,6 +30,7 @@ Backup spec, **backup-2** (05:20 IST; `docs/evidence/backup-2-run.json`): Susano
 
 ## 3. We used Entire
 - Checkpoints on generated repo (patch kept): hero-2 `patch-1`, commit `ae319a2` "fix(prompt_policy): fix the cause of sim-04", Entire checkpoint `01M4PKQ6VKBEM41T77PB8CJE95`. The build commit `9e504ce` has checkpoint `01M4PKF5FY5R6BC2TVXCRR5233`. (The generated repo is local: publishing to the GitHub org failed with a 403 until the token gets repo-create permission.)
+- The generated hero-2 app boots in the sandbox (05:00 IST): built from its repo with `sandbox.docker`, started with 512 MB / 1 CPU, read-only root, all capabilities dropped, no mounts and no published ports; `/health` answered `{"status":"ok"}`.
 - Checkpoints on generated repo (patch rolled back): TODO: no rollback happened in hero-2 yet.
 - entire-graph output of this repo:
 - Checkpoints from building Susanoo itself:
