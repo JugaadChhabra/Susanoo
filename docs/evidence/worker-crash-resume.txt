@@ -1,0 +1,72 @@
+
+RUN e5999962-df8e-4f08-b053-b5faf418a140: final status='done', cost=$0.6500, attempts=1
+
+EVENT SEQUENCE (public.run_events)
+    1  planner       started          Reading your spec and listing what I would have to assume…
+    2  planner       finished         I have 2 questions before I build.
+    3  planner       started          Waiting for your answers to a few questions…
+    4  planner       question_needed  Please answer 2 quick questions (each has a suggested default).
+    5  planner       finished         Got your answers (0 answered, 2 using the suggested default).
+    6  planner       started          Waiting for you to review the example scenarios…
+    7  planner       approval_needed  Please approve, edit or reject 2 example scenarios.
+    8  planner       finished         0 scenarios approved and locked as the acceptance set.
+    9  planner       started          Turning your answers into a build plan…
+   10  planner       finished         Plan ready: 1 rule to enforce, 2 files to generate.
+   11  system        progress         Picking this run back up after an interruption, from its last saved step.
+   12  builder       started          Generating the app from the template…
+   13  builder       finished         App generated and committed.
+   14  agent_smith   started          Writing the agent's prompt, policy and tools…
+   15  agent_smith   finished         The first version of the agent is ready.
+   16  simulator     started          Writing test scenarios for the agent…
+   17  simulator     finished         4 scenarios ready (4 new, 0 approved by you).
+   18  runner        started          Running every scenario against the starting version of the agent…
+   19  runner        metrics          Baseline score recorded.
+   20  runner        finished         1 of 4 scenarios failed: tr-1.
+   21  diagnostician started          Reading the failing traces to find the cause…
+   22  diagnostician finished         Found the likely cause in the agent's prompt and policy.
+   23  fixer         started          Writing the smallest fix for the diagnosed cause…
+   24  fixer         finished         Fix 1 committed (12 lines, prompt_policy layer).
+   25  verifier      started          Re-running the scenarios to check the fix…
+   26  verifier      metrics          Score after round 1.
+   27  verifier      finished         The fix did not help, so I rolled it back (round 1).
+   28  diagnostician started          Reading the failing traces to find the cause…
+   29  diagnostician finished         Found the likely cause in the test itself.
+   30  fixer         started          A change to a test needs your decision…
+   31  fixer         approval_needed  Approve or reject changing a test: The scenario expects a line number that does not match its own diff.
+   32  fixer         finished         You approved the test change.
+   33  fixer         started          Writing the smallest fix for the diagnosed cause…
+   34  fixer         finished         Fix 2 committed (12 lines, test layer).
+   35  verifier      started          Re-running the scenarios to check the fix…
+   36  verifier      metrics          Score after round 2.
+   37  verifier      finished         The fix helped, so I kept it (round 2).
+   38  runner        started          Running every scenario against the improved agent (after round 2)…
+   39  runner        finished         All scenarios pass.
+   40  system        started          Wrapping up the run…
+   41  system        finished         Every scenario passes. The agent is ready.
+
+NODE EXECUTION LEDGER (every time a node started, in order)
+    1  Intake            on worker-A
+    2  UserQuestions     on worker-A
+    3  UserQuestions     on worker-A
+    4  ScenarioApproval  on worker-A
+    5  ScenarioApproval  on worker-A
+    6  Planner           on worker-A
+    7  Builder           on worker-A
+    8  Builder           on worker-B
+    9  AgentSmith        on worker-B
+   10  Simulator         on worker-B
+   11  Runner            on worker-B
+   12  Diagnostician     on worker-B
+   13  Fixer             on worker-B
+   14  Verifier          on worker-B
+   15  Diagnostician     on worker-B
+   16  HumanGate         on worker-B
+   17  HumanGate         on worker-B
+   18  Fixer             on worker-B
+   19  Verifier          on worker-B
+   20  Runner            on worker-B
+   21  Done              on worker-B
+
+Straight-line nodes that started more than once: ['Builder']  (the loop and pause nodes repeat by design)
+Builder ran on ['worker-A', 'worker-B']; Planner ran 1 time(s); exit codes A=137 B=0
+RESULT: OK, the run resumed from its checkpoint on worker-B
