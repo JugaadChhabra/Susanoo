@@ -1,5 +1,14 @@
 import { getAccessToken } from "@/lib/supabase";
-import type { NewProject, ProjectRules, ProjectSummary, RunQuota } from "@/types/generated";
+import type {
+  ConnectionSummary,
+  ConnectionTest,
+  ConnectorInfo,
+  NewConnection,
+  NewProject,
+  ProjectRules,
+  ProjectSummary,
+  RunQuota,
+} from "@/types/generated";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -84,3 +93,16 @@ export const updateProjectRules = (projectId: string, body: ProjectRules) =>
 
 /** How many runs the signed-in user can still start today. */
 export const getRunQuota = () => apiFetch<RunQuota>("/me/quota", { cache: "no-store" });
+
+/** Available connectors with their setup guides, and the signed-in user's connection to each, if any. */
+export const listConnectors = () => apiFetch<ConnectorInfo[]>("/connectors", { cache: "no-store" });
+
+/** Save a credential (it goes to Vault and is never sent back). Saving again replaces the old one. */
+export const saveConnection = (body: NewConnection) =>
+  apiFetch<ConnectionSummary>("/connections", sendJson("POST", body));
+
+export const testConnection = (connectionId: string) =>
+  apiFetch<ConnectionTest>(`/connections/${encodeURIComponent(connectionId)}/test`, { method: "POST" });
+
+export const revokeConnection = (connectionId: string) =>
+  apiFetch<void>(`/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" });
