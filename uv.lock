@@ -1214,6 +1214,7 @@ source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "susanoo-core" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1222,6 +1223,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
     { name = "susanoo-core", editable = "packages/core" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
