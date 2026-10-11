@@ -62,8 +62,9 @@ def main() -> None:
         models = [
             m for _, m in inspect.getmembers(module, inspect.isclass) if issubclass(m, BaseModel) and m is not BaseModel
         ]
-    except ModuleNotFoundError:
-        pass
+    except ModuleNotFoundError as exc:
+        if exc.name not in ("susanoo.schemas", "susanoo"):
+            raise  # a broken import inside schemas/ must fail loudly
 
     defs: dict[str, dict] = {}
     for model in models:

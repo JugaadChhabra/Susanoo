@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -9,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from susanoo_api.routers import mount_routers
@@ -56,6 +58,15 @@ async def _check_supabase() -> dict[str, str]:
 def create_app() -> FastAPI:
     app = FastAPI(title="Susanoo API")
 
+    # Added before CORS so it sits inside it: 500 responses still get CORS headers.
+    @app.middleware("http")
+    async def catch_unhandled(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+            return error_response(500, "internal_error", "Something went wrong on our side.")
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_allowed_origins(),
@@ -76,11 +87,6 @@ def create_app() -> FastAPI:
         where = ".".join(str(part) for part in first.get("loc", ()))
         message = f"{where}: {first.get('msg', 'Invalid request.')}" if where else "Invalid request."
         return error_response(422, "validation_error", message)
-
-    @app.exception_handler(Exception)
-    async def unhandled_error(_: Request, exc: Exception) -> JSONResponse:
-        logger.exception("Unhandled error", exc_info=exc)
-        return error_response(500, "internal_error", "Something went wrong on our side.")
 
     @app.get("/health")
     async def health() -> dict[str, Any]:

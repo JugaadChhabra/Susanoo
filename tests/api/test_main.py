@@ -73,8 +73,11 @@ def test_unhandled_exception_uses_error_shape():
     def explode() -> None:
         raise RuntimeError("secret internals")
 
-    response = TestClient(app, raise_server_exceptions=False).get("/explode")
+    response = TestClient(app, raise_server_exceptions=False).get(
+        "/explode", headers={"Origin": "http://localhost:3000"}
+    )
     assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert response.json() == {
         "error": {"code": "internal_error", "message": "Something went wrong on our side."}
     }
