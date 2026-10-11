@@ -1,0 +1,20 @@
+{
+  "id": "seed-02-pii-in-logs",
+  "kind": "planted",
+  "split": "train",
+  "title": "The signup code now writes each new user's email address into the logs",
+  "diff": "diff --git a/app/routes/signup.py b/app/routes/signup.py\n--- a/app/routes/signup.py\n+++ b/app/routes/signup.py\n@@ -8,4 +8,5 @@\n def register(email: str, name: str) -> User:\n     user = User(email=email, name=name)\n     user.save()\n+    logger.info(\"New signup: %s\", user.email)\n     return user\n",
+  "answer_key": {
+    "expected": [
+      {
+        "file": "app/routes/signup.py",
+        "line_start": 11,
+        "line_end": 11,
+        "rule_id": "no-pii-logs",
+        "severity": "block"
+      }
+    ],
+    "must_not_flag": []
+  },
+  "approved_by_user": false
+}

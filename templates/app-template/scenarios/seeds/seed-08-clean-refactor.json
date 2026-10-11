@@ -1,0 +1,12 @@
+{
+  "id": "seed-08-clean-refactor",
+  "kind": "clean",
+  "split": "train",
+  "title": "A pricing helper is tidied up and split into two small functions, with no change in behaviour",
+  "diff": "diff --git a/app/utils/pricing.py b/app/utils/pricing.py\n--- a/app/utils/pricing.py\n+++ b/app/utils/pricing.py\n@@ -1,7 +1,13 @@\n-def total_price(items):\n-    t = 0\n-    for i in items:\n-        t = t + i[\"price\"] * i[\"qty\"]\n-    if t > 100:\n-        t = t * 0.9\n-    return t\n+BULK_THRESHOLD = 100\n+BULK_DISCOUNT = 0.9\n+\n+\n+def subtotal(items: list[dict]) -> float:\n+    return sum(item[\"price\"] * item[\"qty\"] for item in items)\n+\n+\n+def total_price(items: list[dict]) -> float:\n+    total = subtotal(items)\n+    if total > BULK_THRESHOLD:\n+        total *= BULK_DISCOUNT\n+    return total\n",
+  "answer_key": {
+    "expected": [],
+    "must_not_flag": []
+  },
+  "approved_by_user": false
+}

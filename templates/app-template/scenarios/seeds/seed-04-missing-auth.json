@@ -1,0 +1,20 @@
+{
+  "id": "seed-04-missing-auth",
+  "kind": "planted",
+  "split": "train",
+  "title": "A new endpoint that deletes reports can be called by anyone, with no login check",
+  "diff": "diff --git a/app/routes/reports.py b/app/routes/reports.py\n--- a/app/routes/reports.py\n+++ b/app/routes/reports.py\n@@ -9,3 +9,9 @@\n @router.get(\"/reports/{report_id}\")\n def read_report(report_id: int, user=Depends(require_user)):\n     return reports.get(report_id)\n+\n+\n+@router.delete(\"/reports/{report_id}\")\n+def delete_report(report_id: int):\n+    reports.delete(report_id)\n+    return {\"deleted\": report_id}\n",
+  "answer_key": {
+    "expected": [
+      {
+        "file": "app/routes/reports.py",
+        "line_start": 14,
+        "line_end": 15,
+        "rule_id": "auth-required",
+        "severity": "block"
+      }
+    ],
+    "must_not_flag": []
+  },
+  "approved_by_user": false
+}

@@ -1,0 +1,14 @@
+{
+  "id": "seed-06-edge-safe-query",
+  "kind": "edge",
+  "split": "train",
+  "title": "A long database query is written across several lines, but the customer's values are passed in safely",
+  "diff": "diff --git a/app/db/reports.py b/app/db/reports.py\n--- a/app/db/reports.py\n+++ b/app/db/reports.py\n@@ -5,3 +5,13 @@\n     conn = get_connection()\n     row = conn.execute(\"SELECT COUNT(*) FROM orders WHERE customer_id = %s\", (customer_id,)).fetchone()\n     return row[0]\n+\n+\n+def orders_for_customer(customer_id: int, status: str):\n+    conn = get_connection()\n+    query = (\n+        \"SELECT id, total FROM orders \"\n+        \"WHERE customer_id = %s AND status = %s \"\n+        \"ORDER BY created_at DESC\"\n+    )\n+    return conn.execute(query, (customer_id, status)).fetchall()\n",
+  "answer_key": {
+    "expected": [],
+    "must_not_flag": [
+      "no-raw-sql"
+    ]
+  },
+  "approved_by_user": false
+}

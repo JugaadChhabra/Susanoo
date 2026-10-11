@@ -1,0 +1,18 @@
+{
+  "id": "seed-09-clean-careful-endpoint",
+  "kind": "clean",
+  "split": "train",
+  "title": "A new invoice endpoint that checks login, reads its key from the environment and handles outside failures properly",
+  "diff": "diff --git a/app/routes/invoices.py b/app/routes/invoices.py\nnew file mode 100644\n--- /dev/null\n+++ b/app/routes/invoices.py\n@@ -0,0 +1,29 @@\n+import logging\n+import os\n+\n+import requests\n+from fastapi import APIRouter, Depends, HTTPException\n+\n+from app.auth import require_user\n+from app.services import invoices\n+\n+logger = logging.getLogger(__name__)\n+router = APIRouter()\n+TAX_API_KEY = os.environ[\"TAX_API_KEY\"]\n+\n+\n+@router.post(\"/invoices\")\n+def create_invoice(customer_id: int, amount_cents: int, user=Depends(require_user)):\n+    try:\n+        response = requests.get(\n+            \"https://tax.example.com/v1/rate\",\n+            headers={\"Authorization\": f\"Bearer {TAX_API_KEY}\"},\n+            timeout=5,\n+        )\n+        response.raise_for_status()\n+    except requests.RequestException as exc:\n+        raise HTTPException(status_code=502, detail=\"Tax service unavailable\") from exc\n+    rate = response.json()[\"rate\"]\n+    invoice = invoices.create(customer_id, amount_cents, rate)\n+    logger.info(\"Created invoice %s\", invoice.id)\n+    return invoice\n",
+  "answer_key": {
+    "expected": [],
+    "must_not_flag": [
+      "no-pii-logs",
+      "no-secrets",
+      "auth-required",
+      "external-call-errors",
+      "no-raw-sql"
+    ]
+  },
+  "approved_by_user": false
+}

@@ -1,0 +1,20 @@
+{
+  "id": "seed-01-raw-sql-fstring",
+  "kind": "planted",
+  "split": "train",
+  "title": "A new search function builds its database query by pasting the customer's name into the text",
+  "diff": "diff --git a/app/db/queries.py b/app/db/queries.py\n--- a/app/db/queries.py\n+++ b/app/db/queries.py\n@@ -4,3 +4,9 @@\n def get_order(order_id: int):\n     conn = get_connection()\n     return conn.execute(\"SELECT * FROM orders WHERE id = %s\", (order_id,)).fetchone()\n+\n+\n+def search_orders(customer_name: str):\n+    conn = get_connection()\n+    query = f\"SELECT * FROM orders WHERE customer = '{customer_name}'\"\n+    return conn.execute(query).fetchall()\n",
+  "answer_key": {
+    "expected": [
+      {
+        "file": "app/db/queries.py",
+        "line_start": 11,
+        "line_end": 11,
+        "rule_id": "no-raw-sql",
+        "severity": "block"
+      }
+    ],
+    "must_not_flag": []
+  },
+  "approved_by_user": false
+}

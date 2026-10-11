@@ -1,0 +1,27 @@
+{
+  "id": "seed-10-two-problems-two-files",
+  "kind": "planted",
+  "split": "train",
+  "title": "One change adds a mail password to the settings file and builds a database query from raw text in another file",
+  "diff": "diff --git a/app/config.py b/app/config.py\n--- a/app/config.py\n+++ b/app/config.py\n@@ -2,3 +2,4 @@\n \n DATABASE_URL = os.environ[\"DATABASE_URL\"]\n SMTP_HOST = \"smtp.example.com\"\n+SMTP_PASSWORD = \"Tr0ub4dor-prod-mailer-2026\"\ndiff --git a/app/db/exports.py b/app/db/exports.py\n--- a/app/db/exports.py\n+++ b/app/db/exports.py\n@@ -4,3 +4,9 @@\n def export_all():\n     conn = get_connection()\n     return conn.execute(\"SELECT id, email FROM users\").fetchall()\n+\n+\n+def export_by_domain(domain: str):\n+    conn = get_connection()\n+    sql = \"SELECT id, email FROM users WHERE email LIKE '%%@%s'\" % domain\n+    return conn.execute(sql).fetchall()\n",
+  "answer_key": {
+    "expected": [
+      {
+        "file": "app/config.py",
+        "line_start": 5,
+        "line_end": 5,
+        "rule_id": "no-secrets",
+        "severity": "block"
+      },
+      {
+        "file": "app/db/exports.py",
+        "line_start": 11,
+        "line_end": 11,
+        "rule_id": "no-raw-sql",
+        "severity": "block"
+      }
+    ],
+    "must_not_flag": []
+  },
+  "approved_by_user": false
+}
