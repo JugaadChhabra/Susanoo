@@ -199,3 +199,14 @@ def test_clients_cannot_see_vault_secret_id_or_set_repo_url(conn, world):
         conn.execute(
             "update public.projects set repo_url = 'https://evil.example/x' where id = %s", (world["project"],)
         )
+
+
+def test_only_the_owner_can_edit_rules(conn, world):
+    as_user(conn, world["b"])
+    assert conn.execute("update public.projects set rules = '{pwned}' where id = %s", (world["project"],)).rowcount == 0
+    as_user(conn, world["a"])
+    assert conn.execute("update public.projects set rules = '{mine}' where id = %s", (world["project"],)).rowcount == 1
+    as_service(conn)
+    assert conn.execute("select rules from public.projects where id = %s", (world["project"],)).fetchone()[0] == [
+        "mine"
+    ]
