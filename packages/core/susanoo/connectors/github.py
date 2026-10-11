@@ -4,10 +4,12 @@ Reads pull requests and contents. Posting a review comment is optional and dry-r
 writes on. The token only ever goes into an Authorization header; it is never logged or returned.
 """
 
+import functools
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from pydantic import SecretStr
@@ -116,7 +118,9 @@ class GitHubConnector(Connector):
         )
 
     async def test_connection(self, credential: Credential) -> TestResult:
-        repo = credential.settings["repo"]
+        repo = credential.settings.get("repo")
+        if not repo:
+            return TestResult(ok=False, message="This connection has no repository. Please replace the token.")
         try:
             async with self._client(credential) as gh:
                 found = await gh.get(f"/repos/{repo}")
@@ -157,13 +161,15 @@ class GitHubConnector(Connector):
         return TestResult(ok=True, message=f"Connected to {repo}, read access to pull requests and code confirmed.")
 
     def tools(self, credential: Credential) -> list[ConnectorTool]:
-        repo = credential.settings["repo"]
+        repo = _repo(credential)
 
+        @_never_raises
         async def list_pull_requests(state: str = "open", limit: int = 10) -> ToolResult:
             if state not in ("open", "closed", "all"):
                 return ToolResult(ok=False, message="state must be open, closed or all.")
+            per_page = max(1, min(int(limit), 50))
             async with self._client(credential) as gh:
-                r = await gh.get(f"/repos/{repo}/pulls", params={"state": state, "per_page": max(1, min(limit, 50))})
+                r = await gh.get(f"/repos/{repo}/pulls", params={"state": state, "per_page": per_page})
                 if not r.is_success:
                     return _failed("list pull requests", r)
                 prs = [
@@ -172,13 +178,15 @@ class GitHubConnector(Connector):
                 ]
             return ToolResult(ok=True, message=f"Found {len(prs)} pull requests in {repo}.", data=prs)
 
+        @_never_raises
         async def get_pull_request(number: int) -> ToolResult:
+            number = int(number)
             async with self._client(credential) as gh:
-                meta = await gh.get(f"/repos/{repo}/pulls/{int(number)}")
+                meta = await gh.get(f"/repos/{repo}/pulls/{number}")
                 if not meta.is_success:
                     return _failed(f"read pull request #{number}", meta)
                 diff = await gh.get(
-                    f"/repos/{repo}/pulls/{int(number)}", headers={"Accept": "application/vnd.github.diff"}
+                    f"/repos/{repo}/pulls/{number}", headers={"Accept": "application/vnd.github.diff"}
                 )
                 if not diff.is_success:
                     return _failed(f"read the changes in pull request #{number}", diff)
@@ -193,13 +201,16 @@ class GitHubConnector(Connector):
             }
             return ToolResult(ok=True, message=f"Read pull request #{number}: {pr['title']}", data=data)
 
+        @_never_raises
         async def get_file(path: str, ref: str | None = None) -> ToolResult:
-            if ".." in path.split("/"):
-                return ToolResult(ok=False, message="The file path can't contain '..'.")
-            params = {"ref": ref} if ref else None
+            segments = [s for s in str(path).split("/") if s]
+            if not segments or any(s in (".", "..") for s in segments):
+                return ToolResult(ok=False, message="Give a file path inside the repository, like app/main.py.")
+            params = {"ref": str(ref)} if ref else None
             async with self._client(credential) as gh:
+                # Every character outside a plain path is escaped, so ?, # and %2e can't leave this file's URL.
                 r = await gh.get(
-                    f"/repos/{repo}/contents/{path.lstrip('/')}",
+                    f"/repos/{repo}/contents/" + "/".join(quote(s, safe="") for s in segments),
                     params=params,
                     headers={"Accept": "application/vnd.github.raw+json"},
                 )
@@ -207,11 +218,14 @@ class GitHubConnector(Connector):
                     return _failed(f"read {path}", r)
             return ToolResult(ok=True, message=f"Read {path}.", data=r.text[:MAX_FILE_CHARS])
 
+        @_never_raises
         async def post_review_comment(number: int, body: str) -> ToolResult:
+            number = int(number)
+
             async def post() -> ToolResult:
                 async with self._client(credential) as gh:
                     r = await gh.post(
-                        f"/repos/{repo}/pulls/{int(number)}/reviews", json={"body": body, "event": "COMMENT"}
+                        f"/repos/{repo}/pulls/{number}/reviews", json={"body": str(body), "event": "COMMENT"}
                     )
                     if not r.is_success:
                         return _failed(f"comment on pull request #{number}", r)
@@ -271,9 +285,33 @@ class GitHubConnector(Connector):
     def env(self, credential: Credential) -> dict[str, str]:
         return {
             "GITHUB_TOKEN": credential.secret.get_secret_value(),
-            "GITHUB_REPO": credential.settings["repo"],
+            "GITHUB_REPO": _repo(credential),
             "GITHUB_WRITES_ENABLED": "true" if credential.writes_enabled else "false",
         }
+
+
+def _repo(credential: Credential) -> str:
+    repo = credential.settings.get("repo")
+    if not repo:
+        raise InvalidCredential("This GitHub connection has no repository. Please replace the token.")
+    return repo
+
+
+def _never_raises(tool: Callable[..., Awaitable[ToolResult]]) -> Callable[..., Awaitable[ToolResult]]:
+    """Tools answer every failure as a plain-English ToolResult, so the agent can recover instead of crashing."""
+
+    @functools.wraps(tool)
+    async def run(*args: Any, **kwargs: Any) -> ToolResult:
+        try:
+            return await tool(*args, **kwargs)
+        except (TypeError, ValueError) as exc:
+            logger.warning("Bad arguments for GitHub tool %s: %s", tool.__name__, type(exc).__name__)
+            return ToolResult(ok=False, message="Those arguments don't fit this tool. Check its input schema.")
+        except httpx.HTTPError as exc:
+            logger.warning("Could not reach GitHub from tool %s: %s", tool.__name__, type(exc).__name__)
+            return ToolResult(ok=False, message="We couldn't reach GitHub. Try again in a moment.")
+
+    return run
 
 
 def _failed(action: str, response: httpx.Response) -> ToolResult:

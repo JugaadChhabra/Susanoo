@@ -10,6 +10,7 @@ Credential handling [PRD › Connectors and API budget › Credential handling]:
 live only in Supabase Vault, and are redacted from logs and neatlogs spans by `redact()` / `redact_value()`.
 """
 
+import functools
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -119,7 +120,7 @@ class Connector(ABC):
     spec: ConnectorSpec
 
     def guide(self) -> ConnectorGuide:
-        return parse_guide((GUIDES / f"{self.spec.id}.md").read_text())
+        return _load_guide(self.spec.id)
 
     @abstractmethod
     def validate(self, values: Mapping[str, SecretStr]) -> tuple[SecretStr, dict[str, str]]:
@@ -134,6 +135,12 @@ class Connector(ABC):
     @abstractmethod
     def env(self, credential: Credential) -> dict[str, str]:
         """Environment variables injected into the generated app's container at start, and nowhere else."""
+
+
+@functools.cache
+def _load_guide(connector_id: str) -> ConnectorGuide:
+    """Guides ship with the code, so each is read and parsed once per process."""
+    return parse_guide((GUIDES / f"{connector_id}.md").read_text())
 
 
 _STEP = re.compile(r"^\d+\.\s+(.*)$")

@@ -198,3 +198,47 @@ def test_log_records_are_redacted(caplog):
         logging.getLogger("anything").info("calling GitHub with %s", TOKEN)
     assert TOKEN not in caplog.text
     assert "calling GitHub with [redacted]" in caplog.text
+
+
+@pytest.mark.parametrize("path", ["../../user", "a/./b", "", "/"])
+async def test_get_file_refuses_paths_outside_the_repository(path):
+    seen: list[httpx.Request] = []
+    [get_file] = [t for t in github({}, seen).tools(cred()) if t.name == "get_file"]
+    assert not (await get_file.run(path=path)).ok
+    assert seen == []  # nothing was sent
+
+
+async def test_get_file_sends_encoded_dots_as_literal_names():
+    seen: list[httpx.Request] = []
+    [get_file] = [t for t in github({}, seen).tools(cred()) if t.name == "get_file"]
+    await get_file.run(path="%2e%2e/%2e%2e/user")
+    assert seen[0].url.raw_path == b"/repos/acme/payments-api/contents/%252e%252e/%252e%252e/user"
+
+
+async def test_get_file_escapes_query_and_fragment_characters():
+    seen: list[httpx.Request] = []
+    [get_file] = [t for t in github({}, seen).tools(cred()) if t.name == "get_file"]
+    await get_file.run(path="x?ref=other#frag")
+    assert seen[0].url.raw_path == b"/repos/acme/payments-api/contents/x%3Fref%3Dother%23frag"
+    assert "ref" not in seen[0].url.params
+
+
+async def test_tools_answer_failures_instead_of_raising():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+
+    tools = {t.name: t for t in GitHubConnector(transport=httpx.MockTransport(handler)).tools(cred(writes=True))}
+    timed_out = await tools["get_pull_request"].run(number=7)
+    assert not timed_out.ok and "couldn't reach GitHub" in timed_out.message
+    bad = await tools["get_pull_request"].run(number="abc")
+    assert not bad.ok and "arguments" in bad.message
+    assert not (await tools["list_pull_requests"].run(limit="many")).ok
+    assert not (await tools["post_review_comment"].run(number=None, body="x")).ok
+
+
+async def test_a_connection_without_a_repo_fails_its_test_cleanly():
+    broken = Credential(secret=SecretStr(TOKEN), settings={})
+    result = await GitHubConnector().test_connection(broken)
+    assert not result.ok and "no repository" in result.message
+    with pytest.raises(InvalidCredential):
+        GitHubConnector().tools(broken)
