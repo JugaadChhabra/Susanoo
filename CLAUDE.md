@@ -127,3 +127,19 @@ These all come from the PRD; don't break them.
 | `frontend-screen` | Building a page or component in `apps/web` (Jugaad) |
 | `evidence-capture` | Recording traces, checkpoints and posts for judging (both) |
 | `deploy-check` | Deploying, or checking the live site after a push (Jugaad, both) |
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on JugaadChhabra/Susanoo (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five labels: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root (`PRD.md` still wins on conflicts). See `docs/agents/domain.md`.
