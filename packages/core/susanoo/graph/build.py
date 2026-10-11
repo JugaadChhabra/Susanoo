@@ -121,6 +121,23 @@ class Heads:
     done: Head = stubs.done
 
 
+def real_heads() -> Heads:
+    """The heads built so far; the rest stay stubs until their phase lands.
+
+    Imported here, not at module top, because the heads themselves import graph.pause and graph.resume.
+    """
+    from susanoo.heads import agent_smith, builder, planner
+
+    return Heads(
+        intake=planner.intake,
+        user_questions=planner.user_questions,
+        scenario_approval=planner.scenario_approval,
+        planner=planner.planner,
+        builder=builder.run,
+        agent_smith=agent_smith.run,
+    )
+
+
 def build_graph(heads: Heads | None = None, checkpointer: BaseCheckpointSaver | None = None) -> Any:
     """Return the compiled graph. Interrupts (UserQuestions, ScenarioApproval, HumanGate) need a checkpointer."""
     h = heads or Heads()
