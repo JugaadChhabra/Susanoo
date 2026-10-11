@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -138,4 +138,22 @@
 @media (prefers-reduced-motion: reduce) {
   .head-glow { animation: none; box-shadow: 0 0 0 2px rgb(129 140 248), 0 0 20px 4px rgb(99 102 241 / 0.5); }
   .react-flow__edge.animated path { animation: none !important; }
+}
+
+/* Marketing site palette: storm-sea tones. [PRD › Frontend (marketing site + app) and API › Surface 1: Marketing site] */
+.mk {
+  --mk-mist: #eef1f4;
+  --mk-ink: #14202b;
+  --mk-storm: #2f4a63;
+  --mk-tide: #0e7c86;
+  --mk-tide-soft: #7fd3d9;
+  --mk-rule: #c9d2db;
+  --mk-amber: #8a5a12;
+  background: var(--mk-mist);
+  color: var(--mk-ink);
+}
+.mk-display {
+  font-family: var(--font-display), var(--font-geist-sans), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
