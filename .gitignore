@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Orchestrator scratch state and local env variants
+.orchestration/
+.env.*
+!.env.example

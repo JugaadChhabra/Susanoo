@@ -7,6 +7,8 @@ dependencies = [
     "anthropic>=1.0",
     "claude-agent-sdk>=0.2.165",
     "httpx>=0.27",
+    "langgraph>=0.6",
+    "langgraph-checkpoint-postgres>=2.0",
     "psycopg[binary]>=3.2",
     "pydantic>=2",
 ]
