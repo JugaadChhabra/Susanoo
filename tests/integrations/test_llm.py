@@ -79,6 +79,20 @@ def test_head_picks_its_model(head, model):
     assert result.model == model
 
 
+def test_model_override_is_used_for_the_generated_agent():
+    client = FakeClient([_response()])
+    result = run_call(client, head="runner", model=llm.SONNET)
+    assert client.requests[0]["model"] == llm.SONNET
+    assert result.model == llm.SONNET
+
+
+def test_model_override_without_a_price_raises_before_any_request():
+    client = FakeClient([_response()])
+    with pytest.raises(ValueError, match="no price for model"):
+        run_call(client, head="runner", model="claude-unknown-1")
+    assert client.requests == []
+
+
 def test_unknown_head_raises_before_any_request():
     client = FakeClient([_response()])
     with pytest.raises(ValueError, match="unknown head 'runner'"):

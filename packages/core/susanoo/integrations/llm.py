@@ -137,6 +137,7 @@ async def call(
     system: str | None = None,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     client: LLMClient | None = None,
+    model: str | None = None,
     **kw: Any,
 ) -> LLMResult:
     """Run one model call for `head` and return its text, token counts and cost.
@@ -144,11 +145,17 @@ async def call(
     `kw` is forwarded to `messages.create` (e.g. `output_config={"effort": "low"}`).
     Do not pass temperature/top_p/top_k or `thinking: disabled`: the Opus 5.5 and
     Sonnet 5.5 models reject them with a 400.
+
+    `model` overrides HEAD_MODELS for calls made on behalf of the generated agent (the Runner's
+    Level 1 runs use AgentBundle.model); it must have a row in PRICING_USD_PER_MTOK.
     """
-    try:
-        model = HEAD_MODELS[head]
-    except KeyError:
-        raise ValueError(f"unknown head {head!r}; expected one of {sorted(HEAD_MODELS)}") from None
+    if model is None:
+        try:
+            model = HEAD_MODELS[head]
+        except KeyError:
+            raise ValueError(f"unknown head {head!r}; expected one of {sorted(HEAD_MODELS)}") from None
+    elif model not in PRICING_USD_PER_MTOK:
+        raise ValueError(f"no price for model {model!r}; add it to PRICING_USD_PER_MTOK")
 
     request: dict[str, Any] = {"model": model, "max_tokens": max_tokens, "messages": messages, **kw}
     if system is not None:
