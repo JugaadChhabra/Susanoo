@@ -1,0 +1,360 @@
+"""Unit tests for integrations/tracing.py. No network and no keys: neatlogs runs with export disabled."""
+
+import asyncio
+import logging
+
+import neatlogs
+import pytest
+from opentelemetry.trace import StatusCode
+
+from susanoo.integrations import tracing
+from susanoo.integrations.tracing import REDACTED
+
+
+@pytest.fixture(autouse=True)
+def no_keys(monkeypatch):
+    monkeypatch.delenv("NEATLOGS_API_KEY", raising=False)
+    monkeypatch.delenv("NEATLOGS_TRACE_URL_TEMPLATE", raising=False)
+
+
+# --- setup ---------------------------------------------------------------------------------------------
+
+
+def test_setup_is_idempotent_and_warns_once_without_key(monkeypatch, caplog):
+    calls = []
+    monkeypatch.setattr(tracing, "_initialised", False)
+    monkeypatch.setattr(neatlogs, "init", lambda **kw: calls.append(kw))
+
+    with caplog.at_level(logging.WARNING, logger=tracing.log.name):
+        tracing.setup()
+        tracing.setup()
+
+    assert len(calls) == 1
+    assert calls[0]["instrumentations"] == ["anthropic"]
+    assert calls[0]["mask"] is tracing._mask_snapshot
+    assert calls[0]["workflow_name"] == "susanoo"
+    warnings = [r.getMessage() for r in caplog.records]
+    assert warnings == ["NEATLOGS_API_KEY is not set, so traces will not be sent to neatlogs."]
+
+
+def test_setup_does_not_warn_or_log_the_key_when_set(monkeypatch, caplog):
+    monkeypatch.setenv("NEATLOGS_API_KEY", "nl-secret-value-123456")
+    monkeypatch.setattr(tracing, "_initialised", False)
+    monkeypatch.setattr(neatlogs, "init", lambda **kw: None)
+    with caplog.at_level(logging.DEBUG, logger=tracing.log.name):
+        tracing.setup()
+    assert "nl-secret-value-123456" not in caplog.text
+    assert caplog.records == []
+
+
+# --- spans ---------------------------------------------------------------------------------------------
+
+
+def test_span_context_manager_sets_attributes_and_ids():
+    assert tracing.current_ids() is None
+    with tracing.span("planner", run_id="r1", attempt=2, ratio=0.5, ok=True, nothing=None) as s:
+        ids = tracing.current_ids()
+        assert ids is not None
+        trace_id, span_id = ids
+        assert len(trace_id) == 32 and len(span_id) == 16
+        assert f"{s.get_span_context().span_id:016x}" == span_id
+    assert tracing.current_ids() is None
+    assert s.name == "planner"
+    assert s.attributes["run_id"] == "r1"
+    assert s.attributes["attempt"] == 2
+    assert s.attributes["ratio"] == 0.5
+    assert s.attributes["ok"] is True
+    assert "nothing" not in s.attributes
+    assert s.attributes["openinference.span.kind"] == "CHAIN"
+
+
+def test_span_kind_and_non_primitive_attrs_become_strings():
+    with tracing.span("builder", kind="AGENT", files=["a.py", "b.py"], meta={"n": 1}) as s:
+        pass
+    assert s.attributes["openinference.span.kind"] == "AGENT"
+    assert s.attributes["files"] == '["a.py", "b.py"]'
+    assert s.attributes["meta"] == '{"n": 1}'
+
+
+def test_span_attribute_names_may_shadow_neatlogs_arguments():
+    with tracing.span("x", version="v1", mask="m", session_id="s") as s:
+        pass
+    assert s.attributes["version"] == "v1"
+    assert s.attributes["mask"] == "m"
+    assert s.attributes["session_id"] == "s"
+
+
+def test_span_redacts_attributes():
+    with tracing.span(
+        "fixer",
+        api_key="sk-ant-api03-abcdefghijklmnop",
+        note="called with Bearer abcdefghijklmnop1234",
+        creds={"password": "hunter2", "user": "bob"},
+        input_tokens=120,
+    ) as s:
+        pass
+    assert s.attributes["api_key"] == REDACTED
+    assert s.attributes["note"] == f"called with {REDACTED}"
+    assert "hunter2" not in s.attributes["creds"]
+    assert "bob" in s.attributes["creds"]
+    assert s.attributes["input_tokens"] == 120
+
+
+def test_span_sync_decorator():
+    @tracing.span("sync_head", run_id="r2")
+    def work(x, y=1):
+        assert tracing.current_ids() is not None
+        return x + y
+
+    assert work.__name__ == "work"
+    assert work(1, y=2) == 3
+    assert tracing.current_ids() is None
+
+
+async def test_span_async_decorator_covers_the_awaited_work():
+    seen = []
+
+    @tracing.span("async_head")
+    async def work():
+        seen.append(tracing.current_ids())
+        await asyncio.sleep(0)
+        seen.append(tracing.current_ids())
+        return "done"
+
+    assert asyncio.iscoroutinefunction(work)
+    assert await work() == "done"
+    assert seen[0] is not None and seen[0] == seen[1]
+    assert tracing.current_ids() is None
+
+
+def test_decorated_function_gets_a_fresh_span_each_call():
+    @tracing.span("again")
+    def work():
+        return tracing.current_ids()
+
+    first, second = work(), work()
+    assert first is not None and second is not None
+    assert first[0] != second[0]
+
+
+def test_nested_spans_share_trace_and_differ_in_span_id():
+    with tracing.span("outer") as outer:
+        outer_ids = tracing.current_ids()
+        with tracing.span("inner") as inner:
+            inner_ids = tracing.current_ids()
+        assert tracing.current_ids() == outer_ids
+    assert outer_ids[0] == inner_ids[0]
+    assert outer_ids[1] != inner_ids[1]
+    assert inner.parent.span_id == outer.get_span_context().span_id
+
+
+async def test_concurrent_spans_keep_their_own_ids():
+    async def one(name):
+        with tracing.span(name):
+            first = tracing.current_ids()
+            await asyncio.sleep(0)
+            assert tracing.current_ids() == first
+            return first
+
+    a, b = await asyncio.gather(one("a"), one("b"))
+    assert a != b
+
+
+def test_exception_sets_error_status_and_reraises():
+    with pytest.raises(ValueError, match="boom"):
+        with tracing.span("verifier") as s:
+            raise ValueError("boom with Bearer abcdefghijklmnop1234")
+    assert s.status.status_code == StatusCode.ERROR
+    assert "ValueError" in s.status.description
+    assert "abcdefghijklmnop1234" not in s.status.description
+    (event,) = [e for e in s.events if e.name == "exception"]
+    assert event.attributes["exception.type"] == "ValueError"
+    assert "abcdefghijklmnop1234" not in event.attributes["exception.message"]
+    assert tracing.current_ids() is None
+
+
+async def test_async_decorator_error_marks_span_and_reraises():
+    captured = {}
+
+    @tracing.span("async_fail")
+    async def work():
+        captured["ids"] = tracing.current_ids()
+        raise RuntimeError("nope")
+
+    with pytest.raises(RuntimeError, match="nope"):
+        await work()
+    assert captured["ids"] is not None
+    assert tracing.current_ids() is None
+
+
+def test_current_ids_none_outside_a_span():
+    assert tracing.current_ids() is None
+
+
+# --- redaction -----------------------------------------------------------------------------------------
+
+JWT = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZSJ9.c2lnbmF0dXJlMTIzNA"
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "sk-ant-api03-AbCdEfGhIjKlMnOp",
+        "sk-proj-AbCdEfGhIjKlMnOpQrStUv",
+        "sk_live_AbCdEfGh12345678",
+        "pk_test_AbCdEfGh12345678",
+        "abcdefghijklmnop1234",  # used behind "Bearer " below
+        JWT,
+        "AKIAIOSFODNN7EXAMPLE",
+        "ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2",
+        "gho_" + "a1B2c3D4e5F6g7H8i9J0k1L2",
+        "github_pat_" + "11ABCDEFG0abcdefghijkl_mnopqrstuv",
+    ],
+)
+def test_secret_values_are_redacted(secret):
+    text = f"Bearer {secret}" if secret == "abcdefghijklmnop1234" else secret
+    out = tracing.redact("note", f"before {text} after")
+    assert secret not in out
+    assert out == f"before {REDACTED} after"
+
+
+def test_pem_private_key_is_redacted_even_when_truncated():
+    pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEabc\ndef/ghi\n-----END RSA PRIVATE KEY-----"
+    assert tracing.redact("note", f"x {pem} y") == f"x {REDACTED} y"
+    truncated = "-----BEGIN PRIVATE KEY-----\nMIIEabc\ndef"
+    assert tracing.redact("note", f"x {truncated}") == f"x {REDACTED}"
+
+
+def test_database_url_password_is_masked_but_host_kept():
+    url = "postgresql://postgres:s3cr3tpass@db.example.supabase.co:5432/postgres"
+    out = tracing.redact("db", url)
+    assert "s3cr3tpass" not in out
+    assert out == f"postgresql://postgres:{REDACTED}@db.example.supabase.co:5432/postgres"
+
+
+def test_assigned_secret_in_text_is_redacted():
+    out = tracing.redact("log", "connect with password=hunter2 now")
+    assert "hunter2" not in out and "connect with" in out
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "api_key",
+        "API-KEY",
+        "apikey",
+        "access_token",
+        "Token",
+        "client_secret",
+        "password",
+        "passwd",
+        "Authorization",
+        "credentials",
+        "set-cookie",
+        "private_key",
+        "private-key",
+    ],
+)
+def test_sensitive_key_names_redact_the_value(key):
+    assert tracing.redact(key, "plain-looking-value") == REDACTED
+    assert tracing.redact(key, {"a": 1}) == REDACTED
+
+
+def test_harmless_keys_and_token_counts_survive():
+    assert tracing.redact("run_id", "run-123") == "run-123"
+    assert tracing.redact("input_tokens", 42) == 42
+    assert tracing.redact("max_tokens", 16) == 16
+    assert tracing.redact("note", "nothing to see, sk- alone is fine") == "nothing to see, sk- alone is fine"
+    assert tracing.redact("module", "susanoo.heads.planner") == "susanoo.heads.planner"
+
+
+# --- _mask_snapshot --------------------------------------------------------------------------------------
+
+
+def _snapshot():
+    return {
+        "signal": "span",
+        "name": "simulator",
+        "attributes": {
+            "llm.input_messages.0.message.content": "use key sk-ant-api03-AbCdEfGhIjKlMnOp please",
+            "llm.token_count.prompt": 12,
+            "http.authorization": "Basic abc",
+            "ok": True,
+        },
+        "events": [
+            {"name": "exception", "timestamp": 1, "attributes": {"exception.message": f"token {JWT} leaked"}},
+            {"name": "log", "timestamp": 2, "attributes": {"body": "postgres://u:pw1234@h/db"}},
+        ],
+        "links": [],
+        "resource": {"attributes": {"service.name": "susanoo"}},
+        "status": {"code": "ERROR", "description": "failed with Bearer abcdefghijklmnop1234"},
+    }
+
+
+def test_mask_snapshot_scrubs_attributes_events_and_status():
+    out = tracing._mask_snapshot(_snapshot())
+    flat = repr(out)
+    for leaked in ("sk-ant-api03", JWT, "pw1234", "abcdefghijklmnop1234", "Basic abc"):
+        assert leaked not in flat
+    assert out["attributes"]["llm.token_count.prompt"] == 12
+    assert out["attributes"]["ok"] is True
+    assert out["events"][0]["timestamp"] == 1
+    assert out["events"][0]["name"] == "exception"
+    assert out["resource"]["attributes"]["service.name"] == "susanoo"
+    assert out["name"] == "simulator"
+
+
+def test_mask_snapshot_does_not_mutate_its_input():
+    snap = _snapshot()
+    tracing._mask_snapshot(snap)
+    assert "sk-ant-api03" in snap["attributes"]["llm.input_messages.0.message.content"]
+
+
+@pytest.mark.parametrize(
+    "odd",
+    [
+        None,
+        5,
+        "text sk-ant-api03-AbCdEfGhIjKlMnOp",
+        [],
+        {},
+        {"attributes": None},
+        {"events": "nope"},
+        {"attributes": {1: object()}},
+        object(),
+    ],
+)
+def test_mask_snapshot_never_raises_on_odd_input(odd):
+    tracing._mask_snapshot(odd)
+
+
+def test_mask_snapshot_fails_closed_when_scrubbing_breaks(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("scrubber broke")
+
+    monkeypatch.setattr(tracing, "_scrub_obj", boom)
+    out = tracing._mask_snapshot(_snapshot())
+    assert out["attributes"] == {}
+    assert out["events"] == []
+    assert out["status"]["description"] is None
+    assert "sk-ant" not in repr(out)
+
+    out = tracing._mask_snapshot(object())  # not even a mapping
+    assert out == {"attributes": {}, "events": []}
+
+
+# --- trace_url -----------------------------------------------------------------------------------------
+
+
+def test_trace_url_none_without_template():
+    assert tracing.trace_url("abc123") is None
+
+
+def test_trace_url_uses_template(monkeypatch):
+    monkeypatch.setenv("NEATLOGS_TRACE_URL_TEMPLATE", "https://app.example/traces/{trace_id}?tab=spans")
+    assert tracing.trace_url("abc123") == "https://app.example/traces/abc123?tab=spans"
+
+
+def test_trace_url_ignores_template_without_placeholder(monkeypatch):
+    monkeypatch.setenv("NEATLOGS_TRACE_URL_TEMPLATE", "https://app.example/traces")
+    assert tracing.trace_url("abc123") is None
