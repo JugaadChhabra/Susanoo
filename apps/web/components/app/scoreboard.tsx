@@ -21,7 +21,7 @@ const usd = (v: number) => `$${v.toFixed(2)}`;
 function Chart({ metrics }: { metrics: IterationMetrics[] }) {
   const maxRound = Math.max(1, ...metrics.map((m) => m.iteration));
   const x = (round: number) => PAD.l + (round / maxRound) * (W - PAD.l - PAD.r);
-  const y = (v: number) => PAD.t + (1 - v) * (H - PAD.t - PAD.b);
+  const y = (v: number) => PAD.t + (1 - Math.min(1, Math.max(0, v))) * (H - PAD.t - PAD.b);
   const rounds = Array.from({ length: maxRound + 1 }, (_, i) => i);
 
   return (
@@ -60,14 +60,15 @@ function Chart({ metrics }: { metrics: IterationMetrics[] }) {
 function CostBar({ budget }: { budget: Budget }) {
   const labelId = useId();
   const { capUsd, spentUsd } = budget;
-  const ratio = capUsd ? Math.min(1, spentUsd / capUsd) : 0;
+  const hasCap = capUsd !== null && capUsd > 0;
+  const ratio = hasCap ? Math.min(1, spentUsd / capUsd) : 0;
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span id={labelId} className="text-slate-400">Spend so far</span>
-        <span className="tabular-nums text-slate-200">{usd(spentUsd)}{capUsd !== null && <span className="text-slate-500"> of {usd(capUsd)} limit</span>}</span>
+        <span className="tabular-nums text-slate-200">{usd(spentUsd)}{hasCap && <span className="text-slate-500"> of {usd(capUsd)} limit</span>}</span>
       </div>
-      {capUsd !== null && (
+      {hasCap && (
         <div
           role="progressbar"
           aria-labelledby={labelId}

@@ -64,7 +64,10 @@ export function deriveLedger(events: RunEvent[]): LedgerRow[] {
 
   for (const e of events) {
     const p = e.payload;
-    if (e.head === "diagnostician" && e.type === "finished" && Array.isArray(p.diagnoses)) {
+    if (typeof p.patch_id === "string" && p.decision === "rejected") {
+      const row = byPatch.get(p.patch_id);
+      if (row) row.outcome = "rejected";
+    } else if (e.head === "diagnostician" && e.type === "finished" && Array.isArray(p.diagnoses)) {
       for (const raw of p.diagnoses) {
         const d = rec(raw);
         if (!d || typeof d.id !== "string" || typeof d.hypothesis !== "string" || typeof d.layer !== "string" || !LAYERS.has(d.layer)) continue;
@@ -96,7 +99,7 @@ export function deriveLedger(events: RunEvent[]): LedgerRow[] {
       const patch = rec(p.patch);
       const row = patch && typeof patch.diagnosis_id === "string" ? rows.get(patch.diagnosis_id) : undefined;
       if (row && patch) {
-        row.outcome = "testing";
+        if (row.outcome !== "kept" && row.outcome !== "rolled_back" && row.outcome !== "rejected") row.outcome = "testing";
         link(row, patch.id);
         if (num(patch.lines_changed)) row.linesChanged = patch.lines_changed;
       }
@@ -107,9 +110,6 @@ export function deriveLedger(events: RunEvent[]): LedgerRow[] {
         row.heldoutBefore = num(p.heldout_f1_before) ? p.heldout_f1_before : null;
         row.heldoutAfter = num(p.heldout_f1_after) ? p.heldout_f1_after : null;
       }
-    } else if (typeof p.patch_id === "string" && p.decision === "rejected") {
-      const row = byPatch.get(p.patch_id);
-      if (row) row.outcome = "rejected";
     }
   }
   return [...rows.values()];

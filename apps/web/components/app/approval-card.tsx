@@ -15,6 +15,7 @@ export function ApprovalCard({
   onDecide?: (patchId: string, decision: "approve" | "reject") => Promise<void>;
 }) {
   const [sending, setSending] = useState<"approve" | "reject" | null>(null);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function decide(decision: "approve" | "reject") {
@@ -23,6 +24,7 @@ export function ApprovalCard({
     setError(null);
     try {
       await onDecide(approval.patchId, decision);
+      setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "We couldn't send your answer.");
       setSending(null);
@@ -79,6 +81,7 @@ export function ApprovalCard({
       ) : (
         <p className="mt-4 text-xs text-amber-200/80">This is a replay, so the answer is filled in for you in a moment.</p>
       )}
+      {sent && <p role="status" className="mt-3 text-sm text-amber-100">Answer sent. Waiting for Susanoo to carry on…</p>}
       {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
     </section>
   );
