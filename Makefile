@@ -1,6 +1,6 @@
 # Susanoo dev shortcuts. Targets for code that doesn't exist yet will start working
 # once the scaffold from IMPLEMENTATION_JUGAAD.md P0 lands.
-.PHONY: setup hooks dev api worker web test lint types check-identity
+.PHONY: setup hooks dev api worker web test lint types types-check check-identity
 
 setup: hooks
 	bash scripts/setup-dev.sh
@@ -32,6 +32,9 @@ lint:
 
 types:
 	uv run python scripts/export_types.py
+
+types-check: types
+	git diff --exit-code -- apps/web/types/generated.ts
 
 check-identity:
 	@. .githooks/_lib.sh; is_allowed_identity "$$(git config user.name)" "$$(git config user.email)" && echo "✓ identity ok" || (echo "✖ set git user.name to MuaazSM or JugaadChhabra"; exit 1)
