@@ -62,8 +62,7 @@ create table public.run_events (
     head   text not null,
     type   text not null,
     payload jsonb not null default '{}'::jsonb,
-    at     timestamptz not null default now(),
-    unique (run_id, seq)
+    at     timestamptz not null default now()
 );
 
 create table public.scenarios (
@@ -123,10 +122,8 @@ create table public.approvals (
 );
 
 -- ---------------------------------------------------------------- indexes
--- (run_events (run_id, seq) is covered by its unique constraint; the explicit
--- index below keeps the intent obvious and is named for the ticket.)
-
-create index run_events_run_id_seq_idx on public.run_events (run_id, seq);
+-- seq is unique per run; the unique index doubles as the (run_id, seq) lookup index.
+create unique index run_events_run_id_seq_idx on public.run_events (run_id, seq);
 create index runs_status_created_at_idx on public.runs (status, created_at);
 -- FK lookups used by RLS ownership checks and the dashboard
 create index connections_user_id_idx on public.connections (user_id);
@@ -226,11 +223,21 @@ alter table public.diagnoses    enable row level security;
 alter table public.patches      enable row level security;
 alter table public.approvals    enable row level security;
 
--- Start from nothing, then grant the minimum back.
+-- Start from nothing, then grant the minimum back (column-level where a column must stay server-side).
 revoke all on all tables in schema public from anon, authenticated;
-grant select on all tables in schema public to authenticated;
-grant insert, update, delete on public.projects to authenticated;
+-- Tables added by later migrations start with no client access too.
+alter default privileges in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
+alter default privileges in schema public revoke all on functions from anon, authenticated;
+
+grant select on public.users, public.runs, public.intake_items, public.run_events, public.scenarios,
+    public.iterations, public.results, public.diagnoses, public.patches, public.approvals to authenticated;
+-- vault_secret_id is never exposed to clients
+grant select (id, user_id, connector, status, writes_enabled) on public.connections to authenticated;
 grant delete on public.connections to authenticated;
+-- repo_url is set by the worker only
+grant select, delete on public.projects to authenticated;
+grant insert (user_id, name, spec), update (name, spec) on public.projects to authenticated;
 
 create policy users_select_own on public.users for select to authenticated
     using (id = (select auth.uid()));

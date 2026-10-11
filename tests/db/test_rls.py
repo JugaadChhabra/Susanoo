@@ -189,3 +189,13 @@ def test_every_table_has_rls_enabled(conn):
         "where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity"
     ).fetchall()
     assert rows == []
+
+
+def test_clients_cannot_see_vault_secret_id_or_set_repo_url(conn, world):
+    as_user(conn, world["a"])
+    with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
+        conn.execute("select vault_secret_id from public.connections")
+    with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
+        conn.execute(
+            "update public.projects set repo_url = 'https://evil.example/x' where id = %s", (world["project"],)
+        )
