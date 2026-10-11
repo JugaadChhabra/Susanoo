@@ -1,11 +1,12 @@
 # Susanoo dev shortcuts. Targets for code that doesn't exist yet will start working
 # once the scaffold from IMPLEMENTATION_JUGAAD.md P0 lands.
-.PHONY: setup hooks dev api worker web test lint types types-check check-identity
+.PHONY: setup hooks dev api worker web test e2e lint types types-check check-identity
 
 setup: hooks
 	bash scripts/setup-dev.sh
 	uv sync
 	cd apps/web && npm install
+	cd tests/e2e && npm install && npx playwright install chromium
 
 hooks:
 	git config core.hooksPath .githooks
@@ -27,9 +28,14 @@ test:
 	uv run pytest -q
 	cd apps/web && npm test
 
+# Playwright smoke test: builds apps/web and runs it against a stub of Supabase Auth and the API.
+e2e:
+	cd tests/e2e && npx playwright test
+
 lint:
 	uv run ruff check .
 	cd apps/web && npx tsc --noEmit && npm run lint
+	cd tests/e2e && npx tsc --noEmit
 
 types:
 	uv run python scripts/export_types.py
