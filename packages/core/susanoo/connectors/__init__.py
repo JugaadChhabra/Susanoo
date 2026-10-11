@@ -13,12 +13,13 @@ from susanoo.connectors.base import (
     redact,
     redact_value,
 )
+from susanoo.connectors.anthropic import AnthropicConnector
 from susanoo.connectors.github import GitHubConnector
 
 
 def registry() -> dict[str, Connector]:
     """Every live connector, by id."""
-    return {c.spec.id: c for c in (GitHubConnector(),)}
+    return {c.spec.id: c for c in (GitHubConnector(), AnthropicConnector())}
 
 
 __all__ = [
