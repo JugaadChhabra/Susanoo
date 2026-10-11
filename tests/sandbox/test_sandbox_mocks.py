@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -103,55 +106,47 @@ def test_parse_diff_handles_removed_lines():
     assert "     2   keep" in out
 
 
-def test_parse_diff_empty():
-    tools = mocks.MockTools(diff="", world=mocks.WorldState())
-    assert tools.call_tool("parse_diff", {}) == "The diff is empty."
-
-
-def test_get_file_context_returns_numbered_lines():
-    out = toolbox().call_tool("get_file_context", {"path": "app/db.py", "line_start": 2, "line_end": 4})
-    assert out.split("\n") == ["     2 | line 2", "     3 | line 3", "     4 | line 4"]
-
-
-def test_get_file_context_clamps_and_accepts_prefixed_path():
-    out = toolbox().call_tool("get_file_context", {"path": "b/app/db.py", "line_start": -5, "line_end": 2})
-    assert out.split("\n") == ["     1 | line 1", "     2 | line 2"]
-    out = toolbox().call_tool("get_file_context", {"path": "app/db.py", "line_start": 19, "line_end": 999})
-    assert out.split("\n") == ["    19 | line 19", "    20 | line 20"]
-
-
-def test_get_file_context_out_of_range_and_bad_args():
+def test_parse_diff_file_filter_and_not_shown():
     t = toolbox()
-    assert "has 20 lines" in t.call_tool("get_file_context", {"path": "app/db.py", "line_start": 50, "line_end": 60})
-    assert "whole numbers" in t.call_tool("get_file_context", {"path": "app/db.py", "line_start": "x", "line_end": 2})
-    assert "whole numbers" in t.call_tool("get_file_context", {"path": "app/db.py", "line_start": True, "line_end": 2})
+    assert t.call_tool("parse_diff", {"file": "app/db.py"}) == t.call_tool("parse_diff", {})
+    assert t.call_tool("parse_diff", {"file": "nope.py"}) == "Not shown in this change."
 
 
-def test_get_file_context_unknown_path():
-    out = toolbox().call_tool("get_file_context", {"path": "nope.py", "line_start": 1, "line_end": 2})
-    assert out == "file not found in this scenario"
+def test_get_file_context_answers_from_the_diff_not_the_world():
+    t = toolbox()  # the world has 20 lines "line N"; the diff shows only lines 10-13
+    out = t.call_tool("get_file_context", {"file": "app/db.py", "line": 12})
+    assert "log.info(user.email)" in out and "line 12" not in out
+    assert t.call_tool("get_file_context", {"file": "app/db.py", "line": 1, "radius": 0}) == (
+        "Not shown in this change."
+    )
+    assert t.call_tool("get_file_context", {"file": "other.py", "line": 12}) == "Not shown in this change."
 
 
-def test_get_file_context_caps_range():
-    big = mocks.WorldState(files={"f.py": "\n".join(str(n) for n in range(1000))})
-    out = toolbox(big).call_tool("get_file_context", {"path": "f.py", "line_start": 1, "line_end": 1000})
-    assert len(out.split("\n")) == mocks.MAX_CONTEXT_LINES
+def test_get_file_context_bad_args_are_error_strings():
+    t = toolbox()
+    for args in ({}, {"file": "app/db.py"}, {"file": "app/db.py", "line": "12"}, {"file": 3, "line": 1}):
+        assert t.call_tool("get_file_context", args).startswith(mocks.TOOL_ERROR_PREFIX)
 
 
 def test_lookup_rule_found_and_unknown():
     t = toolbox()
-    assert t.call_tool("lookup_rule", {"rule_id": "no-pii-logs"}) == (
-        "no-pii-logs: Never log personal data. (default severity: block)"
+    assert json.loads(t.call_tool("lookup_rule", {"rule_id": "no-pii-logs"})) == {
+        "id": "no-pii-logs",
+        "text": "Never log personal data.",
+        "default_severity": "block",
+    }
+    assert (
+        t.call_tool("lookup_rule", {"rule_id": "made-up"}) == "No rule with that id. Valid ids: no-pii-logs, no-raw-sql"
     )
-    out = t.call_tool("lookup_rule", {"rule_id": "made-up"})
-    assert "No policy rule" in out and "no-pii-logs, no-raw-sql" in out
 
 
 def test_dispatcher_unknown_tool_and_bad_args_do_not_raise():
     t = toolbox()
-    assert "Unknown tool 'rm_rf'" in t.call_tool("rm_rf", {"x": 1})
-    assert "Unknown tool" in t.call_tool("", None)  # type: ignore[arg-type]
-    assert "No policy rule" in t.call_tool("lookup_rule", None)  # type: ignore[arg-type]
+    assert t.call_tool("rm_rf", {"x": 1}) == (
+        "Error: unknown tool 'rm_rf'. Available tools: parse_diff, get_file_context, lookup_rule"
+    )
+    assert "unknown tool" in t.call_tool("", None)  # type: ignore[arg-type]
+    assert t.call_tool("lookup_rule", None).startswith("No rule")  # type: ignore[arg-type]
 
 
 def test_side_effect_tools_are_dry_run():
@@ -160,18 +155,12 @@ def test_side_effect_tools_are_dry_run():
     assert out.startswith("Dry run: would have run post_comment(body='hi')")
 
 
-def test_schemas_match_dispatcher_and_anthropic_shape():
+def test_schemas_export_and_copies():
     t = toolbox()
-    names = {s["name"] for s in t.schemas}
-    assert names == {"parse_diff", "get_file_context", "lookup_rule"}
-    for s in t.schemas:
-        assert set(s) == {"name", "description", "input_schema"}
-        assert s["input_schema"]["type"] == "object"
-        assert "Unknown tool" not in t.call_tool(s["name"], {})
-    gfc = next(s for s in t.schemas if s["name"] == "get_file_context")
-    assert gfc["input_schema"]["required"] == ["path", "line_start", "line_end"]
-    t.schemas[0]["name"] = "mutated"  # callers get copies
-    assert mocks.TOOL_SCHEMAS[0]["name"] == "parse_diff"
+    assert [s["name"] for s in t.schemas] == ["parse_diff", "get_file_context", "lookup_rule"]
+    t.schemas[0]["input_schema"]["properties"].clear()  # callers get deep copies
+    assert "file" in mocks.TOOL_SCHEMAS[0]["input_schema"]["properties"]
+    assert mocks.MAX_TOOL_ROUNDS == 6 and mocks.TOOL_ERROR_PREFIX == "Error: "
 
 
 def test_rules_from_policy_rejects_malformed():
@@ -180,6 +169,12 @@ def test_rules_from_policy_rejects_malformed():
         mocks.rules_from_policy("rules: [1, 2]")
     with pytest.raises(ValueError):
         mocks.rules_from_policy("rules: [unclosed")
+
+
+def test_rules_from_policy_rejects_duplicate_ids():
+    dup = POLICY + "  - id: no-raw-sql\n    text: again\n    default_severity: warn\n"
+    with pytest.raises(ValueError, match="duplicate"):
+        mocks.rules_from_policy(dup)
 
 
 def test_build_mock_tools_reads_policy_and_world_as_text(tmp_path):
@@ -191,12 +186,13 @@ def test_build_mock_tools_reads_policy_and_world_as_text(tmp_path):
     (tmp_path / "agent" / "tools.py").write_text("raise RuntimeError('generated code ran on the host')\n")
     t = mocks.build_mock_tools(tmp_path, sc)
     assert "no-raw-sql" in t.call_tool("lookup_rule", {"rule_id": "no-raw-sql"})
-    assert t.call_tool("get_file_context", {"path": "app/db.py", "line_start": 3, "line_end": 3}) == "     3 | c"
+    assert t.world.files["app/db.py"] == "a\nb\nc"  # loaded as data, but the three tools answer from the diff
+    assert "No rule with that id" not in t.call_tool("lookup_rule", {"rule_id": "no-pii-logs"})
 
 
 def test_build_mock_tools_without_policy_file(tmp_path):
     t = mocks.build_mock_tools(tmp_path, scenario())
-    assert "Known rule ids: none" in t.call_tool("lookup_rule", {"rule_id": "x"})
+    assert t.call_tool("lookup_rule", {"rule_id": "x"}) == "No rule with that id. Valid ids: "
 
 
 # ------------------------------------------------------------------------------- path escape / error text
@@ -239,3 +235,145 @@ def test_policy_errors_do_not_quote_content():
     with pytest.raises(ValueError) as exc:
         mocks.rules_from_policy("rules:\n  - id: TOPSECRETVALUE\n")
     assert "TOPSECRETVALUE" not in str(exc.value)
+
+
+# ------------------------------------------------------------- parity with the template agent's own parser
+
+TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates" / "app-template"
+
+PARITY_CASES = {
+    "simple": "--- a/x.py\n+++ b/x.py\n@@ -1,2 +1,3 @@\n a\n+b\n c\n",
+    "no_git_header_two_files": (
+        "--- a/x.py\n+++ b/x.py\n@@ -1,1 +1,2 @@\n a\n+b\n--- a/y.py\n+++ b/y.py\n@@ -1,1 +1,2 @@\n c\n+d\n"
+    ),
+    "trailing_junk": (
+        "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,1 +1,2 @@\n a\n+b\nindex 123..456\nsome prose\n"
+    ),
+    "deleted_file": (
+        "diff --git a/x.py b/x.py\ndeleted file mode 100644\n--- a/x.py\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n"
+    ),
+    "dir_with_dot": "--- a/./x.py\n+++ b/./x.py\n@@ -1 +1,2 @@\n a\n+b\n",
+    "crlf": "diff --git a/x.py b/x.py\r\n--- a/x.py\r\n+++ b/x.py\r\n@@ -1,2 +1,3 @@\r\n a\r\n+b\r\n c\r\n",
+    "multi_hunk": (
+        "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,2 +1,3 @@\n a\n+b\n c\n"
+        "@@ -20,2 +21,3 @@\n m\n-n\n+o\n+p\n q\n"
+    ),
+    "plusplus_inside_hunk_body": "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,1 +1,2 @@\n a\n+++ counter\n",
+    "dashes_inside_hunk_body": (
+        "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,2 +1,1 @@\n--- old comment\n a\n"
+    ),
+    "new_file": (
+        "diff --git a/n.py b/n.py\nnew file mode 100644\n--- /dev/null\n+++ b/n.py\n@@ -0,0 +1,2 @@\n+one\n+two\n"
+    ),
+    "wrong_counts": "--- a/x.py\n+++ b/x.py\n@@ -1,1 +1,1 @@\n a\n+b\n+c\n c\n",
+    "no_newline_marker": "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n\\ No newline at end of file\n+b\n",
+    "quoted_paths": 'diff --git "a/x y.py" "b/x y.py"\n--- "a/x y.py"\n+++ "b/x y.py"\n@@ -1 +1,2 @@\n a\n+b\n',
+    "git_rename": (
+        "diff --git a/o.py b/n.py\nsimilarity index 90%\nrename from o.py\nrename to n.py\n"
+        "--- a/o.py\n+++ b/n.py\n@@ -1 +1,2 @@\n a\n+b\n"
+    ),
+    "empty": "",
+    "prose_only": "just some words\nno diff here\n",
+}
+
+
+def load_template_tools():
+    spec = importlib.util.spec_from_file_location("template_agent_tools_parity", TEMPLATE_ROOT / "agent" / "tools.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look the module up by name
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
+    return module
+
+
+def parity_diffs() -> list[tuple[str, str]]:
+    seeds = sorted((TEMPLATE_ROOT / "scenarios" / "seeds").glob("*.json"))
+    assert len(seeds) >= 10
+    return [(p.name, json.loads(p.read_text())["diff"]) for p in seeds] + list(PARITY_CASES.items())
+
+
+@pytest.mark.parametrize("name,diff", parity_diffs(), ids=[n for n, _ in parity_diffs()])
+def test_parse_and_annotate_are_identical_to_the_template(name, diff):
+    tools = load_template_tools()
+    theirs = tools.parse_diff(diff)
+    mine = mocks.parse_diff(diff)
+    assert [(f.path, [(ln.kind, ln.text, ln.new_line) for ln in f.lines]) for f in mine] == [
+        (f.path, [(ln.kind, ln.text, ln.new_line) for ln in f.lines]) for f in theirs
+    ]
+    assert mocks.annotate_diff(diff) == tools.annotate_diff(theirs)
+
+
+def test_two_files_with_only_dash_headers_are_not_mixed_up():
+    out = mocks.annotate_diff(PARITY_CASES["no_git_header_two_files"])
+    assert out.index("=== FILE: x.py") < out.index("=== FILE: y.py")
+    assert "--- a/y.py" not in out and "+++ b/y.py" not in out
+    assert "     2 + d" in out.split("=== FILE: y.py ===")[1]
+
+
+# -------------------------------------------------------------- call_tool parity with the template, byte for byte
+
+
+def arg_spread(diff: str) -> list[tuple[str, dict | None]]:
+    files = [f.path for f in mocks.parse_diff(diff)]
+    first = files[0] if files else "x.py"
+    lines = [ln.new_line for f in mocks.parse_diff(diff) for ln in f.lines if ln.new_line][:3] or [1]
+    calls: list[tuple[str, dict | None]] = [
+        ("parse_diff", {}),
+        ("parse_diff", None),
+        ("parse_diff", {"file": first}),
+        ("parse_diff", {"file": "nope.py"}),
+        ("parse_diff", {"file": ""}),
+        ("parse_diff", {"file": 5}),
+        ("get_file_context", {}),
+        ("get_file_context", {"file": first}),
+        ("get_file_context", {"file": first, "line": "3"}),
+        ("get_file_context", {"file": first, "line": True}),
+        ("get_file_context", {"file": 7, "line": 1}),
+        ("get_file_context", {"file": first, "line": 999}),
+        ("get_file_context", {"file": first, "line": -4}),
+        ("get_file_context", {"file": "nope.py", "line": 1}),
+        ("get_file_context", {"file": first, "line": 1, "radius": 100}),
+        ("get_file_context", {"file": first, "line": 1, "radius": -3}),
+        ("get_file_context", {"file": first, "line": 1, "radius": "2"}),
+        ("get_file_context", {"file": first, "line": 1, "radius": True}),
+        ("lookup_rule", {}),
+        ("lookup_rule", {"rule_id": "nope"}),
+        ("lookup_rule", {"rule_id": 5}),
+        ("lookup_rule", None),
+        ("nope", {}),
+        ("", None),
+    ]
+    for n in lines:
+        calls += [
+            ("get_file_context", {"file": first, "line": n}),
+            ("get_file_context", {"file": first, "line": n, "radius": 0}),
+            ("get_file_context", {"file": first, "line": n, "radius": 20}),
+        ]
+    for f in files:
+        calls += [("parse_diff", {"file": f}), ("get_file_context", {"file": f, "line": lines[0]})]
+    return calls
+
+
+def test_tool_schemas_and_constants_equal_the_templates():
+    tools = load_template_tools()
+    assert mocks.TOOL_SCHEMAS == tools.TOOL_SCHEMAS
+    assert mocks.MAX_TOOL_ROUNDS == tools.MAX_TOOL_ROUNDS
+    assert mocks.TOOL_ERROR_PREFIX == tools.TOOL_ERROR_PREFIX
+
+
+@pytest.mark.parametrize("name,diff", parity_diffs(), ids=[n for n, _ in parity_diffs()])
+def test_call_tool_is_byte_identical_to_the_template(name, diff):
+    tools = load_template_tools()
+    policy_text = (TEMPLATE_ROOT / "agent" / "policy.yaml").read_text()
+    theirs_rules = tools.load_rules(TEMPLATE_ROOT / "agent" / "policy.yaml")
+    mine_rules = mocks.rules_from_policy(policy_text)
+    ids = [r.id for r in mine_rules]
+    spread = arg_spread(diff) + [("lookup_rule", {"rule_id": rid}) for rid in ids]
+    assert ids  # the template ships real rules
+    for tool, args in spread:
+        expected = tools.call_tool(tool, args, diff=diff, policy=theirs_rules)
+        assert mocks.call_tool(tool, args, diff=diff, policy=mine_rules) == expected, (tool, args)
+        toolbox_out = mocks.MockTools(diff=diff, world=mocks.WorldState(), rules=mine_rules).call_tool(tool, args)
+        assert toolbox_out == expected, (tool, args)
