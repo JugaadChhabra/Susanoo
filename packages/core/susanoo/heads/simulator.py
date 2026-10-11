@@ -900,7 +900,12 @@ async def _run(state: SusanooState) -> dict:
         HEAD,
         "finished",
         f"{_plural(len(final), 'scenario')} ready: {len(train)} to practise on, {len(heldout)} held back for the final "
-        f"check, and {len(acceptance)} you approved.",
+        f"check, and {len(acceptance)} "
+        + (
+            "you approved."
+            if acceptance and all(s.approved_by_user for s in acceptance)
+            else "example scenarios from intake."
+        ),
         {
             "train": len(train),
             "heldout": len(heldout),
