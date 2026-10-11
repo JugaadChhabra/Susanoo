@@ -25,6 +25,7 @@ web:
 
 test:
 	uv run pytest -q
+	cd apps/web && npm test
 
 lint:
 	uv run ruff check .
