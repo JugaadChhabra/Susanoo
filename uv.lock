@@ -1235,6 +1235,7 @@ source = { editable = "packages/core" }
 dependencies = [
     { name = "anthropic" },
     { name = "claude-agent-sdk" },
+    { name = "httpx" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
 ]
@@ -1249,6 +1250,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=1.0" },
     { name = "claude-agent-sdk", specifier = ">=0.2.165" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2" },
 ]
