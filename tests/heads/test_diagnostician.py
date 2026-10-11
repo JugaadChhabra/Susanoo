@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
 
 from susanoo.emit import InMemorySink, use_sink
 from susanoo.guards import budget
@@ -685,10 +687,41 @@ async def test_a_trace_source_that_raises_only_loses_that_failure(repo, sink, wi
     assert re.findall(r'<failure scenario_id="([^"]+)"', model.user) == ["t1"]
 
 
-async def test_recorded_spans_reach_the_trace_block(repo, sink, monkeypatch):
-    """End to end with the real recorder: a span recorded by tracing.span shows up in <trace>."""
+@pytest.fixture
+def local_tracing(monkeypatch: pytest.MonkeyPatch):
+    """A private TracerProvider + recorder in place of neatlogs' process-wide ones.
+
+    `tracing.setup()` runs `neatlogs.init` once per process and attaches the global recorder to neatlogs' provider;
+    nothing can undo that, so a test that called it leaked real OTel spans into every later test. Here `tracing`
+    gets a fake `neatlogs` (init does nothing, trace opens a span on a local provider that feeds a fresh
+    recorder), and monkeypatch puts every touched module attribute back afterwards.
+    """
+    provider = TracerProvider()
+    recorder = tracing._Recorder()
+    provider.add_span_processor(recorder)
+    tracer = provider.get_tracer("test")
+
+    class FakeNeatlogs:
+        @staticmethod
+        def init(**_: Any) -> None:
+            return None
+
+        @staticmethod
+        def trace(name: str, kind: str = "CHAIN"):
+            return tracer.start_as_current_span(name)
+
+    monkeypatch.setattr(tracing, "neatlogs", FakeNeatlogs)
+    monkeypatch.setattr(tracing, "_recorder", recorder)
+    monkeypatch.setattr(tracing, "_recorder_providers", set())
+    monkeypatch.setattr(tracing, "_initialised", False)
+    monkeypatch.setattr(tracing, "_install_recorder", lambda: None)  # the local provider already has the recorder
+    yield recorder
+    provider.shutdown()
+
+
+async def test_recorded_spans_reach_the_trace_block(repo, sink, monkeypatch, local_tracing):
+    """End to end with the recorder: a span recorded by tracing.span shows up in <trace>."""
     tracing.setup()
-    tracing._install_recorder()
     monkeypatch.delenv("NEATLOGS_TOKEN", raising=False)
     with tracing.span("runner.scenario", kind="AGENT", scenario_id="t1", split="train", iteration=0, level=1):
         ids = tracing.current_ids()
@@ -808,3 +841,159 @@ def test_off_limits_is_case_insensitive():
     assert diagnostician._off_limits(["scenarios", "acceptance"])
     assert not diagnostician._off_limits(["scenarios", "train", "a.json"])
     assert not diagnostician._off_limits(["backend", "scenarios", "x"])
+
+
+# --- failures a kept code/tool patch already fixed in the real app (Level 2) --------------------------------
+
+
+def _git(repo: Path, *args: str) -> str:
+    out = subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.stdout.strip()
+
+
+def _commit(repo: Path, name: str) -> str:
+    (repo / "backend" / "main.py").write_text(f"print('{name}')\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", name)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+@pytest.fixture
+def git_repo(repo: Path) -> Path:
+    _git(repo, "init", "-q")
+    _commit(repo, "base")
+    return repo
+
+
+def _fixed_state(repo: Path, *, layer: str = "code", verdict: str = "kept", passed: bool = True, **extra: Any):
+    """t1 and t2 both fail at Level 1; a kept patch (commit c1) on diagnosis d1 targets t1 and passed at Level 2."""
+    sha = _commit(repo, "fix")
+    dx = Diagnosis(
+        id="d1",
+        scenario_ids=["t1"],
+        layer=layer,
+        hypothesis="h",
+        evidence_span_ids=[],
+        target_files=["backend/main.py"],
+    )
+    patch = Patch(id="p1", diagnosis_id="d1", commit_sha=sha, checkpoint_id=None, lines_changed=1, verdict=verdict)
+    state = make_state(
+        repo,
+        [scenario("t1"), scenario("t2")],
+        [result("t1", iteration=1), result("t2", iteration=1)],
+        iteration=1,
+        failure_ledger=[dx],
+        patches=[patch],
+        head_commit=sha,
+        level2_baseline={"commit": sha, "results": [result("t1", passed=passed), result("t2")]},
+    )
+    state.update(extra)
+    return state, sha
+
+
+def _ids(state: dict[str, Any]) -> list[str]:
+    return [r.scenario_id for _, r in diagnostician.select_failures(state)[0]]
+
+
+@pytest.mark.parametrize("layer", ["code", "tool"])
+def test_a_scenario_fixed_in_the_real_app_by_a_kept_patch_is_not_selected(git_repo, layer):
+    state, _ = _fixed_state(git_repo, layer=layer)
+    assert diagnostician.level2_fixed_ids(state) == {"t1"}
+    assert _ids(state) == ["t2"]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "why"),
+    [
+        ({"layer": "prompt_policy"}, "Level 1 sees prompt changes, so it is not a Level 2 matter"),
+        ({"layer": "test"}, "test layer"),
+        ({"verdict": "rolled_back"}, "rolled back"),
+        ({"verdict": "pending"}, "not judged"),
+        ({"passed": False}, "still failing in the real app"),
+    ],
+)
+def test_other_cases_are_still_selected(git_repo, kwargs, why):
+    state, _ = _fixed_state(git_repo, **kwargs)
+    assert _ids(state) == ["t1", "t2"], why
+
+
+def test_without_a_baseline_or_head_nothing_is_excluded(git_repo):
+    state, _ = _fixed_state(git_repo)
+    assert _ids({k: v for k, v in state.items() if k != "level2_baseline"}) == ["t1", "t2"]
+    assert _ids({k: v for k, v in state.items() if k != "head_commit"}) == ["t1", "t2"]
+
+
+def test_a_later_descendant_commit_that_does_not_revert_the_patch_keeps_it_excluded(git_repo):
+    state, _ = _fixed_state(git_repo)
+    state["head_commit"] = _commit(git_repo, "later prompt tweak")
+    assert _ids(state) == ["t2"]
+
+
+def test_a_reverted_patch_is_selected_again(git_repo):
+    state, sha = _fixed_state(git_repo)
+    _git(git_repo, "revert", "--no-edit", sha)
+    state["head_commit"] = _git(git_repo, "rev-parse", "HEAD")
+    assert _ids(state) == ["t1", "t2"]
+    # even if a (stale) baseline were still labelled with the patch commit
+    state["level2_baseline"] = {"commit": sha, "results": [result("t1", passed=True)]}
+    assert _ids(state) == ["t1", "t2"]
+
+
+def test_a_baseline_measured_before_the_patch_does_not_count(git_repo):
+    base = _git(git_repo, "rev-parse", "HEAD")
+    state, _ = _fixed_state(git_repo)
+    state["level2_baseline"] = {"commit": base, "results": [result("t1", passed=True)]}
+    assert _ids(state) == ["t1", "t2"]
+
+
+def test_a_git_problem_means_not_fixed_not_a_crash(tmp_path):
+    plain = tmp_path / "nogit"
+    plain.mkdir()
+    sha = "a" * 40
+    state = make_state(
+        plain,
+        [scenario("t1")],
+        [result("t1", iteration=1)],
+        iteration=1,
+        failure_ledger=[
+            Diagnosis(id="d1", scenario_ids=["t1"], layer="code", hypothesis="h", evidence_span_ids=[], target_files=[])
+        ],
+        patches=[
+            Patch(id="p1", diagnosis_id="d1", commit_sha=sha, checkpoint_id=None, lines_changed=1, verdict="kept")
+        ],
+        head_commit=sha,
+        level2_baseline={"commit": sha, "results": [result("t1", passed=True)]},
+    )
+    assert _ids(state) == ["t1"]
+    state["head_commit"] = "--abort"  # never passed to git as an option
+    assert _ids(state) == ["t1"]
+
+
+async def test_the_model_never_sees_a_fixed_scenario_and_a_note_is_emitted(git_repo, sink, wire):
+    state, _ = _fixed_state(git_repo)
+    traces = Traces({"trace-t2": spans_for("t2")})
+    model = FakeModel({"diagnoses": [diag(scenario_ids=["t2"])], "undiagnosed": []})
+    wire(model, traces)
+    await diagnostician.run(state)
+    assert re.findall(r'<failure scenario_id="([^"]+)"', model.user) == ["t2"]
+    assert traces.asked == ["trace-t2"]
+    notes = [e.message for e in sink.events if e.type == "progress"]
+    assert "1 check is already fixed in the real app, so I'm not diagnosing them again." in notes
+
+
+async def test_when_everything_is_already_fixed_there_is_no_model_call(git_repo, sink, wire):
+    state, _ = _fixed_state(git_repo)
+    state["level2_baseline"]["results"] = [result("t1", passed=True), result("t2", passed=True)]
+    state["failure_ledger"][0] = state["failure_ledger"][0].model_copy(update={"scenario_ids": ["t1", "t2"]})
+    model = FakeModel()
+    wire(model, Traces())
+    update = await diagnostician.run(state)
+    assert model.calls == []
+    assert update["stop_reason"] == "no_diagnosis"
+    notes = [e.message for e in sink.events if e.type == "progress"]
+    assert "2 checks are already fixed in the real app, so I'm not diagnosing them again." in notes

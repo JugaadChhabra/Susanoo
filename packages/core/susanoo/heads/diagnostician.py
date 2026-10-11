@@ -13,6 +13,8 @@ Guardrails kept here, in code (the prompt asks nicely, the code enforces):
 * Every diagnosis is validated: ids, evidence span ids, target files (layer allow-list, repo listing), the
   test-layer rules, hypothesis length and secrets. Anything that does not check out is dropped.
 * Rolled-back hypotheses are not repeated.
+* A failure that a KEPT code/tool patch already fixed in the real app (Level 2) is not diagnosed again, even
+  though Level 1 (which cannot see code or tool changes) still shows it failing. See `level2_fixed_ids`.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -197,12 +200,91 @@ def shared_ids(state: Mapping[str, Any]) -> frozenset[str]:
     return frozenset(non_train | approved)
 
 
+_GIT_REF = re.compile(r"^[0-9a-fA-F]{4,64}$")
+_GIT_TIMEOUT_S = 20
+
+
+def _git_out(repo: str | Path, *args: str) -> tuple[int, str]:
+    proc = subprocess.run(  # noqa: S603 - fixed argv, refs are validated hex, no shell
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=_GIT_TIMEOUT_S, check=False
+    )
+    return proc.returncode, proc.stdout
+
+
+def _is_ancestor(repo: str | Path, older: str, newer: str) -> bool:
+    return _git_out(repo, "merge-base", "--is-ancestor", older, newer)[0] == 0
+
+
+def _still_applied(repo: str | Path, patch_sha: str, baseline_sha: str, head: str) -> bool:
+    """True if the kept patch's commit is in HEAD's history, the Level 2 baseline was measured on a tree that has
+    it, that tree is HEAD or an ancestor of HEAD, and no later commit reverted the patch."""
+    if not all(_GIT_REF.match(x) for x in (patch_sha, baseline_sha, head)):
+        return False
+    code, full = _git_out(repo, "rev-parse", "--verify", "--quiet", f"{patch_sha}^{{commit}}")
+    if code != 0:
+        return False
+    full = full.strip()
+    if not (
+        _is_ancestor(repo, full, baseline_sha)  # the measured tree contains the patch
+        and _is_ancestor(repo, baseline_sha, head)  # and is HEAD or an ancestor of it
+    ):
+        return False
+    code, bodies = _git_out(repo, "log", "--format=%B", f"{full}..{head}")
+    return code == 0 and f"This reverts commit {full}" not in bodies
+
+
+def level2_fixed_ids(state: Mapping[str, Any]) -> frozenset[str]:
+    """Scenario ids that a kept code/tool patch fixed, as proven in the real app (Level 2), and still fixed.
+
+    Level 1 cannot see code or tool changes, so after such a patch the target scenarios still fail there. The
+    Verifier caches the Level 2 results it judged in `level2_baseline = {"commit", "results"}` (written for a
+    kept patch, and re-written to the reverted tree after a rolled-back one). A scenario counts as fixed when:
+      * it is in `scenario_ids` of a diagnosis in the code or tool layer whose patch has verdict "kept";
+      * it passed in `level2_baseline["results"]`;
+      * that patch's commit is still applied: an ancestor of the baseline commit, which is itself HEAD
+        (`head_commit`) or an ancestor of it, with no later `git revert` of the patch (see `_still_applied`).
+    Any doubt (no baseline, no head, git error) means "not fixed": the failure is diagnosed as before.
+    """
+    baseline = state.get("level2_baseline")
+    head = state.get("head_commit")
+    repo = state.get("repo_path")
+    if not isinstance(baseline, Mapping) or not head or not repo:
+        return frozenset()
+    passed = {r.scenario_id for r in baseline.get("results") or [] if r.passed}
+    base_sha = baseline.get("commit")
+    if not passed or not isinstance(base_sha, str):
+        return frozenset()
+    layers = {d.id: d for d in state.get("failure_ledger", []) if d.layer in ("code", "tool")}
+    fixed: set[str] = set()
+    for p in state.get("patches", []):
+        d = layers.get(p.diagnosis_id)
+        if p.verdict != "kept" or d is None or not (passed & set(d.scenario_ids)):
+            continue
+        try:
+            applied = _still_applied(repo, p.commit_sha, base_sha, str(head))
+        except (OSError, subprocess.SubprocessError):
+            log.warning("Could not check git history for a fixed patch; diagnosing its scenarios again.")
+            applied = False
+        if applied:
+            fixed |= passed & set(d.scenario_ids)
+    return frozenset(fixed)
+
+
 def select_failures(state: Mapping[str, Any]) -> tuple[list[tuple[Scenario, ScenarioResult]], int]:
     """The only failures the Diagnostician may see, and how many were skipped for sharing an id with a hidden check.
 
-    Kept: current iteration, failing, train split, not approved by the user, not disputed, and an id that no
-    scenario of another split uses. Scenarios with a shared id are excluded entirely.
+    Kept: current iteration, failing, train split, not approved by the user, not disputed, not already fixed in
+    the real app (`level2_fixed_ids`), and an id that no scenario of another split uses. Scenarios with a shared
+    id are excluded entirely.
     """
+    chosen, skipped, _ = _select(state)
+    return chosen, skipped
+
+
+def _select(state: Mapping[str, Any]) -> tuple[list[tuple[Scenario, ScenarioResult]], int, int]:
+    """`select_failures` plus the number of failures left out because the real app already passes them."""
+    fixed = level2_fixed_ids(state)
+    already_fixed = 0
     iteration = state.get("iteration", 0)
     disputed = set(state.get("disputed_scenario_ids", []))
     scenarios = state.get("scenarios", [])
@@ -224,8 +306,11 @@ def select_failures(state: Mapping[str, Any]) -> tuple[list[tuple[Scenario, Scen
             seen.add(r.scenario_id)
             continue
         seen.add(r.scenario_id)
+        if r.scenario_id in fixed:
+            already_fixed += 1
+            continue
         chosen.append((scenario, r))
-    return chosen, len(skipped)
+    return chosen, len(skipped), already_fixed
 
 
 def _rejected(state: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -473,7 +558,15 @@ async def _run(state: Mapping[str, Any]) -> dict:
     ledger = list(state.get("failure_ledger", []))
     spent_before = float(state.get("cost_usd", 0.0))
 
-    chosen, skipped = select_failures(state)
+    chosen, skipped, already_fixed = _select(state)
+    if already_fixed:
+        await emit(
+            state,
+            HEAD,
+            "progress",
+            f"{already_fixed} check{' is' if already_fixed == 1 else 's are'} already fixed in the real app, "
+            "so I'm not diagnosing them again.",
+        )
     if skipped:
         one = skipped == 1
         await emit(
@@ -568,6 +661,7 @@ __all__ = [
     "DiagnosticianError",
     "build_user_message",
     "default_trace_source",
+    "level2_fixed_ids",
     "run",
     "select_failures",
     "validate_answer",
