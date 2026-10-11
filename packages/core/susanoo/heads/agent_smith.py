@@ -73,7 +73,7 @@ async def run(state: SusanooState) -> dict:
                 raise AgentSmithError("The generated app's folder is not a git repository, so nothing was written.")
 
             policy_text = compile_policy(plan.rules)
-            tools_text = _build_tools_file(repo, _selected_connector_names(state))
+            tools_text, connector_infos = _build_tools_file(repo, _selected_connector_names(state))
 
             cost = float(state.get("cost_usd", 0.0))
             prompt_text, spent = await _write_prompt(state, plan, repo)
@@ -91,13 +91,17 @@ async def run(state: SusanooState) -> dict:
             n_rules = len(plan.rules)
             n_tools = _count_connector_tools(tools_text)
             extra = f" and {n_tools} connection tool{'s' if n_tools != 1 else ''}" if n_tools else ""
+            pending = [i.name for i in connector_infos if not i.tool_code_available]
+            note = (
+                f" Tools for the {', '.join(pending)} connection cannot be added to the agent yet." if pending else ""
+            )
             await emit(
                 state,
                 HEAD,
                 "finished",
                 f"The first version of the agent is ready: it checks {n_rules} rule{'s' if n_rules != 1 else ''}"
-                f"{extra}.",
-                {"head_commit": head_commit},
+                f"{extra}.{note}",
+                {"head_commit": head_commit, "connector_env_vars": connector_env_names(connector_infos)},
             )
             return {"agent": bundle, "head_commit": head_commit, "cost_usd": cost}
         except budget.BudgetExceeded:
@@ -140,7 +144,17 @@ def _selected_connector_names(state: SusanooState) -> list[str]:
     return [str(n) for n in state.get("connectors", [])]  # type: ignore[attr-defined]
 
 
-def _build_tools_file(repo: Path, connector_names: list[str]) -> str:
+def connector_env_names(infos: list[_connectors.ConnectorInfo]) -> dict[str, list[str]]:
+    """Env var NAMES (never values) each selected connector sets in the container; the sandbox fills them in."""
+    return {i.id: list(i.env_vars) for i in infos if i.env_vars}
+
+
+def env_var_names_for(connector_names: list[str]) -> dict[str, list[str]]:
+    """For the Runner/sandbox: connector id -> env var NAMES to fill from Vault at container start."""
+    return _connectors.connector_env_names(connector_names)
+
+
+def _build_tools_file(repo: Path, connector_names: list[str]) -> tuple[str, list[_connectors.ConnectorInfo]]:
     existing = repo / TOOLS_PATH
     if existing.is_file():
         base = existing.read_text(encoding="utf-8")
@@ -150,8 +164,10 @@ def _build_tools_file(repo: Path, connector_names: list[str]) -> str:
         raise AgentSmithError("The agent's base tools file is missing from both the app and the template.")
 
     try:
-        tools = _connectors.collect_tools(_connectors.load_connectors(connector_names))
-        text = _connectors.render_tools_file(base, tools)
+        connectors = _connectors.load_connectors(connector_names)
+        tools = _connectors.collect_tools(connectors)
+        infos = _connectors.describe_connectors(connectors, tools)
+        text = _connectors.render_tools_file(base, tools, connector_env_names(infos))
     except _connectors.ConnectorError as exc:
         raise AgentSmithError(str(exc)) from exc
 
@@ -162,7 +178,7 @@ def _build_tools_file(repo: Path, connector_names: list[str]) -> str:
     clash = [t.name for t in tools if t.name in BASE_TOOL_NAMES or _count_defs(text, t.name) != 1]
     if clash:
         raise AgentSmithError(f"A connection tool reuses an existing tool name ({', '.join(clash)}).")
-    return text
+    return text, infos
 
 
 def _top_level_names(source: str) -> set[str]:
