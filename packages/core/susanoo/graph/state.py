@@ -61,6 +61,7 @@ class GraphState(SusanooState, total=False):
     answer_sources: dict[str, str]  # UserQuestions -> Planner: question id -> "user" | "default"
     scenario_feedback: list[dict]  # ScenarioApproval -> Planner: {"title", "action": edited|rejected, "note"}
     connectors: list[str]  # connector names this run may use (Agent Smith); pending contract decision
+    cost_cap_usd: float  # this run's own cap (runs.cost_cap_usd); budget.cap_for prefers it over the env default
 
 
 def initial_state(run_id: str, spec: str) -> GraphState:

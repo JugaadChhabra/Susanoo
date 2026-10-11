@@ -66,3 +66,16 @@ def test_bad_cap_fails_loudly(monkeypatch, bad):
 def test_message_is_plain_english():
     with pytest.raises(budget.BudgetExceeded, match=r"reached the \$2\.00 cap"):
         budget.check({"cost_usd": 2.5})
+
+
+def test_a_runs_own_cap_wins_over_the_env(monkeypatch):
+    monkeypatch.setenv("RUN_COST_CAP_USD", "2")
+    budget.check({"cost_usd": 1.5, "cost_cap_usd": 3})
+    with pytest.raises(budget.BudgetExceeded):
+        budget.check({"cost_usd": 1.0, "cost_cap_usd": 1})
+
+
+@pytest.mark.parametrize("bad", [0, -1, float("inf"), float("nan")])
+def test_a_bad_run_cap_fails_loudly(bad):
+    with pytest.raises(ValueError):
+        budget.check({"cost_usd": 0, "cost_cap_usd": bad})

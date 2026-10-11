@@ -61,7 +61,7 @@ def iterations_without_gain(metrics: list[IterationMetrics]) -> int:
 
 def stop_reason(state: Mapping[str, Any]) -> str | None:
     """Why the improvement loop must stop now, or None to keep going."""
-    if float(state.get("cost_usd", 0.0)) >= budget.run_cost_cap_usd():
+    if float(state.get("cost_usd", 0.0)) >= budget.cap_for(state):
         return "budget"
     if state.get("iteration", 0) >= MAX_ITERATIONS:
         return "iteration_cap"

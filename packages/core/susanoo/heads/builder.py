@@ -336,7 +336,7 @@ def _instruction(plan: Any) -> str:
 
 
 def _worker_budget(state: SusanooState) -> float:
-    remaining = budget.run_cost_cap_usd() - float(state.get("cost_usd", 0.0))
+    remaining = budget.cap_for(state) - float(state.get("cost_usd", 0.0))
     return round(max(0.05, min(coding_worker.DEFAULT_MAX_BUDGET_USD, remaining)), 4)
 
 

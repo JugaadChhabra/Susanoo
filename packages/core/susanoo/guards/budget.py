@@ -37,9 +37,20 @@ def run_cost_cap_usd() -> float:
     return cap
 
 
+def cap_for(state: Mapping[str, Any]) -> float:
+    """The cap for this run: `state["cost_cap_usd"]` (the run row's own cap) if set, else the env default."""
+    raw = state.get("cost_cap_usd")
+    if raw is None:
+        return run_cost_cap_usd()
+    cap = float(raw)
+    if not math.isfinite(cap) or cap <= 0:
+        raise ValueError(f"cost_cap_usd must be a positive number, got {raw!r}")
+    return cap
+
+
 def check(state: Mapping[str, Any]) -> None:
-    """Raise BudgetExceeded if `state["cost_usd"]` has reached the per-run cap."""
-    cap = run_cost_cap_usd()
+    """Raise BudgetExceeded if `state["cost_usd"]` has reached this run's cap."""
+    cap = cap_for(state)
     cost = float(state.get("cost_usd", 0.0))
     if cost >= cap:
         raise BudgetExceeded(cost, cap)
