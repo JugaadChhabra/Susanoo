@@ -76,7 +76,7 @@ def test_config_from_env(monkeypatch):
 # --- create_repo -------------------------------------------------------------------------------------
 
 
-def test_create_repo_posts_a_private_repo_and_returns_urls():
+def test_create_repo_posts_a_public_repo_and_returns_urls():
     seen = {}
 
     def handler(request):
@@ -94,7 +94,7 @@ def test_create_repo_posts_a_private_repo_and_returns_urls():
     )
     assert seen["url"].endswith("/orgs/acme/repos")
     assert seen["auth"] == f"Bearer {TOKEN}"
-    assert '"private":true' in seen["body"].replace(" ", "")
+    assert '"private":false' in seen["body"].replace(" ", "")
     assert TOKEN not in seen["body"]
 
 

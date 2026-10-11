@@ -81,7 +81,7 @@ class GitHubClient:
         if self._owns_http:
             await self._http.aclose()
 
-    async def create_repo(self, org: str, name: str, *, private: bool = True, description: str = "") -> RepoInfo:
+    async def create_repo(self, org: str, name: str, *, private: bool = False, description: str = "") -> RepoInfo:
         try:
             resp = await self._http.post(
                 f"/orgs/{org}/repos",
