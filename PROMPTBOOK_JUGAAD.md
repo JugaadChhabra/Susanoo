@@ -27,9 +27,9 @@ Don't write code yet.
 Run bash scripts/setup-dev.sh and show me the output. If it says my identity is wrong, stop and tell me the exact command to run myself. Don't set it yourself.
 ```
 
-▶ **Schema review (with Muaaz on a call; this unblocks #3)**
+▶ **Schema review (done: schemas are on main; ask Muaaz to confirm)**
 ```
-Muaaz is creating packages/core/susanoo/schemas/ from [PRD › Contracts (locked)]. Review his models against the PRD line by line (use the prd-lookup skill) and list any mismatch. Don't change anything; report only.
+packages/core/susanoo/schemas/ was copied verbatim from [PRD › Contracts (locked)] and [PRD › LangGraph flow and shared state] (core.py, events.py, state.py). Review the models against the PRD line by line (use the prd-lookup skill) and list any mismatch. Don't change anything; report only.
 ```
 
 ---
@@ -62,9 +62,9 @@ Afterwards: draft the kickoff #neatHack post with the architecture diagram (docs
 
 ### #3 — Generated frontend types and contract tests in CI
 ```
-Write scripts/export_types.py: export every Pydantic model in packages/core/susanoo/schemas/ to apps/web/types/generated.ts (JSON Schema → TypeScript; pick a maintained tool and say why in the commit body). Add a CI step that fails when generated.ts is stale.
+The schemas are on main (packages/core/susanoo/schemas/: core.py, events.py, state.py) and scripts/export_types.py already writes apps/web/types/generated.ts from them. Check the export against the models (e.g. fields with defaults, like AnswerKey.must_not_flag and RunEvent.trace_url, are always present in API responses) and fix it if needed. Add a CI step that fails when generated.ts is stale.
 Add tests/contracts/: sample RunEvent, Scenario, IterationMetrics and Diagnosis payloads validate against the Pydantic models. Put the samples where frontend screens can reuse them as fixtures.
-Don't edit anything in packages/core/susanoo/schemas/ (frozen; see the contract-change skill). If the schemas don't exist yet, stop and report TICKET_BLOCKED.
+Don't edit anything in packages/core/susanoo/schemas/ (frozen; see the contract-change skill).
 Acceptance: make types is deterministic; CI fails on a stale generated.ts; contract tests pass.
 ```
 

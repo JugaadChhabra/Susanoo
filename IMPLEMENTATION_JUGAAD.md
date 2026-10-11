@@ -61,7 +61,7 @@ Stagger sleep with Muaaz so one of you is always pushing.
 
 ### P0 — Contracts, scaffold, skeleton deploy (Sun 18:00–21:00)
 
-1. **Lock the schemas with Muaaz** (30 min, together), from **[PRD › Contracts (locked)]**.
+1. **Lock the schemas with Muaaz** (30 min, together), from **[PRD › Contracts (locked)]**. *Done: copied verbatim into `packages/core/susanoo/schemas/` (`core.py`, `events.py`, `state.py`); Muaaz to confirm.*
 2. **Monorepo scaffold**, exactly as in **[PRD › Repository structure › Susanoo monorepo]**:
    - A uv workspace root, with `apps/api`, `apps/worker` and `packages/core`.
    - `apps/web`: Next.js + TypeScript, Tailwind, shadcn/ui and React Flow (**[PRD › Tech stack]**), with route groups `(marketing)`, `(auth)` and `(app)`.
