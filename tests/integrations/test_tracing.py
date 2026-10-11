@@ -232,6 +232,58 @@ def test_database_url_password_is_masked_but_host_kept():
     assert out == f"postgresql://postgres:{REDACTED}@db.example.supabase.co:5432/postgres"
 
 
+@pytest.mark.parametrize(
+    "text, value",
+    [
+        ('api_key = "q8Zr2Lm9Xv4Tn7Bc1Wd5"', "q8Zr2Lm9Xv4Tn7Bc1Wd5"),
+        ("api_key = 'q8Zr2Lm9Xv4Tn7Bc1Wd5'", "q8Zr2Lm9Xv4Tn7Bc1Wd5"),
+        ('def f(token="a1b2c3d4e5f6a7b8"):', "a1b2c3d4e5f6a7b8"),
+        ('{"x-api-key": "0123456789abcdef"}', "0123456789abcdef"),
+        ('headers={"X-Api-Key": "0123456789abcdef"}', "0123456789abcdef"),
+        ('{"Authorization": "Token 0123456789abcdef"}', "0123456789abcdef"),
+        ('password: str = "hunter2hunter2"', "hunter2hunter2"),
+        ('DB_PASSWORD="s3cr3t-pass"', "s3cr3t-pass"),
+        ('client(access_token="ya29.abcdefghijk")', "ya29.abcdefghijk"),
+        ('{"private_key": "abcdef123456"}', "abcdef123456"),
+    ],
+)
+def test_quoted_assigned_secrets_are_redacted(text, value):
+    out = tracing.scrub_text(text)
+    assert value not in out and REDACTED in out
+    assert tracing.scrub_text(out) == out  # idempotent
+
+
+def test_quoted_assignment_redaction_keeps_the_name_and_quotes():
+    assert tracing.scrub_text('api_key = "q8Zr2Lm9Xv4Tn7Bc1Wd5"') == f'api_key = "{REDACTED}"'
+    assert tracing.scrub_text('{"x-api-key": "0123456789abcdef"}') == f'{{"x-api-key": "{REDACTED}"}}'
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'token = os.environ["GITHUB_TOKEN"]',
+        'headers = {"Authorization": f"Bearer {token}"}',
+        "max_tokens=4096",
+        '{"input_tokens": 12}',
+        'name = "reviewer"',
+        'api_key = ""',
+    ],
+)
+def test_quoted_assignment_redaction_leaves_harmless_text_alone(text):
+    assert tracing.scrub_text(text) == text
+
+
+def test_looks_secret_shaped_ignores_assignment_forms_but_sees_value_shapes():
+    assert tracing.looks_secret_shaped("use " + "sk-ant-" + "api03-AbCdEfGhIjKlMnOp here")
+    assert tracing.looks_secret_shaped("postgres://u:pw1234@h/db")
+    assert not tracing.looks_secret_shaped('for example API_KEY = "pay_live_..." in code')
+
+
+def test_is_sensitive_name():
+    assert tracing.is_sensitive_name("X-Api-Key") and tracing.is_sensitive_name("db_password")
+    assert not tracing.is_sensitive_name("repo_name")
+
+
 def test_assigned_secret_in_text_is_redacted():
     out = tracing.redact("log", "connect with password=hunter2 now")
     assert "hunter2" not in out and "connect with" in out

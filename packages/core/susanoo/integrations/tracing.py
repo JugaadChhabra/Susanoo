@@ -64,6 +64,17 @@ _ASSIGNED_SECRET = re.compile(
     re.IGNORECASE,
 )
 
+# name = "value", name: "value", name="value" (keyword/default arg), "name": "value" (dict entry) and
+# annotated forms, for any name that contains a credential word (X-Api-Key, access_token, db_password...).
+# Quoted values need their own pattern because the one above deliberately skips quotes.
+_QUOTED_ASSIGNED_SECRET = re.compile(
+    r"""(?<![\w\-])"""
+    r"""([\w\-]*?(?:api[_-]?key|access[_-]?key|secret|token|passw(?:or)?d|authorization|credential|private[_-]?key)"""
+    r"""[\w\-]*["']?\s*(?::\s*[\w\[\], .|]+?)?\s*[:=]\s*)"""
+    r"""(["'])((?:(?!\2)[^\n\\]|\\.){4,}?)\2""",
+    re.IGNORECASE,
+)
+
 _MAX_DEPTH = 8
 
 
@@ -72,7 +83,22 @@ def scrub_text(text: str) -> str:
     for pattern in _SECRET_VALUE_PATTERNS:
         text = pattern.sub(REDACTED, text)
     text = _URL_PASSWORD.sub(rf"\g<1>{REDACTED}\g<3>", text)
+    text = _QUOTED_ASSIGNED_SECRET.sub(rf"\g<1>\g<2>{REDACTED}\g<2>", text)
     return _ASSIGNED_SECRET.sub(rf"\g<1>{REDACTED}", text)
+
+
+def looks_secret_shaped(text: str) -> bool:
+    """True if `text` contains a credential by its shape alone (API key prefixes, JWT, PEM, URL password).
+
+    Unlike `scrub_text` this ignores `name = "value"` forms, so prose or code that merely mentions an
+    example assignment (`API_KEY = "pay_live_..."`) does not count.
+    """
+    return any(p.search(text) for p in _SECRET_VALUE_PATTERNS) or _URL_PASSWORD.search(text) is not None
+
+
+def is_sensitive_name(name: str) -> bool:
+    """True if a variable, argument, header or dict key name suggests it holds a credential."""
+    return _is_sensitive_key(name)
 
 
 def _is_sensitive_key(key: Any) -> bool:
