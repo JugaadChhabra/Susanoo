@@ -101,6 +101,14 @@ export interface RunEvent {
   at: string;
 }
 
+export interface RunQuota {
+  runs_per_day: number;
+  runs_used_today: number;
+  runs_left_today: number;
+  paused: boolean;
+  resets_at: string;
+}
+
 export interface RunSummary {
   id: string;
   status: "running" | "awaiting_approval" | "done" | "failed";

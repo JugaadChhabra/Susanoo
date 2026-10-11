@@ -51,3 +51,13 @@ class NewProject(BaseModel):
 
 class ProjectRules(BaseModel):
     rules: Rules
+
+
+class RunQuota(BaseModel):
+    """How many runs the caller can still start today. [PRD › Connectors and API budget › Anthropic budget]"""
+
+    runs_per_day: int
+    runs_used_today: int
+    runs_left_today: int  # never negative; 0 when paused too
+    paused: bool  # the platform hit its global daily spending cap, so nobody can start a run today
+    resets_at: str  # ISO timestamp of the next midnight UTC, when the counts start over
