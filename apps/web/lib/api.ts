@@ -1,3 +1,5 @@
+import { getAccessToken } from "@/lib/supabase";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /** Shape of every API error: {"error": {"code", "message"}}. */
@@ -29,7 +31,11 @@ export interface Health {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, init);
+    // Logged-in browsers send their Supabase token; the API rejects protected routes without it.
+    const token = await getAccessToken();
+    const headers = new Headers(init?.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    response = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
     throw new ApiError(0, "network_error", "We couldn't reach the server.");
   }
