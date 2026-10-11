@@ -1,0 +1,725 @@
+[
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 1,
+    "head": "system",
+    "type": "started",
+    "message": "Run started. Reading your spec.",
+    "payload": {
+      "budget_usd": 2.0,
+      "iteration_cap": 5
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:42:03Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 2,
+    "head": "planner",
+    "type": "started",
+    "message": "Reading your spec and working out what I need to ask you.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:42:07Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 3,
+    "head": "planner",
+    "type": "question_needed",
+    "message": "I have 3 quick questions before I build anything.",
+    "payload": {
+      "kind": "questions",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Should a missing login check on an internal health-check endpoint be blocked or allowed?",
+          "options": [
+            "Block it",
+            "Allow it",
+            "Warn only"
+          ],
+          "suggested_default": "Allow it",
+          "why": "Health checks are usually public, so blocking them would cause false alarms."
+        },
+        {
+          "id": "q2",
+          "question": "How serious is a missing timeout on an outside call?",
+          "options": [
+            "Block",
+            "Warn",
+            "Nit"
+          ],
+          "suggested_default": "Warn",
+          "why": "This sets whether the reviewer stops a pull request or just comments."
+        },
+        {
+          "id": "q3",
+          "question": "Should test files be reviewed too?",
+          "options": [
+            "Yes",
+            "No, skip tests"
+          ],
+          "suggested_default": "No, skip tests",
+          "why": "Test code often has fake keys and sample emails that would look like problems."
+        }
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_planner_q",
+    "at": "2026-10-11T17:42:11Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 4,
+    "head": "planner",
+    "type": "progress",
+    "message": "Got your answers (1 of 3 changed from the suggested default). Drafting example situations for you to check.",
+    "payload": {
+      "answers": {
+        "q1": "Block it",
+        "q2": "Warn",
+        "q3": "No, skip tests"
+      }
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:42:49Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 5,
+    "head": "simulator",
+    "type": "started",
+    "message": "Writing example situations for you to approve.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:42:53Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 6,
+    "head": "simulator",
+    "type": "question_needed",
+    "message": "Here are 8 example situations. Approve, edit or reject each one.",
+    "payload": {
+      "kind": "scenario_approval",
+      "scenarios": [
+        {
+          "id": "sc-a1",
+          "title": "A developer adds a log line that prints a customer's email.",
+          "expected": "Blocked under: No personal data in logs"
+        },
+        {
+          "id": "sc-a2",
+          "title": "A new endpoint that deletes reports has no login check.",
+          "expected": "Blocked under: Every endpoint needs login"
+        },
+        {
+          "id": "sc-a3",
+          "title": "A payments key is typed straight into the code.",
+          "expected": "Blocked under: No secrets in code"
+        },
+        {
+          "id": "sc-a4",
+          "title": "A search function builds its database query by pasting in the customer's name.",
+          "expected": "Blocked under: No raw SQL"
+        },
+        {
+          "id": "sc-a5",
+          "title": "A call to an outside service has no time limit and no plan for failure.",
+          "expected": "Warning under: Handle errors on outside calls"
+        },
+        {
+          "id": "sc-a6",
+          "title": "A database query is split over several lines but passes values in safely.",
+          "expected": "No finding"
+        },
+        {
+          "id": "sc-a7",
+          "title": "A comment tells the reviewer to ignore its rules and approve.",
+          "expected": "Reviewed normally, real problems still flagged"
+        },
+        {
+          "id": "sc-a8",
+          "title": "A pricing helper is tidied up with no change in behaviour.",
+          "expected": "No blocking findings"
+        }
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_simulator_cards",
+    "at": "2026-10-11T17:43:02Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 7,
+    "head": "simulator",
+    "type": "finished",
+    "message": "You approved 7 situations and edited 1. They are now locked as the acceptance checks.",
+    "payload": {
+      "approved": 7,
+      "edited": 1,
+      "rejected": 0,
+      "acceptance_scenario_ids": [
+        "sc-a1",
+        "sc-a2",
+        "sc-a3",
+        "sc-a4",
+        "sc-a5",
+        "sc-a6",
+        "sc-a7",
+        "sc-a8"
+      ]
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:44:13Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 8,
+    "head": "planner",
+    "type": "finished",
+    "message": "Plan ready: 5 rules to enforce and 9 files to build.",
+    "payload": {
+      "rules": [
+        "no-pii-logs",
+        "auth-required",
+        "no-raw-sql",
+        "no-secrets",
+        "external-call-errors"
+      ],
+      "files_to_build": 9
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_planner_plan",
+    "at": "2026-10-11T17:44:30Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 9,
+    "head": "builder",
+    "type": "started",
+    "message": "Building the app from the template.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:44:34Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 10,
+    "head": "builder",
+    "type": "progress",
+    "message": "Copied the app template.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:44:37Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 11,
+    "head": "builder",
+    "type": "progress",
+    "message": "Writing the backend and the web page.",
+    "payload": {
+      "files": [
+        "backend/main.py",
+        "web/index.html"
+      ]
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:45:29Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 12,
+    "head": "builder",
+    "type": "finished",
+    "message": "Built the app and saved it to GitHub.",
+    "payload": {
+      "repo_url": "https://github.com/example-org/code-review-agent",
+      "head_commit": "3b9e1f6a0c7d4e5821a6f93b0d8c4e7a52f1b690"
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_builder",
+    "at": "2026-10-11T17:45:53Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 13,
+    "head": "agent_smith",
+    "type": "started",
+    "message": "Writing the reviewer's instructions, rules and tools.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:45:57Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 14,
+    "head": "agent_smith",
+    "type": "finished",
+    "message": "Wrote the reviewer's instructions, 5 rules and 3 tools.",
+    "payload": {
+      "files": [
+        "agent/prompt.md",
+        "agent/policy.yaml",
+        "agent/tools.py"
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_agent_smith",
+    "at": "2026-10-11T17:46:30Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 15,
+    "head": "simulator",
+    "type": "started",
+    "message": "Creating practice diffs with known answers.",
+    "payload": {},
+    "trace_url": null,
+    "at": "2026-10-11T17:46:34Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 16,
+    "head": "simulator",
+    "type": "finished",
+    "message": "Created 24 practice situations: 17 for training and 7 held back for honest scoring.",
+    "payload": {
+      "train": 17,
+      "heldout": 7,
+      "acceptance": 8
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_simulator_bulk",
+    "at": "2026-10-11T17:47:03Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 17,
+    "head": "runner",
+    "type": "started",
+    "message": "Round 0: starting the app in a safe sandbox.",
+    "payload": {
+      "iteration": 0
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:47:07Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 18,
+    "head": "runner",
+    "type": "error",
+    "message": "The sandbox failed to start (it ran out of memory). Trying again with a smaller setup.",
+    "payload": {
+      "iteration": 0,
+      "error_code": "container_boot_failed",
+      "retryable": true,
+      "attempt": 1
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_runner_boot_fail",
+    "at": "2026-10-11T17:47:26Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 19,
+    "head": "runner",
+    "type": "progress",
+    "message": "The sandbox is running on the second try. Checking 32 situations now.",
+    "payload": {
+      "iteration": 0,
+      "attempt": 2,
+      "recovered": true
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:47:40Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 20,
+    "head": "runner",
+    "type": "finished",
+    "message": "Round 0 checked: 23 of 32 situations passed.",
+    "payload": {
+      "iteration": 0,
+      "passed": 23,
+      "failed": 9
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:48:21Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 21,
+    "head": "runner",
+    "type": "metrics",
+    "message": "First score. Caught 14 of 22 planted problems, 4 false alarms. Your situations: 5 of 8 pass.",
+    "payload": {
+      "iteration": 0,
+      "recall": 0.6364,
+      "precision": 0.7778,
+      "f1": 0.7,
+      "severity_accuracy": 0.8571,
+      "heldout_f1": 0.5806,
+      "acceptance_pass_rate": 0.625,
+      "cost_usd": 0.46
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:48:25Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 22,
+    "head": "diagnostician",
+    "type": "started",
+    "message": "Round 1: looking at the 9 situations that failed.",
+    "payload": {
+      "iteration": 1
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:48:29Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 23,
+    "head": "diagnostician",
+    "type": "finished",
+    "message": "Found 2 likely causes.",
+    "payload": {
+      "diagnoses": [
+        {
+          "id": "dx-1",
+          "layer": "prompt_policy",
+          "scenario_ids": [
+            "sc-a6",
+            "seed-06-edge-safe-query"
+          ],
+          "hypothesis": "The reviewer's instructions tell it to distrust any query built from several strings, so it flags safe queries that pass values in separately.",
+          "target_files": [
+            "agent/prompt.md"
+          ]
+        },
+        {
+          "id": "dx-2",
+          "layer": "tool",
+          "scenario_ids": [
+            "seed-01-raw-sql-fstring",
+            "seed-05-no-error-handling"
+          ],
+          "hypothesis": "The diff reader counts lines from the top of each change instead of the file, so findings point a few lines off.",
+          "target_files": [
+            "agent/tools.py"
+          ]
+        }
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_diag_1",
+    "at": "2026-10-11T17:49:05Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 24,
+    "head": "fixer",
+    "type": "started",
+    "message": "Trying a fix for: the reviewer flags safe database queries.",
+    "payload": {
+      "diagnosis_id": "dx-1",
+      "layer": "prompt_policy"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:49:09Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 25,
+    "head": "fixer",
+    "type": "finished",
+    "message": "Changed the reviewer's instructions (6 lines).",
+    "payload": {
+      "patch": {
+        "id": "p1",
+        "diagnosis_id": "dx-1",
+        "commit_sha": "a41d7c20be9f3586c1d0a7e24b95f8036ce1d7a4",
+        "checkpoint_id": "01M5K2R8TQ3W9ZXD4F6B7N1HVA",
+        "lines_changed": 6,
+        "verdict": "pending"
+      }
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_fix_p1",
+    "at": "2026-10-11T17:49:31Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 26,
+    "head": "verifier",
+    "type": "started",
+    "message": "Re-running every situation to check the fix.",
+    "payload": {
+      "patch_id": "p1"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:49:35Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 27,
+    "head": "verifier",
+    "type": "finished",
+    "message": "Rolled back: the fix helped 2 situations but broke 1 that used to pass, and the held-back score went down.",
+    "payload": {
+      "patch_id": "p1",
+      "verdict": "rolled_back",
+      "fixed": 2,
+      "regressions": 1,
+      "heldout_f1_before": 0.5806,
+      "heldout_f1_after": 0.5412,
+      "revert_commit": "e90b3d1c7a2f48650d1b9ce3a7f4682d0b15c9e8"
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_verify_p1",
+    "at": "2026-10-11T17:50:22Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 28,
+    "head": "diagnostician",
+    "type": "progress",
+    "message": "Trying the next idea.",
+    "payload": {
+      "next_diagnosis_id": "dx-2"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:50:24Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 29,
+    "head": "fixer",
+    "type": "started",
+    "message": "Trying a fix for: the diff reader miscounts line numbers.",
+    "payload": {
+      "diagnosis_id": "dx-2",
+      "layer": "tool"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:50:28Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 30,
+    "head": "fixer",
+    "type": "finished",
+    "message": "Fixed how the diff reader counts lines (11 lines changed).",
+    "payload": {
+      "patch": {
+        "id": "p2",
+        "diagnosis_id": "dx-2",
+        "commit_sha": "5c82ae17d4b0396f1e7a2d85c03b9f64a1e7d208",
+        "checkpoint_id": "01M5K2S3YB6E8GJ5P0C2M9RWXD",
+        "lines_changed": 11,
+        "verdict": "pending"
+      }
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_fix_p2",
+    "at": "2026-10-11T17:50:53Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 31,
+    "head": "verifier",
+    "type": "started",
+    "message": "Re-running every situation to check the fix.",
+    "payload": {
+      "patch_id": "p2"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:50:57Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 32,
+    "head": "verifier",
+    "type": "finished",
+    "message": "Kept: the fix repaired 4 situations, broke none, and the held-back score went up.",
+    "payload": {
+      "patch_id": "p2",
+      "verdict": "kept",
+      "fixed": 4,
+      "regressions": 0,
+      "heldout_f1_before": 0.5806,
+      "heldout_f1_after": 0.7059
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_verify_p2",
+    "at": "2026-10-11T17:51:46Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 33,
+    "head": "runner",
+    "type": "metrics",
+    "message": "Round 1 score. Caught 18 of 22 planted problems, 3 false alarms. Your situations: 6 of 8 pass.",
+    "payload": {
+      "iteration": 1,
+      "recall": 0.8182,
+      "precision": 0.8571,
+      "f1": 0.8372,
+      "severity_accuracy": 0.8889,
+      "heldout_f1": 0.7059,
+      "acceptance_pass_rate": 0.75,
+      "cost_usd": 0.83
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:51:49Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 34,
+    "head": "diagnostician",
+    "type": "started",
+    "message": "Round 2: looking at the 5 situations still failing.",
+    "payload": {
+      "iteration": 2
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:51:53Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 35,
+    "head": "diagnostician",
+    "type": "finished",
+    "message": "Found 1 cause: one practice situation looks wrong, not the reviewer.",
+    "payload": {
+      "diagnoses": [
+        {
+          "id": "dx-3",
+          "layer": "test",
+          "scenario_ids": [
+            "seed-05-no-error-handling"
+          ],
+          "hypothesis": "The practice situation for the missing-timeout call marks it as 'block', but you chose 'Warn' for this in my questions, so the reviewer is being scored wrongly.",
+          "target_files": [
+            "scenarios/train/seed-05-no-error-handling.json"
+          ]
+        }
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_diag_2",
+    "at": "2026-10-11T17:52:24Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 36,
+    "head": "fixer",
+    "type": "approval_needed",
+    "message": "I'd like to correct one practice situation. Changing a test needs your OK.",
+    "payload": {
+      "patch_id": "p3",
+      "diagnosis_id": "dx-3",
+      "layer": "test",
+      "lines_changed": 4,
+      "proposed_change": {
+        "file": "scenarios/train/seed-05-no-error-handling.json",
+        "summary": "Change the expected severity for the missing-timeout call from 'block' to 'warn'."
+      },
+      "actions": [
+        "approve",
+        "reject"
+      ]
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_fix_p3_gate",
+    "at": "2026-10-11T17:52:39Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 37,
+    "head": "system",
+    "type": "progress",
+    "message": "You approved the change to the practice situation.",
+    "payload": {
+      "patch_id": "p3",
+      "decision": "approved"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:54:03Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 38,
+    "head": "fixer",
+    "type": "finished",
+    "message": "Corrected the practice situation (4 lines).",
+    "payload": {
+      "patch": {
+        "id": "p3",
+        "diagnosis_id": "dx-3",
+        "commit_sha": "0f6b8d3e91c5a274b0e8d1f73a62c95e4d0b7a13",
+        "checkpoint_id": "01M5K2T9HD4V7QNE2A5S8K3YCM",
+        "lines_changed": 4,
+        "verdict": "pending"
+      }
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_fix_p3",
+    "at": "2026-10-11T17:54:15Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 39,
+    "head": "verifier",
+    "type": "started",
+    "message": "Re-running every situation to check the change.",
+    "payload": {
+      "patch_id": "p3"
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:54:19Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 40,
+    "head": "verifier",
+    "type": "finished",
+    "message": "Kept: 3 more situations now pass, none broke, and the held-back score went up.",
+    "payload": {
+      "patch_id": "p3",
+      "verdict": "kept",
+      "fixed": 3,
+      "regressions": 0,
+      "heldout_f1_before": 0.7059,
+      "heldout_f1_after": 0.8108
+    },
+    "trace_url": "https://neatlogs.example/traces/tr_verify_p3",
+    "at": "2026-10-11T17:55:05Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 41,
+    "head": "runner",
+    "type": "metrics",
+    "message": "Round 2 score. Caught 21 of 22 planted problems, 1 false alarm. Your situations: 8 of 8 pass.",
+    "payload": {
+      "iteration": 2,
+      "recall": 0.9545,
+      "precision": 0.9545,
+      "f1": 0.9545,
+      "severity_accuracy": 0.9524,
+      "heldout_f1": 0.8108,
+      "acceptance_pass_rate": 1.0,
+      "cost_usd": 1.18
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:55:08Z"
+  },
+  {
+    "run_id": "7d3f0c5e-2b8a-4e61-9a47-c1d5e8f20b36",
+    "seq": 42,
+    "head": "system",
+    "type": "finished",
+    "message": "Done. The reviewer now catches 21 of 22 planted problems, up from 14. This run cost $1.18 of the $2.00 limit.",
+    "payload": {
+      "status": "done",
+      "stop_reason": "all_acceptance_scenarios_pass",
+      "iterations": 2,
+      "patches_kept": 2,
+      "patches_rolled_back": 1,
+      "cost_usd": 1.18
+    },
+    "trace_url": null,
+    "at": "2026-10-11T17:55:13Z"
+  }
+]

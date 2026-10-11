@@ -1,0 +1,32 @@
+[
+  {
+    "iteration": 0,
+    "recall": 0.6364,
+    "precision": 0.7778,
+    "f1": 0.7,
+    "severity_accuracy": 0.8571,
+    "heldout_f1": 0.5806,
+    "acceptance_pass_rate": 0.625,
+    "cost_usd": 0.46
+  },
+  {
+    "iteration": 1,
+    "recall": 0.8182,
+    "precision": 0.8571,
+    "f1": 0.8372,
+    "severity_accuracy": 0.8889,
+    "heldout_f1": 0.7059,
+    "acceptance_pass_rate": 0.75,
+    "cost_usd": 0.83
+  },
+  {
+    "iteration": 2,
+    "recall": 0.9545,
+    "precision": 0.9545,
+    "f1": 0.9545,
+    "severity_accuracy": 0.9524,
+    "heldout_f1": 0.8108,
+    "acceptance_pass_rate": 1.0,
+    "cost_usd": 1.18
+  }
+]
