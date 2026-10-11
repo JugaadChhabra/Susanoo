@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { RunSummary } from "@/types/generated";
-import { EXAMPLE_SPECS, formatCost, formatScore, parseRules, rulesProblem, rulesToText, runStatusLabel } from "./projects";
+import type { RunQuota, RunSummary } from "@/types/generated";
+import {
+  EXAMPLE_SPECS,
+  formatCost,
+  formatScore,
+  parseRules,
+  rulesProblem,
+  rulesToText,
+  runStatusLabel,
+  runsLeftLabel,
+} from "./projects";
 
 const run = (overrides: Partial<RunSummary> = {}): RunSummary => ({
   id: "r1",
@@ -67,5 +76,33 @@ describe("EXAMPLE_SPECS", () => {
     expect(first.spec).not.toMatch(/Rules:/);
     expect(first.rules.length).toBeGreaterThanOrEqual(5);
     expect(first.rules.every((r) => r.endsWith("."))).toBe(true);
+  });
+});
+
+describe("runsLeftLabel", () => {
+  const quota = (overrides: Partial<RunQuota> = {}): RunQuota => ({
+    runs_per_day: 3,
+    runs_used_today: 1,
+    runs_left_today: 2,
+    paused: false,
+    resets_at: "2026-10-13T00:00:00+00:00",
+    ...overrides,
+  });
+
+  it("counts down the runs left today out of the daily allowance", () => {
+    expect(runsLeftLabel(quota())).toBe("2 of 3 runs left today");
+    expect(runsLeftLabel(quota({ runs_per_day: 1, runs_used_today: 0, runs_left_today: 1 }))).toBe("1 of 1 run left today");
+  });
+
+  it("says plainly when today's runs are used up", () => {
+    expect(runsLeftLabel(quota({ runs_used_today: 3, runs_left_today: 0 }))).toBe(
+      "You've used all 3 runs for today. More after midnight UTC.",
+    );
+  });
+
+  it("explains a platform-wide pause before the personal count", () => {
+    expect(runsLeftLabel(quota({ paused: true, runs_left_today: 0 }))).toBe(
+      "New runs are paused for today because Susanoo hit its daily spending limit. The demo still works.",
+    );
   });
 });

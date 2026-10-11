@@ -1,4 +1,4 @@
-import type { RunSummary } from "@/types/generated";
+import type { RunQuota, RunSummary } from "@/types/generated";
 
 /** One rule per line; a leading "- ", "* " or "• " bullet and blank lines are ignored. [PRD › Non-technical users] */
 export function parseRules(text: string): string[] {
@@ -37,6 +37,16 @@ const STATUS_LABELS: Record<RunSummary["status"], string> = {
 };
 
 export const runStatusLabel = (status: RunSummary["status"]) => STATUS_LABELS[status];
+
+/** Runs left today, in plain English. [PRD › Connectors and API budget › Anthropic budget] */
+export function runsLeftLabel(quota: RunQuota): string {
+  const runs = quota.runs_per_day === 1 ? "run" : "runs";
+  if (quota.paused) {
+    return "New runs are paused for today because Susanoo hit its daily spending limit. The demo still works.";
+  }
+  if (quota.runs_left_today === 0) return `You've used all ${quota.runs_per_day} ${runs} for today. More after midnight UTC.`;
+  return `${quota.runs_left_today} of ${quota.runs_per_day} ${runs} left today`;
+}
 
 export interface ExampleSpec {
   title: string;

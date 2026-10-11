@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { ProjectList } from "@/components/app/project-list";
+import { RunsLeft } from "@/components/app/runs-left";
 
 export default function Page() {
   return (
@@ -16,6 +17,9 @@ export default function Page() {
         >
           <Plus className="size-4" aria-hidden /> New project
         </Link>
+      </div>
+      <div className="mb-6">
+        <RunsLeft />
       </div>
       <ProjectList />
     </main>

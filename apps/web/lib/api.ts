@@ -1,5 +1,5 @@
 import { getAccessToken } from "@/lib/supabase";
-import type { NewProject, ProjectRules, ProjectSummary } from "@/types/generated";
+import type { NewProject, ProjectRules, ProjectSummary, RunQuota } from "@/types/generated";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -81,3 +81,6 @@ export const createProject = (body: NewProject) => apiFetch<ProjectSummary>("/pr
 
 export const updateProjectRules = (projectId: string, body: ProjectRules) =>
   apiFetch<ProjectSummary>(`/projects/${encodeURIComponent(projectId)}/rules`, sendJson("PUT", body));
+
+/** How many runs the signed-in user can still start today. */
+export const getRunQuota = () => apiFetch<RunQuota>("/me/quota", { cache: "no-store" });
