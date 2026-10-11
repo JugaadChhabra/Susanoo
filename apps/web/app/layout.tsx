@@ -18,10 +18,10 @@ export const metadata: Metadata = {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
   }),
-  title: { default: SITE_TITLE, template: "%s · Susanoo" },
+  title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: "Susanoo",
-  openGraph: { type: "website", siteName: "Susanoo", title: SITE_TITLE, description: SITE_DESCRIPTION, url: "/" },
+  openGraph: { type: "website", siteName: "Susanoo", title: SITE_TITLE, description: SITE_DESCRIPTION },
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
 };
 

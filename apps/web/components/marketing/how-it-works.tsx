@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HEAD_STEPS, nextHeadIndex } from "@/lib/marketing";
@@ -28,7 +28,18 @@ export function HowItWorks() {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
-  const playing = !paused && !reduced;
+  const [onScreen, setOnScreen] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const playing = !paused && !reduced && onScreen;
+
+  // Only step while the section is on screen.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!playing) return;
@@ -39,7 +50,7 @@ export function HowItWorks() {
   const rows = [HEAD_STEPS.slice(0, 4), HEAD_STEPS.slice(4)];
 
   return (
-    <section id="how-it-works" aria-labelledby="how-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
+    <section ref={sectionRef} id="how-it-works" aria-labelledby="how-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
@@ -76,7 +87,7 @@ export function HowItWorks() {
               >
                 {row.map((head, i) => {
                   const index = r * 4 + i;
-                  const lit = reduced || index === active;
+                  const lit = !reduced && index === active;
                   const passed = !reduced && index < active;
                   return (
                     <li
@@ -84,14 +95,14 @@ export function HowItWorks() {
                       aria-current={!reduced && index === active ? "step" : undefined}
                       className={cn(
                         "relative bg-white p-5 transition-colors duration-500 motion-reduce:transition-none",
-                        lit && !reduced && "bg-[var(--mk-ink)] text-white",
+                        lit && "bg-[var(--mk-ink)] text-white",
                       )}
                     >
                       <div className="flex items-baseline justify-between gap-3">
                         <span
                           className={cn(
                             "text-sm tabular-nums",
-                            lit && !reduced ? "text-[var(--mk-tide-soft)]" : "text-[var(--mk-storm)]",
+                            lit ? "text-[var(--mk-tide-soft)]" : "text-[var(--mk-storm)]",
                           )}
                         >
                           {index + 1}. {head.phase}
@@ -100,7 +111,7 @@ export function HowItWorks() {
                           aria-hidden
                           className={cn(
                             "size-2 rounded-full transition-colors duration-500 motion-reduce:transition-none",
-                            lit && !reduced ? "bg-[var(--mk-tide-soft)]" : passed ? "bg-[var(--mk-tide)]" : "bg-[var(--mk-rule)]",
+                            lit ? "bg-[var(--mk-tide-soft)]" : passed ? "bg-[var(--mk-tide)]" : "bg-[var(--mk-rule)]",
                           )}
                         />
                       </div>
@@ -108,7 +119,7 @@ export function HowItWorks() {
                       <p
                         className={cn(
                           "mt-2 text-sm leading-relaxed",
-                          lit && !reduced ? "text-slate-200" : "text-[var(--mk-storm)]",
+                          lit ? "text-slate-200" : "text-[var(--mk-storm)]",
                         )}
                       >
                         {head.detail}

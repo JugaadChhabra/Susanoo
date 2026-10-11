@@ -47,4 +47,10 @@ describe("siteUrl", () => {
     expect(siteUrl({ VERCEL_PROJECT_PRODUCTION_URL: "susanoo.vercel.app" }).href).toBe("https://susanoo.vercel.app/");
     expect(siteUrl({}).href).toBe("http://localhost:3000/");
   });
+  it("accepts a bare domain and never throws on a bad value", () => {
+    expect(siteUrl({ NEXT_PUBLIC_SITE_URL: "susanoo.app" }).href).toBe("https://susanoo.app/");
+    expect(siteUrl({ NEXT_PUBLIC_SITE_URL: "http://", VERCEL_PROJECT_PRODUCTION_URL: "s.vercel.app" }).href).toBe(
+      "https://s.vercel.app/",
+    );
+  });
 });

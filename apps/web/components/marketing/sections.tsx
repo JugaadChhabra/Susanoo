@@ -10,7 +10,7 @@ const SECONDARY = `inline-flex h-12 items-center justify-center rounded-full bor
 const EXAMPLE_SPEC =
   "Build a code review app for our Python services. Developers paste a diff or a PR link and get a review. Rules: never log PII; every FastAPI endpoint needs auth; no raw SQL string formatting; no secrets in code; flag missing error handling on external calls. Severity: block, warn, or nit.";
 
-function StatusTag({ live, liveText, laterText }: { live: boolean; liveText: string; laterText: string }) {
+function StatusTag({ live, label }: { live: boolean; label: string }) {
   return (
     <span
       className={cn(
@@ -19,7 +19,7 @@ function StatusTag({ live, liveText, laterText }: { live: boolean; liveText: str
       )}
     >
       {live && <span aria-hidden className="size-1.5 rounded-full bg-white" />}
-      {live ? liveText : laterText}
+      {label}
     </span>
   );
 }
@@ -69,7 +69,8 @@ function SectionIntro({ id, title, children }: { id: string; title: string; chil
 }
 
 export function UseCases() {
-  const [live, ...later] = USE_CASES;
+  const live = USE_CASES.filter((u) => u.live);
+  const later = USE_CASES.filter((u) => !u.live);
   return (
     <section id="use-cases" aria-labelledby="use-cases-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -78,23 +79,27 @@ export function UseCases() {
           check: reviewing code against your team&apos;s rules.
         </SectionIntro>
         <div className="mt-12 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <article className="rounded-2xl bg-[var(--mk-ink)] p-8 text-white">
-            <StatusTag live liveText="Live now" laterText="" />
-            <h3 className="mk-display mt-6 text-3xl">{live.title}</h3>
-            <p className="mt-3 max-w-md leading-relaxed text-slate-300">{live.body}</p>
-            <Link
-              href="/projects/new"
-              className="mt-8 inline-flex h-11 items-center rounded-full bg-white px-5 text-sm font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]"
-            >
-              Build a code reviewer
-            </Link>
-          </article>
+          <div className="grid gap-6">
+            {live.map((u) => (
+              <article key={u.title} className="rounded-2xl bg-[var(--mk-ink)] p-8 text-white">
+                <StatusTag live label="Live now" />
+                <h3 className="mk-display mt-6 text-3xl">{u.title}</h3>
+                <p className="mt-3 max-w-md leading-relaxed text-slate-300">{u.body}</p>
+                <Link
+                  href="/projects/new"
+                  className="mt-8 inline-flex h-11 items-center rounded-full bg-white px-5 text-sm font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]"
+                >
+                  Start building
+                </Link>
+              </article>
+            ))}
+          </div>
           <ul className="divide-y divide-[var(--mk-rule)] rounded-2xl border border-[var(--mk-rule)] bg-white">
             {later.map((u) => (
               <li key={u.title} className="p-6">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="mk-display text-xl">{u.title}</h3>
-                  <StatusTag live={false} liveText="" laterText="Coming soon" />
+                  <StatusTag live={false} label="Coming soon" />
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{u.body}</p>
               </li>
@@ -145,7 +150,7 @@ export function Connectors() {
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className={cn("mk-display text-xl", !c.live && "text-[var(--mk-storm)]")}>{c.name}</h3>
-                <StatusTag live={c.live} liveText="Available" laterText="On the roadmap" />
+                <StatusTag live={c.live} label={c.live ? "Available" : "On the roadmap"} />
               </div>
               <p className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{c.body}</p>
             </li>

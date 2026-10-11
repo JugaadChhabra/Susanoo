@@ -70,11 +70,20 @@ export const FOOTER_LINKS: { label: string; href: string }[] = [
   { label: "jugaadchhabra.dev", href: "https://jugaadchhabra.dev" },
 ];
 
-/** Absolute base URL for metadata and OG images. */
+function parseHost(value: string | undefined): URL | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(/^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`);
+  } catch {
+    console.warn(`Ignoring site URL "${trimmed}": it isn't a valid web address.`);
+    return null;
+  }
+}
+
+/** Absolute base URL for metadata and OG images. A bad value is skipped rather than breaking every page. */
 export function siteUrl(env: { NEXT_PUBLIC_SITE_URL?: string; VERCEL_PROJECT_PRODUCTION_URL?: string }): URL {
-  if (env.NEXT_PUBLIC_SITE_URL) return new URL(env.NEXT_PUBLIC_SITE_URL);
-  if (env.VERCEL_PROJECT_PRODUCTION_URL) return new URL(`https://${env.VERCEL_PROJECT_PRODUCTION_URL}`);
-  return new URL("http://localhost:3000");
+  return parseHost(env.NEXT_PUBLIC_SITE_URL) ?? parseHost(env.VERCEL_PROJECT_PRODUCTION_URL) ?? new URL("http://localhost:3000");
 }
 
 export const SITE_TITLE = "Susanoo: AI agents you can prove work";

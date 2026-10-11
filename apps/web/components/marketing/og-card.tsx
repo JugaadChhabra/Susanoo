@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 export const OG_ALT = "Susanoo: AI agents are a many-headed mess. Susanoo tames them.";
 export const OG_SIZE = { width: 1200, height: 630 };
 
-/** The social preview card shared by the Open Graph and X images. */
+/** The social preview card (X falls back to it too). */
 export function ogCard(): ImageResponse {
   return new ImageResponse(
     (
