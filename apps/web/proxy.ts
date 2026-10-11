@@ -27,7 +27,11 @@ export async function proxy(request: NextRequest) {
 
   // Not configured counts as logged out: protected pages stay closed rather than open.
   if (!loggedIn && isProtectedPath(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL(loginUrlFor(request.nextUrl.pathname, request.nextUrl.search), request.url));
+    const redirect = NextResponse.redirect(
+      new URL(loginUrlFor(request.nextUrl.pathname, request.nextUrl.search), request.url),
+    );
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
   return response;
 }

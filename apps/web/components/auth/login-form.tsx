@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { safeNext } from "@/lib/auth";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase";
@@ -21,6 +21,13 @@ export function LoginForm() {
     params.get("error") ? "That sign-in link didn't work. Please try again." : "",
   );
 
+  // Coming back from GitHub with the Back button restores this page mid-"sending".
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => e.persisted && setStatus("idle");
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+
   if (!supabaseConfigured()) {
     return (
       <p role="alert" className="mt-6 text-sm text-destructive">
@@ -33,10 +40,9 @@ export function LoginForm() {
     e.preventDefault();
     setStatus("sending");
     setMessage("");
-    const { error } = await getSupabase().auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: callbackUrl(next) },
-    });
+    const { error } = await getSupabase()
+      .auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: callbackUrl(next) } })
+      .catch(() => ({ error: true }));
     if (error) {
       setStatus("error");
       setMessage("We couldn't send the link. Check the email address and try again.");
@@ -48,10 +54,9 @@ export function LoginForm() {
   async function github() {
     setStatus("sending");
     setMessage("");
-    const { error } = await getSupabase().auth.signInWithOAuth({
-      provider: "github",
-      options: { redirectTo: callbackUrl(next) },
-    });
+    const { error } = await getSupabase()
+      .auth.signInWithOAuth({ provider: "github", options: { redirectTo: callbackUrl(next) } })
+      .catch(() => ({ error: true }));
     if (error) {
       setStatus("error");
       setMessage("We couldn't start the GitHub sign-in. Please try again.");

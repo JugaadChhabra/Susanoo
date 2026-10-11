@@ -28,11 +28,14 @@ export interface Health {
   supabase: ServiceStatus;
 }
 
+/** /health and /demo/* are public; they never need (and must not fail on) a stale token. */
+export const isPublicApiPath = (path: string) => path === "/health" || path.startsWith("/demo/");
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     // Logged-in browsers send their Supabase token; the API rejects protected routes without it.
-    const token = await getAccessToken();
+    const token = isPublicApiPath(path) ? null : await getAccessToken();
     const headers = new Headers(init?.headers);
     if (token) headers.set("Authorization", `Bearer ${token}`);
     response = await fetch(`${API_URL}${path}`, { ...init, headers });

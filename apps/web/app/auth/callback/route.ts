@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const failed = NextResponse.redirect(`${origin}/login?error=callback`);
+  const next = safeNext(searchParams.get("next"));
+  const failed = NextResponse.redirect(`${origin}/login?error=callback&next=${encodeURIComponent(next)}`);
   if (!code || !url || !key) return failed;
 
   const jar = await cookies();
@@ -21,5 +22,5 @@ export async function GET(request: NextRequest) {
   });
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) return failed;
-  return NextResponse.redirect(`${origin}${safeNext(searchParams.get("next"))}`);
+  return NextResponse.redirect(`${origin}${next}`);
 }

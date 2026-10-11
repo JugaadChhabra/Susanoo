@@ -8,17 +8,31 @@ import { getSupabase } from "@/lib/supabase";
 export function SignOutButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function signOut() {
     setBusy(true);
-    await getSupabase().auth.signOut();
-    router.push("/login");
-    router.refresh();
+    try {
+      const { error } = await getSupabase().auth.signOut();
+      if (error) throw error;
+      router.push("/login");
+      router.refresh();
+    } catch {
+      setFailed(true);
+      setBusy(false);
+    }
   }
 
   return (
-    <Button variant="ghost" size="sm" onClick={signOut} disabled={busy}>
-      {busy ? "Signing out…" : "Sign out"}
-    </Button>
+    <div className="flex items-center gap-2">
+      {failed && (
+        <span role="alert" className="text-xs text-destructive">
+          Couldn&apos;t sign out. Try again.
+        </span>
+      )}
+      <Button variant="ghost" size="sm" onClick={signOut} disabled={busy}>
+        {busy ? "Signing out…" : "Sign out"}
+      </Button>
+    </div>
   );
 }

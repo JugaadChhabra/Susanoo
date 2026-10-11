@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { isProtectedPath, loginUrlFor, safeNext } from "./auth";
 
@@ -28,5 +30,14 @@ describe("safeNext", () => {
 describe("loginUrlFor", () => {
   it("remembers where the user was going", () => {
     expect(loginUrlFor("/runs/1", "?a=b")).toBe("/login?next=%2Fruns%2F1%3Fa%3Db");
+  });
+});
+
+describe("route coverage", () => {
+  it("every top-level folder in app/(app) is in the protected list, so a new screen can't ship unguarded", () => {
+    const dir = path.join(__dirname, "..", "app", "(app)");
+    const tops = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory());
+    expect(tops.length).toBeGreaterThan(0);
+    for (const d of tops) expect(isProtectedPath(`/${d.name}`)).toBe(true);
   });
 });
