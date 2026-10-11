@@ -72,7 +72,7 @@ def test_a_good_thumbs_down_becomes_a_train_scenario_and_is_saved(client, store,
     response = post(client, run)
     assert response.status_code == 200
     body = FeedbackOut.model_validate(response.json())
-    assert body.message == "Saved as a new check for this agent."  # no promise about the next round
+    assert body.message == "Saved as a new check for this agent. It will be used from the next round."
     assert body.accepted and body.code is None and body.title == "The agent missed a query built from user input."
     assert seen == {
         "diff": DIFF, "thumbs_down": True, "expectation": "It should have flagged the raw SQL.",

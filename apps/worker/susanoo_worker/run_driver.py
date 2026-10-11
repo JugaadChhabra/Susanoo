@@ -33,6 +33,7 @@ from typing import Any
 from langgraph.types import Command
 from susanoo_worker import store
 from susanoo_worker.config import WorkerConfig
+from susanoo_worker.feedback import with_feedback
 
 from susanoo.db import emit_event
 from susanoo.graph import Heads, build_graph, initial_state, run_config
@@ -202,7 +203,7 @@ class RunSession:
         run = self.run
         config = run_config(run.id)
         async with postgres_checkpointer(run_setup=False) as saver:
-            graph = build_graph(self.heads_factory(), checkpointer=saver)
+            graph = build_graph(with_feedback(self.heads_factory()), checkpointer=saver)
             snapshot = await graph.aget_state(config)
             payload: Any
             if snapshot.created_at is None:  # no checkpoint yet: a brand-new run

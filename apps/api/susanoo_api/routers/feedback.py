@@ -3,7 +3,7 @@
 The user never edits the agent. `feedback_to_scenario` (Haiku) turns the feedback into a `train` Scenario with an
 answer key, or says in plain English why it can't. A scenario is persisted in `public.scenarios` (split 'train',
 approved_by_user false, so it never joins the locked acceptance set) with a plain-English event in the run log. The
-loop reads it once the graph loads that table (not yet wired), so the replies make no promise about the next round.
+worker's Runner loads it before its next round (or the project's next run) and adds it to the loop.
 Nothing here touches the agent's files.
 The model call's cost is added to the run's cost_usd (an atomic `cost_usd = cost_usd + x`), and a spent per-run
 budget or the platform's global daily cap is reported as a rejection before any model call.
@@ -78,7 +78,7 @@ async def give_feedback(
     await db_call(store.save_feedback_scenario(run.id, result), "save a new test", user.id)
     return FeedbackOut(
         accepted=True,
-        message="Saved as a new check for this agent.",
+        message="Saved as a new check for this agent. It will be used from the next round.",
         code=None,
         scenario_id=result.id,
         title=result.title,
