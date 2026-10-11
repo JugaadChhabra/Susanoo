@@ -12,7 +12,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1, // the stub keeps one in-memory world
   forbidOnly: CI,
-  retries: CI ? 1 : 0,
+  retries: 0, // the stub makes runs deterministic, so a retry would only hide a real failure
   reporter: CI ? [["list"], ["html", { open: "never" }]] : "list",
   timeout: 60_000,
   expect: { timeout: 10_000 },

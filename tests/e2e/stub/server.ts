@@ -12,36 +12,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { ProjectSummary, RunEvent, RunQuota, RunSummary } from "../../../apps/web/types/generated.ts";
 import { ANON_KEY, DEMO_RUN_ID, STUB_PORT } from "../constants.ts";
 
-interface RunEvent {
-  run_id: string;
-  seq: number;
-  head: string;
-  type: string;
-  message: string;
-  payload: Record<string, unknown>;
-  trace_url: string | null;
-  at: string;
-}
-
-interface Run {
-  id: string;
-  status: "running" | "awaiting_approval" | "done" | "failed";
-  heldout_f1: number | null;
-  cost_usd: number;
-  cost_cap_usd: number;
-  created_at: string;
+/** A run as the API lists it, plus what the intake screen sent (exposed only via /__e2e). */
+interface Run extends RunSummary {
   answers: Record<string, string> | null;
   decisions: unknown[] | null;
 }
 
-interface Project {
-  id: string;
-  name: string;
-  spec: string;
-  rules: string[];
-  repo_url: string | null;
+interface Project extends Omit<ProjectSummary, "runs"> {
+  ownerId: string;
   runs: Run[];
 }
 
@@ -59,7 +40,7 @@ const inbox = new Map<string, string>(); // email -> latest magic link
 const sessions = new Map<string, { id: string; email: string }>(); // access token -> user
 const refreshTokens = new Map<string, { id: string; email: string }>();
 const users = new Map<string, string>(); // email -> user id
-const projects = new Map<string, Project>(); // id -> project, all owned by whoever is signed in
+const projects = new Map<string, Project>(); // id -> project
 
 // ---- helpers -----------------------------------------------------------------------------
 
@@ -140,8 +121,9 @@ function pkceMatches(verifier: string, challenge: string, method: string): boole
   return b64url(createHash("sha256").update(verifier).digest()) === challenge;
 }
 
-function findRun(runId: string): Run | null {
-  for (const project of projects.values()) {
+/** Pass a user id to only look in that user's projects, like RLS would. */
+function findRun(runId: string, userId?: string): Run | null {
+  for (const project of userId ? projectsOf(userId) : projects.values()) {
     const run = project.runs.find((r) => r.id === runId);
     if (run) return run;
   }
@@ -234,12 +216,26 @@ const INTAKE_SCENARIOS = [
   { id: "s2", description: "A developer adds a new internal /health route with no login check.", expected: "Allowed, because health checks are public by default." },
 ];
 
-function quota() {
+const RUNS_PER_DAY = 3;
+
+const projectsOf = (userId: string) => [...projects.values()].filter((p) => p.ownerId === userId);
+
+function quota(userId: string): RunQuota {
   const resets = new Date();
   resets.setUTCHours(24, 0, 0, 0);
-  const used = [...projects.values()].reduce((n, p) => n + p.runs.length, 0);
-  return { runs_per_day: 3, runs_used_today: used, runs_left_today: Math.max(0, 3 - used), paused: false, resets_at: resets.toISOString() };
+  const used = projectsOf(userId).reduce((n, p) => n + p.runs.length, 0);
+  return { runs_per_day: RUNS_PER_DAY, runs_used_today: used, runs_left_today: Math.max(0, RUNS_PER_DAY - used), paused: false, resets_at: resets.toISOString() };
 }
+
+/** Same rule as name_from_spec in apps/api/susanoo_api/routers/projects.py. */
+function nameFromSpec(spec: string): string {
+  const firstLine = spec.split("\n").map((l) => l.trim()).find(Boolean) ?? "Untitled project";
+  const end = firstLine.indexOf(". ");
+  const sentence = end === -1 ? firstLine : firstLine.slice(0, end + 1);
+  return sentence.length <= 60 ? sentence : `${sentence.slice(0, 60).trimEnd()}…`;
+}
+
+const toSummary = ({ ownerId: _o, runs, ...p }: Project): ProjectSummary => ({ ...p, runs: runs.map(publicRun) });
 
 /** Public, like the real /demo/*: replays only the saved demo run. */
 function handleDemo(res: ServerResponse, runId: string) {
@@ -281,12 +277,13 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
     return streamEvents(req, res, url, runId);
   }
 
-  if (!bearerUser(req)) return apiError(res, 401, "unauthorized", "Please sign in again.");
+  const user = bearerUser(req);
+  if (!user) return apiError(res, 401, "unauthorized", "Please sign in again.");
 
-  if (req.method === "GET" && path === "/me/quota") return send(res, 200, quota());
+  if (req.method === "GET" && path === "/me/quota") return send(res, 200, quota(user.id));
   if (req.method === "GET" && path === "/connectors") return send(res, 200, []);
   if (req.method === "GET" && path === "/projects") {
-    return send(res, 200, [...projects.values()].reverse().map(({ runs, ...p }) => ({ ...p, runs: runs.map(publicRun) })));
+    return send(res, 200, projectsOf(user.id).reverse().map(toSummary));
   }
   if (req.method === "POST" && path === "/projects") {
     const body = await readJson(req);
@@ -304,14 +301,14 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
       answers: null,
       decisions: null,
     };
-    const project: Project = { id: randomUUID(), name: spec.split(/[.\n]/)[0].slice(0, 80), spec, rules, repo_url: null, runs: [run] };
+    const project: Project = { id: randomUUID(), ownerId: user.id, name: nameFromSpec(spec), spec, rules, repo_url: null, runs: [run] };
     projects.set(project.id, project);
-    return send(res, 201, { ...project, runs: [publicRun(run)] });
+    return send(res, 201, toSummary(project));
   }
 
   const runRoute = path.match(/^\/runs\/([^/]+)(\/.*)?$/);
   if (runRoute) {
-    const run = findRun(decodeURIComponent(runRoute[1]));
+    const run = findRun(decodeURIComponent(runRoute[1]), user.id);
     if (!run) return apiError(res, 404, "not_found", "We couldn't find that run.");
     const rest = runRoute[2] ?? "";
     if (req.method === "GET" && rest === "/intake") {
@@ -351,7 +348,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
   return apiError(res, 404, "not_found", `The stub has no API route ${req.method} ${path}`);
 }
 
-const publicRun = ({ answers: _a, decisions: _d, ...run }: Run) => run;
+const publicRun = ({ answers: _a, decisions: _d, ...run }: Run): RunSummary => run;
 
 // ---- test-only hooks ---------------------------------------------------------------------
 

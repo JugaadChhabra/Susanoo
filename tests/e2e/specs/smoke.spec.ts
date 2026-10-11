@@ -33,7 +33,7 @@ test("log in, create a project, answer intake, watch the run, open the agent", a
   await expect(page.getByLabel("What should Susanoo build?")).toHaveValue(/code review app/);
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/projects$/);
-  await expect(page.getByRole("heading", { name: "Build a code review app for our Python services" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build a code review app for our Python services.", exact: true })).toBeVisible();
   await expect(page.getByText("2 of 3 runs left today")).toBeVisible();
   const runLink = page.getByRole("link", { name: /Running/ });
   const runHref = await runLink.getAttribute("href");
@@ -76,6 +76,7 @@ test("log in, create a project, answer intake, watch the run, open the agent", a
   await expect(page.getByText("Reads a code change and flags problems")).toBeVisible();
   await expect(page.getByText("Caught 21 of 22 problems, 1 false alarm.")).toBeVisible();
   await expect(page.getByText("The preview isn't ready yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Try it" })).toBeVisible();
 });
 
 test("the public demo replays the saved run without logging in", async ({ page }) => {
