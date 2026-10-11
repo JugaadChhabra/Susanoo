@@ -116,6 +116,13 @@ def test_cannot_edit_another_users_rules(client):
     assert client.get("/projects", headers=bearer(ALICE)).json()[0]["rules"] == ["Keep me."]
 
 
+def test_blank_rules_do_not_count_toward_the_limit(client):
+    rules = [f"Rule {i}." for i in range(30)] + ["", "   "]
+    response = client.post("/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": rules})
+    assert response.status_code == 201
+    assert len(response.json()["rules"]) == 30
+
+
 def test_malformed_project_id_is_not_found(client):
     response = client.put("/projects/not-a-uuid/rules", headers=bearer(ALICE), json={"rules": []})
     assert response.status_code == 404

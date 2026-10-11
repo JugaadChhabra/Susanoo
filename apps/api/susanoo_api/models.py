@@ -8,16 +8,20 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 
 MAX_RULES = 30
+MAX_RULE_LENGTH = 500
 
-Sentence = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+Sentence = Annotated[str, StringConstraints(strip_whitespace=True, max_length=MAX_RULE_LENGTH)]
 
 
 def _drop_blank(rules: list[str]) -> list[str]:
-    return [rule for rule in rules if rule]
+    kept = [rule for rule in rules if rule]
+    if len(kept) > MAX_RULES:
+        raise ValueError(f"Please keep it to {MAX_RULES} rules or fewer.")
+    return kept
 
 
-# Blank lines from the rules box are dropped, so ["Never log emails.", ""] saves one rule.
-Rules = Annotated[list[Sentence], Field(max_length=MAX_RULES), AfterValidator(_drop_blank)]
+# Blank lines from the rules box are dropped (and don't count), so ["Never log emails.", ""] saves one rule.
+Rules = Annotated[list[Sentence], Field(max_length=MAX_RULES * 4), AfterValidator(_drop_blank)]
 
 
 class RunSummary(BaseModel):
