@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HEADS } from "./run-state";
-import { CONNECTORS, FOOTER_LINKS, HEAD_STEPS, PLANS, USE_CASES, nextHeadIndex, siteUrl } from "./marketing";
+import { CONNECTORS, FOOTER_LINKS, HEAD_STEPS, PLANS, USE_CASES, nextHeadIndex, siteUrl, specLines } from "./marketing";
 
 describe("HEAD_STEPS", () => {
   it("lists the eight heads in graph order, grouped into the PRD's phases in order", () => {
@@ -63,5 +63,23 @@ describe("PLANS", () => {
   });
   it("shows no prices until the cost model sets them: paid plans say Contact us", () => {
     expect(PLANS.map((p) => p.price)).toEqual([null, "Contact us", "Contact us"]);
+  });
+});
+
+describe("specLines", () => {
+  const spec = "Build an app. It reviews diffs. Rules: never log PII; no raw SQL; no secrets. Severity: block or nit.";
+  it("splits on sentence and rule boundaries, keeping each separator on the line it ends", () => {
+    expect(specLines(spec)).toEqual([
+      "Build an app. ",
+      "It reviews diffs. ",
+      "Rules: never log PII; ",
+      "no raw SQL; ",
+      "no secrets. ",
+      "Severity: block or nit.",
+    ]);
+  });
+  it("loses nothing: the lines join back into the spec, in order", () => {
+    expect(specLines(spec).join("")).toBe(spec);
+    expect(specLines("One line")).toEqual(["One line"]);
   });
 });

@@ -262,6 +262,22 @@
 }
 .mk-telegram-shadow::after { animation: mk-offset-grow 400ms var(--ease-ink) 200ms both; }
 .mk-telegram-bar { animation: mk-rise var(--dur-reveal) var(--ease-ink) 120ms both; }
+/* Telegram line reveal (phase 2): each sentence or rule fades in at 300ms + --i × 110ms, opacity only so inline text
+   never moves. The caret rests hidden (visibility, not display: an element with display: none never animates): it
+   shows while the lines come in, blinks 3 times once the last one starts, then goes, and with no animation it never
+   shows at all. Its last frame is hidden too, so it keeps a fill MotionRoot can rewind. Positioned absolute with no
+   insets, it sits right after the text but takes no space, so it can never wrap onto an empty line of its own. */
+@keyframes mk-caret-blink {
+  0% { visibility: visible; opacity: 1; }
+  50% { visibility: visible; opacity: 0; }
+  100% { visibility: hidden; }
+}
+.mk-spec-line { animation: mk-fade var(--dur-reveal) var(--ease-ink) calc(300ms + var(--i) * 110ms) both; }
+.mk-spec-caret {
+  position: absolute;
+  visibility: hidden;
+  animation: mk-caret-blink 600ms steps(1) calc(300ms + var(--n) * 110ms) 3 both;
+}
 
 /* HowItWorks (motion spec §2). In view, the eight heads settle in at --i × 60ms, each row's legend square pressing in
    300ms before its row; the whole sheet waits 300ms so the first legend has room. */

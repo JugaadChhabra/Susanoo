@@ -22,6 +22,14 @@ export function nextHeadIndex(index: number): number {
   return (index + 1) % HEAD_STEPS.length;
 }
 
+/**
+ * The spec split for the Telegram line reveal: one line per sentence or rule, each keeping the ". " or "; " that ends
+ * it, so the lines are the spec's own text in order and join back into it exactly. [docs/motion-spec.md §2 Telegram]
+ */
+export function specLines(spec: string): string[] {
+  return spec.split(/(?<=\. |; )/);
+}
+
 export const USE_CASES: { title: string; live: boolean; body: string }[] = [
   {
     title: "Code review",

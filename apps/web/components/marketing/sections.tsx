@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DemoReplay } from "@/components/app/demo-replay";
-import { CONNECTORS, PLANS, REPO_URL, TEAM_LINKS, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
+import { CONNECTORS, PLANS, REPO_URL, TEAM_LINKS, TRUST_POINTS, USE_CASES, specLines } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
 import { SerpentStamp } from "./serpent-stamp";
@@ -18,6 +18,7 @@ const GUTTER = "mx-auto w-full max-w-[1280px] px-[clamp(20px,4vw,48px)]";
 /** The spec from the hero use case, word for word. [PRD › Hero use case: the code review agent] */
 const EXAMPLE_SPEC =
   "Build a code review app for our Python services. Developers paste a diff or a PR link and get a review. Rules: never log PII; every FastAPI endpoint needs auth; no raw SQL string formatting; no secrets in code; flag missing error handling on external calls. Severity: block, warn, or nit.";
+const SPEC_LINES = specLines(EXAMPLE_SPEC);
 
 function StatusTag({ live, label, className }: { live: boolean; label: string; className?: string }) {
   return (
@@ -107,7 +108,15 @@ export function Telegram() {
               className="m-0 px-6 py-[22px] font-label text-base leading-8"
               style={{ backgroundImage: "repeating-linear-gradient(transparent 0 31px, rgb(27 26 23 / 0.18) 31px 32px)" }}
             >
-              {EXAMPLE_SPEC}
+              {/* One span of real text per sentence or rule, fading in turn; only the caret is hidden from screen readers. */}
+              {SPEC_LINES.map((line, i) => (
+                <span key={i} className="mk-anim mk-spec-line" style={{ "--i": i } as CSSProperties}>
+                  {line}
+                </span>
+              ))}
+              <span aria-hidden className="mk-anim mk-spec-caret" style={{ "--n": SPEC_LINES.length } as CSSProperties}>
+                ▌
+              </span>
             </blockquote>
           </figure>
         </div>
