@@ -3,20 +3,22 @@ import type { IterationMetrics } from "@/types/generated";
 /**
  * The landing page's before/after, copied from the saved demo run (hero-2, saved as run
  * 0ca2e19e-f4c9-44a2-802f-959e1f574c63; full record in docs/evidence/hero-2-run.json).
+ * "Before" and "after" bracket the run's one kept fix (patch-1): round 1 and round 2 score the same
+ * 28 scenarios, so the comparison isn't skewed by the round-0 scenarios set aside at the test gate.
  * proof.test.ts checks every number here against that file, so they can't drift into placeholders.
  * [PRD › Frontend (marketing site + app) and API › Surface 1: Marketing site]
  */
 export const PROOF_RUN = {
   evidenceRunId: "hero-2",
   before: {
-    iteration: 0,
-    recall: 1.0,
-    precision: 0.7142857142857143,
-    f1: 0.8333333333333333,
+    iteration: 1,
+    recall: 0.875,
+    precision: 1.0,
+    f1: 0.9333333333333333,
     severity_accuracy: 1.0,
     heldout_f1: 0.9090909090909091,
     acceptance_pass_rate: 0.9,
-    cost_usd: 0.821175,
+    cost_usd: 1.163223,
   } satisfies IterationMetrics,
   after: {
     iteration: 2,
@@ -28,9 +30,11 @@ export const PROOF_RUN = {
     acceptance_pass_rate: 1.0,
     cost_usd: 1.517075,
   } satisfies IterationMetrics,
-  /** neatlogs traces from the final round of the run, one per scenario. */
+  /** Everything the run spent, including the work after the last score. */
+  totalCostUsd: 1.750983,
+  /** neatlogs traces from the after round, one per scenario. */
   traces: [
-    { scenarioId: "sim-04", traceId: "8e854d899f7d6115ef062a45b7f3ce09", label: "The token it learned to catch (fixed)" },
+    { scenarioId: "sim-04", traceId: "8e854d899f7d6115ef062a45b7f3ce09", label: "The token it now catches" },
     { scenarioId: "seed-10-two-problems-two-files", traceId: "e9e29a67ae96ae3e0f2b3b0bc43cfedc", label: "The hidden check it still misses" },
   ],
 } as const;
@@ -70,5 +74,5 @@ export function proofStats(before: IterationMetrics, after: IterationMetrics): P
 export function traceUrl(template: string | undefined, traceId: string): string | null {
   const t = template?.trim();
   if (!t || !t.includes("{trace_id}")) return null;
-  return t.replace("{trace_id}", encodeURIComponent(traceId));
+  return t.replaceAll("{trace_id}", traceId);
 }
