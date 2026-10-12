@@ -19,10 +19,18 @@ from susanoo_api.routers import (
     me,
     projects,
     runs,
+    try_it,
 )
 
-# Jugaad: projects, connectors, demo, me, internal (Caddy's preview ask; compose network only)
-PLATFORM_ROUTERS: list[APIRouter] = [connectors.router, demo.router, internal.router, me.router, projects.router]
+# Jugaad: projects, connectors, demo, me, internal (Caddy's preview ask; compose network only), try_it (agent page)
+PLATFORM_ROUTERS: list[APIRouter] = [
+    connectors.router,
+    demo.router,
+    internal.router,
+    me.router,
+    projects.router,
+    try_it.router,
+]
 
 # Muaaz: runs, events, intake, approvals, feedback, agent
 AI_ROUTERS: list[APIRouter] = [

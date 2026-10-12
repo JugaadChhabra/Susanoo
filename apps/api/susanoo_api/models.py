@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, BaseModel, Field, SecretStr, StringConstraints
 
 from susanoo.connectors.base import ConnectorGuide, ConnectorSpec
+from susanoo.schemas import Finding
 
 MAX_RULES = 30
 MAX_RULE_LENGTH = 500
@@ -121,3 +122,10 @@ class ConnectionTest(BaseModel):
     ok: bool
     message: str  # plain English, e.g. "Connected to acme/payments-api, read access confirmed."
     connection: ConnectionSummary
+
+
+class TryResult(BaseModel):
+    """What the agent said about a pasted change ("Try it" on the agent page)."""
+
+    summary: str  # plain English, e.g. "Found 2 possible problems, 1 of them should block the change."
+    findings: list[Finding]

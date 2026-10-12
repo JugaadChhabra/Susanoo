@@ -322,3 +322,8 @@ export interface SetScore {
   problems: number;
   false_alarms: number;
 }
+
+export interface TryResult {
+  summary: string;
+  findings: Array<Finding>;
+}
