@@ -7,7 +7,7 @@ stalled past the stale window), the update touches nothing and the caller learns
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -24,6 +24,7 @@ class ClaimedRun:
     cost_usd: float
     resume_value: Any  # the human's answer, if the API stored one
     paused_checkpoint_id: str | None  # the checkpoint the stored answer belongs to
+    connectors: list[str] = field(default_factory=list)  # connector names the API copied from the project
 
 
 _CLAIM = """
@@ -44,7 +45,7 @@ update public.runs r
   from next
  where r.id = next.id
 returning r.id::text as id, next.prev_status, r.attempts, r.cost_usd::float as cost_usd,
-          r.resume_value, r.paused_checkpoint_id,
+          r.resume_value, r.paused_checkpoint_id, r.connectors,
           (select p.spec from public.projects p where p.id = r.project_id) as spec
 """
 
@@ -68,6 +69,7 @@ async def claim(worker_id: str, stale_seconds: float) -> ClaimedRun | None:
         cost_usd=row["cost_usd"],
         resume_value=row["resume_value"],
         paused_checkpoint_id=row["paused_checkpoint_id"],
+        connectors=list(row["connectors"] or []),
     )
 
 

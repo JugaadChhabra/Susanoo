@@ -1,7 +1,7 @@
 """A throwaway Postgres in Docker for worker tests and the crash demo. Never touches DATABASE_URL.
 
 Starts `postgres:16-alpine` labelled susanoo.test=true on a random localhost port, builds a template database
-with a minimal Supabase stand-in (auth, vault, roles), migrations 001..005 and the run-queue proposal, and
+with a minimal Supabase stand-in (auth, vault, roles), migrations 001..005, the run-queue proposal and 007 onwards, and
 hands out one fresh database per test. Everything is removed on exit.
 """
 
@@ -45,8 +45,11 @@ def docker_available() -> bool:
 
 
 def migration_files() -> list[Path]:
-    return sorted((ROOT / "supabase" / "migrations").glob("00[1-5]_*.sql")) + [
-        ROOT / "docs" / "proposals" / "006_run_queue.sql"
+    migrations = ROOT / "supabase" / "migrations"
+    return [
+        *sorted(migrations.glob("00[1-5]_*.sql")),
+        ROOT / "docs" / "proposals" / "006_run_queue.sql",
+        *sorted(migrations.glob("00[7-9]_*.sql")),
     ]
 
 

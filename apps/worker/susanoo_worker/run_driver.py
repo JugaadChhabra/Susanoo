@@ -207,7 +207,7 @@ class RunSession:
             snapshot = await graph.aget_state(config)
             payload: Any
             if snapshot.created_at is None:  # no checkpoint yet: a brand-new run
-                payload = initial_state(run.id, run.spec)
+                payload = {**initial_state(run.id, run.spec), "connectors": run.connectors}  # names, set by the API
             elif _interrupts(snapshot):
                 bounced = await self._answer_or_park(graph, snapshot, config)
                 if isinstance(bounced, Disposition):

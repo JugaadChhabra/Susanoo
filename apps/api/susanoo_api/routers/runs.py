@@ -157,8 +157,13 @@ class PostgresRunStore:
                 raise
             cur = await conn.execute(
                 """
-                insert into public.runs (project_id, status, cost_cap_usd)
-                select p.id, 'queued', %(cap)s from public.projects p
+                insert into public.runs (project_id, status, cost_cap_usd, connectors)
+                select p.id, 'queued', %(cap)s,
+                       -- connector names only (the worker puts them in the run's state); a revoked
+                       -- connection is deleted, so it drops out here
+                       array(select c.connector from public.connections c
+                              where c.id = any(p.connection_ids) and c.user_id = p.user_id order by c.connector)
+                  from public.projects p
                  where p.id = %(project)s and p.user_id = %(user)s
                 returning id::text as id
                 """,
