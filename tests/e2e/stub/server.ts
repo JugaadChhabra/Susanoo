@@ -6,19 +6,38 @@
  * challenge), so the web app's login form, callback route and proxy run unchanged.
  * Every run streams the saved demo run's events, which keeps the run view deterministic.
  *
- * Shapes mirror apps/api/susanoo_api/models.py and apps/web/lib/{intake,agent}.ts.
+ * Shapes come from apps/web/types/generated.ts, and the runs, intake and approval routes follow
+ * apps/api/susanoo_api/routers/ (pause tokens, 409 for a step that moved on, `?after=` resume).
  * Run with: node stub/server.ts (Node 22.18+ strips the types itself).
  */
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { ProjectSummary, RunEvent, RunQuota, RunSummary } from "../../../apps/web/types/generated.ts";
+import type {
+  AgentCard,
+  IntakeOut,
+  ProjectSummary,
+  ReportCard,
+  ReportCards,
+  RunEvent,
+  RunQuota,
+  RunStatus,
+  RunSummary,
+} from "../../../apps/web/types/generated.ts";
 import { ANON_KEY, DEMO_RUN_ID, STUB_PORT } from "../constants.ts";
 
-/** A run as the API lists it, plus what the intake screen sent (exposed only via /__e2e). */
+/** What a run is paused on: the kind of step and the token an answer must send back. */
+interface Pause {
+  kind: "questions" | "scenarios";
+  token: string;
+}
+
+/** A run as the API lists it, plus its pause and what the intake screen sent (exposed only via /__e2e). */
 interface Run extends RunSummary {
-  answers: Record<string, string> | null;
-  decisions: unknown[] | null;
+  projectId: string;
+  pause: Pause | null;
+  answers: unknown;
+  scenarios: unknown;
 }
 
 interface Project extends Omit<ProjectSummary, "runs"> {
@@ -212,9 +231,12 @@ const INTAKE_QUESTIONS = [
 ];
 
 const INTAKE_SCENARIOS = [
-  { id: "s1", description: "A developer adds a log line that prints a customer's email.", expected: "Blocked under No PII in logs." },
-  { id: "s2", description: "A developer adds a new internal /health route with no login check.", expected: "Allowed, because health checks are public by default." },
+  { id: "s1", title: "A developer adds a log line that prints a customer's email. It should be blocked under No PII in logs." },
+  { id: "s2", title: "A developer adds a new internal /health route with no login check. It should be allowed." },
 ];
+
+/** Same wording as the real API (routers/runs.py STALE_PAUSE). */
+const STALE_PAUSE = "This question was already answered or has moved on; please reload.";
 
 const RUNS_PER_DAY = 3;
 
@@ -243,16 +265,18 @@ function handleDemo(res: ServerResponse, runId: string) {
   return send(res, 200, DEMO_EVENTS);
 }
 
-/** GET /runs/{id}/events as SSE, resumable with ?last_seq=N. Demo mode: every run replays the saved run. */
-function streamEvents(req: IncomingMessage, res: ServerResponse, url: URL, runId: string) {
-  const lastSeq = Number(url.searchParams.get("last_seq") ?? 0);
-  const events = DEMO_EVENTS.filter((e) => e.seq > lastSeq).map((e) => ({ ...e, run_id: runId }));
+/** GET /runs/{id}/events as SSE, resumable with ?after=N. Demo mode: every run replays the saved run. */
+function streamEvents(req: IncomingMessage, res: ServerResponse, url: URL, run: Run) {
+  const after = Number(url.searchParams.get("after") ?? 0);
+  const events = DEMO_EVENTS.filter((e) => e.seq > after).map((e) => ({ ...e, run_id: run.id }));
   res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
   res.flushHeaders();
+  res.write("retry: 3000\n\n");
   let i = 0;
   const timer = setInterval(() => {
     if (i >= events.length) {
       clearInterval(timer);
+      run.status = "done";
       res.end();
       return;
     }
@@ -262,20 +286,64 @@ function streamEvents(req: IncomingMessage, res: ServerResponse, url: URL, runId
   req.on("close", () => clearInterval(timer));
 }
 
+function runStatus(run: Run): RunStatus {
+  return {
+    id: run.id,
+    project_id: run.projectId,
+    status: run.status,
+    message: run.status === "awaiting_approval" ? "Your run is waiting for you." : "Your run is in progress.",
+    cost_usd: run.cost_usd,
+    cost_cap_usd: run.cost_cap_usd,
+    preview_url: null,
+    created_at: run.created_at,
+    cancel_requested: false,
+    error: null,
+    metrics: [],
+  };
+}
+
+function intakeOf(run: Run): IntakeOut {
+  const none = { questions: [], scenarios: [], gate: null };
+  if (!run.pause) return { ...none, waiting: false, kind: null, pause_token: null, message: "Nothing is waiting for you right now." };
+  const { kind, token } = run.pause;
+  return kind === "questions"
+    ? { ...none, waiting: true, kind, pause_token: token, message: "Please answer a few quick questions.", questions: INTAKE_QUESTIONS }
+    : { ...none, waiting: true, kind, pause_token: token, message: "Please review these examples.", scenarios: INTAKE_SCENARIOS };
+}
+
+/** Like the real pending_for_answer: 409 unless the run waits on exactly this kind of step with this token. */
+async function answerPause(req: IncomingMessage, res: ServerResponse, run: Run, kind: Pause["kind"]) {
+  const body = await readJson(req);
+  if (!run.pause || run.pause.kind !== kind || run.pause.token !== body.pause_token) {
+    apiError(res, 409, "http_error", STALE_PAUSE);
+    return null;
+  }
+  return body;
+}
+
+function reportRound(iteration: number, caught: number, falseAlarms: number): ReportCard {
+  const alarms = falseAlarms === 1 ? "1 false alarm" : `${falseAlarms} false alarms`;
+  return {
+    iteration,
+    basis: "heldout",
+    score: { basis: "heldout", caught, problems: 22, false_alarms: falseAlarms },
+    score_percent: Math.round((caught / 22) * 100),
+    headline: `Caught ${caught} of 22 problems, ${alarms}.`,
+    basis_note: "Scored on examples it never trained on.",
+    comparison: iteration === 0 ? null : "First round: 14 of 22.",
+    trend: iteration === 0 ? "new" : "better",
+    acceptance: null,
+    unscored: null,
+    lines: [],
+  };
+}
+
 async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
   const path = url.pathname;
   if (req.method === "GET" && path === "/health") return send(res, 200, { status: "ok", supabase: { status: "ok", message: "Stubbed." } });
 
   const demo = path.match(/^\/demo\/([^/]+)$/);
   if (req.method === "GET" && demo) return handleDemo(res, decodeURIComponent(demo[1]));
-
-  // EventSource can't send a bearer token; how the real route authenticates is up to the runs router.
-  const events = path.match(/^\/runs\/([^/]+)\/events$/);
-  if (req.method === "GET" && events) {
-    const runId = decodeURIComponent(events[1]);
-    if (!findRun(runId)) return apiError(res, 404, "not_found", "We couldn't find that run.");
-    return streamEvents(req, res, url, runId);
-  }
 
   const user = bearerUser(req);
   if (!user) return apiError(res, 401, "unauthorized", "Please sign in again.");
@@ -290,20 +358,31 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
     const spec = String(body.spec ?? "").trim();
     if (!spec) return apiError(res, 422, "validation_error", "Describe what you want to build first.");
     const rules = Array.isArray(body.rules) ? body.rules.map(String) : [];
-    // Starting a run belongs to the runs router, which doesn't exist yet; the stub starts one with the project.
+    const project: Project = { id: randomUUID(), ownerId: user.id, name: nameFromSpec(spec), spec, rules, repo_url: null, runs: [] };
+    projects.set(project.id, project);
+    return send(res, 201, toSummary(project));
+  }
+
+  const startRoute = path.match(/^\/projects\/([^/]+)\/runs$/);
+  if (req.method === "POST" && startRoute) {
+    const project = projects.get(decodeURIComponent(startRoute[1]));
+    if (!project || project.ownerId !== user.id) return apiError(res, 404, "not_found", "We couldn't find that project.");
+    if (quota(user.id).runs_left_today <= 0) return apiError(res, 429, "http_error", "You've used all 3 of today's runs.");
+    // The real worker reaches the Planner's first pause in a few seconds; the stub is there at once.
     const run: Run = {
       id: randomUUID(),
-      status: "running",
+      projectId: project.id,
+      status: "awaiting_approval",
       heldout_f1: null,
       cost_usd: 0,
       cost_cap_usd: 2,
       created_at: new Date().toISOString(),
+      pause: { kind: "questions", token: randomUUID() },
       answers: null,
-      decisions: null,
+      scenarios: null,
     };
-    const project: Project = { id: randomUUID(), ownerId: user.id, name: nameFromSpec(spec), spec, rules, repo_url: null, runs: [run] };
-    projects.set(project.id, project);
-    return send(res, 201, toSummary(project));
+    project.runs.unshift(run);
+    return send(res, 201, runStatus(run));
   }
 
   const runRoute = path.match(/^\/runs\/([^/]+)(\/.*)?$/);
@@ -311,44 +390,43 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
     const run = findRun(decodeURIComponent(runRoute[1]), user.id);
     if (!run) return apiError(res, 404, "not_found", "We couldn't find that run.");
     const rest = runRoute[2] ?? "";
-    if (req.method === "GET" && rest === "/intake") {
-      return send(res, 200, { questions: INTAKE_QUESTIONS, scenarios: run.answers ? INTAKE_SCENARIOS : [] });
-    }
+    if (req.method === "GET" && rest === "") return send(res, 200, runStatus(run));
+    if (req.method === "GET" && rest === "/events") return streamEvents(req, res, url, run);
+    if (req.method === "GET" && rest === "/intake") return send(res, 200, intakeOf(run));
     if (req.method === "POST" && rest === "/intake/answers") {
-      run.answers = (await readJson(req)).answers as Record<string, string>;
-      return send(res, 200, {});
+      const body = await answerPause(req, res, run, "questions");
+      if (!body) return;
+      run.answers = body;
+      run.pause = { kind: "scenarios", token: randomUUID() };
+      return send(res, 200, { ok: true, message: "Got your answers. We're carrying on with the build." });
     }
     if (req.method === "POST" && rest === "/intake/scenarios") {
-      run.decisions = (await readJson(req)).decisions as unknown[];
-      return send(res, 200, {});
+      const body = await answerPause(req, res, run, "scenarios");
+      if (!body) return;
+      run.scenarios = body;
+      run.pause = null;
+      run.status = "running";
+      return send(res, 200, { ok: true, message: "Got your review. The build continues." });
     }
     if (req.method === "GET" && rest === "/agent-card") {
-      return send(res, 200, {
-        summary: "Reads a code change and flags problems a careful teammate would catch before it merges.",
+      const card: AgentCard = {
+        what_it_does: "Reads a code change and flags problems a careful teammate would catch before it merges.",
         can_do: ["Spot leaked secrets and customer data in logs", "Notice missing login checks on new routes"],
-        cannot_do: ["Run your code or tests", "Change your code for you"],
-      });
+        wont_do: ["Run your code or tests", "Change your code for you"],
+      };
+      return send(res, 200, card);
     }
     if (req.method === "GET" && rest === "/report-card") {
-      return send(res, 200, {
-        headline: "Caught 21 of 22 problems, 1 false alarm. First round: 14 of 22.",
-        caught: 21,
-        total: 22,
-        false_alarms: 1,
-        history: [
-          { label: "Round 0", caught: 14, total: 22, false_alarms: 4 },
-          { label: "Round 1", caught: 18, total: 22, false_alarms: 3 },
-          { label: "Round 2", caught: 21, total: 22, false_alarms: 1 },
-        ],
-      });
+      const history = [reportRound(0, 14, 4), reportRound(1, 18, 3), reportRound(2, 21, 1)];
+      const report: ReportCards = { run_id: run.id, message: history[2].headline, latest: history[2], history };
+      return send(res, 200, report);
     }
-    if (req.method === "GET" && rest === "") return send(res, 200, { ...publicRun(run), preview_url: null, repo_url: null });
   }
 
   return apiError(res, 404, "not_found", `The stub has no API route ${req.method} ${path}`);
 }
 
-const publicRun = ({ answers: _a, decisions: _d, ...run }: Run): RunSummary => run;
+const publicRun = ({ projectId: _p, pause: _q, answers: _a, scenarios: _s, ...run }: Run): RunSummary => run;
 
 // ---- test-only hooks ---------------------------------------------------------------------
 
@@ -357,6 +435,14 @@ function handleTestHooks(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (url.pathname === "/__e2e/inbox") {
     const link = inbox.get((url.searchParams.get("email") ?? "").toLowerCase());
     return link ? send(res, 200, { link }) : send(res, 404, { error: "No sign-in email sent to that address yet." });
+  }
+  // Stands in for another tab answering first: the step gets a new token, so the old one is stale.
+  const moveOn = url.pathname.match(/^\/__e2e\/runs\/([^/]+)\/move-on$/);
+  if (req.method === "POST" && moveOn) {
+    const found = findRun(decodeURIComponent(moveOn[1]));
+    if (!found?.pause) return send(res, 404, { error: "That run isn't paused." });
+    found.pause = { ...found.pause, token: randomUUID() };
+    return send(res, 204);
   }
   const run = url.pathname.match(/^\/__e2e\/runs\/([^/]+)$/);
   if (run) {
