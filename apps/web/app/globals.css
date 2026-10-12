@@ -178,6 +178,50 @@
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1.5;
+  /* Motion tokens (docs/motion-spec.md §1). */
+  --ease-ink: cubic-bezier(0.22, 1, 0.36, 1);     /* reveals: fast out, long soft tail */
+  --ease-drop: cubic-bezier(0.55, 0, 0.75, 0.1);  /* the stamp falling: accelerates into the paper */
+  --ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1); /* small overshoot after impact */
+  --ease-snap: cubic-bezier(0.2, 0, 0, 1);        /* hover and press */
+  --dur-tap: 80ms;  --dur-hover: 160ms;  --dur-reveal: 520ms;
+  --dur-press: 460ms;  --dur-slam: 560ms;  --dur-bleed: 700ms;
+  --stagger: 70ms;  /* multiplied by --i on each item */
+}
+
+/* Marketing motion keyframes. From-only where possible, and only the individual translate / scale / rotate properties,
+   so the end state is whatever the element already has (an inline rotate(), opacity-80 and so on). */
+@keyframes mk-settle { from { opacity: 0; translate: 0 16px; rotate: -1deg; } }
+@keyframes mk-rise   { from { opacity: 0; translate: 0 0.35em; } }
+@keyframes mk-press {
+  0%   { opacity: 0; scale: 1.16; translate: 0 -10px; animation-timing-function: var(--ease-drop); }
+  55%  { opacity: 1; scale: 0.96; translate: 0 0;     animation-timing-function: var(--ease-settle); }
+  100% { scale: 1; }
+}
+/* --slam-from / --slam-under shrink the range for smaller seals; the defaults are the full slam. */
+@keyframes mk-slam {
+  0%   { opacity: 0; scale: var(--slam-from, 2.2); rotate: -12deg; animation-timing-function: var(--ease-drop); }
+  60%  { opacity: 1; scale: var(--slam-under, 0.9); rotate: 0deg;  animation-timing-function: var(--ease-settle); }
+  100% { scale: 1; rotate: 0deg; }
+}
+@keyframes mk-bleed { 0% { opacity: 0.4; scale: 0.9; } 100% { opacity: 0; scale: 1.45; } }
+@keyframes mk-shake { 25% { translate: 1px 2px; } 60% { translate: -1px -1px; } }
+/* clip-path needs an explicit end: inset() does not interpolate to the element's own `none`. */
+@keyframes mk-brush { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0); } }
+
+/* Hero load sequence (motion spec §2 Hero). Plays on load with CSS only; fill-mode both keeps each item hidden until its turn. */
+.mk-hero-brush { animation: mk-brush 600ms var(--ease-ink) both; }
+.mk-hero-rise { animation: mk-rise var(--dur-reveal) var(--ease-ink) var(--delay, 0ms) both; }
+.mk-hero-stamp { animation: mk-press var(--dur-press) 240ms both; }
+.mk-hero-badge { --slam-from: 1.6; --slam-under: 0.94; animation: mk-slam 380ms 640ms both; }
+.mk-hero-postmark { animation: mk-press 360ms 760ms both; }
+.mk-hero-shake { animation: mk-shake 180ms 760ms both; }
+
+/* Reduced motion: nothing moves, and from-only keyframes mean everything already sits in its final state. */
+@media (prefers-reduced-motion: reduce) {
+  .mk, .mk *, .mk *::before, .mk *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .mk-display {
   font-family: var(--font-stamp);
