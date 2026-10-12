@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Pause, Play } from "lucide-react";
 import { Stamp, StampFace, StampSheet } from "@/components/stamp";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,8 @@ export function HowItWorks() {
   return (
     <section
       ref={sectionRef}
+      data-reveal
+      data-sequence={playing ? "playing" : "still"}
       id="how-it-works"
       aria-labelledby="how-heading"
       className="mx-auto flex w-full max-w-[1280px] flex-col gap-10 px-[clamp(20px,4vw,48px)] py-20 sm:py-[104px]"
@@ -86,7 +88,11 @@ export function HowItWorks() {
         {rows.map((row, r) => (
           <div key={r}>
             <p className="mb-3 flex items-center gap-2.5 text-base font-semibold">
-              <span aria-hidden className={cn("size-[18px] border-2 border-ink", r === 0 ? "bg-jade" : "bg-vermilion")} />
+              <span
+                aria-hidden
+                className={cn("mk-anim mk-head-legend size-[18px] border-2 border-ink", r === 0 ? "bg-jade" : "bg-vermilion")}
+                style={{ "--i": r * 4 } as CSSProperties}
+              />
               {r === 0
                 ? "First, it builds"
                 : "Then it loops: up to five rounds, stopping early when two rounds in a row don't improve"}
@@ -97,7 +103,12 @@ export function HowItWorks() {
                 const lit = !reduced && index === active;
                 const passed = !reduced && index < active;
                 return (
-                  <li key={head.id} aria-current={lit ? "step" : undefined} className="min-w-0">
+                  <li
+                    key={head.id}
+                    aria-current={lit ? "step" : undefined}
+                    className="mk-anim mk-head min-w-0"
+                    style={{ "--i": index } as CSSProperties}
+                  >
                     <Stamp size="sm" tone="light" className="h-full">
                       <StampFace
                         as="article"
@@ -117,7 +128,7 @@ export function HowItWorks() {
                         <span
                           aria-hidden
                           className={cn(
-                            "mt-auto size-2.5 self-end rounded-full border-2 border-ink transition-colors duration-500 motion-reduce:transition-none",
+                            "mk-head-dot mt-auto size-2.5 self-end rounded-full border-2 border-ink transition-colors duration-500 motion-reduce:transition-none",
                             lit ? "bg-ink" : passed ? "bg-paper" : "bg-transparent",
                           )}
                         />

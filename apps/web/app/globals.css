@@ -246,6 +246,17 @@
 .mk-telegram-shadow::after { animation: mk-offset-grow 400ms var(--ease-ink) 200ms both; }
 .mk-telegram-bar { animation: mk-rise var(--dur-reveal) var(--ease-ink) 120ms both; }
 
+/* HowItWorks (motion spec §2). In view, the eight heads settle in at --i × 60ms, each row's legend square pressing in
+   300ms before its row; the whole sheet waits 300ms so the first legend has room. */
+.mk-head { animation: mk-settle var(--dur-reveal) var(--ease-ink) calc(300ms + var(--i) * 60ms) both; }
+.mk-head-legend { animation: mk-press 320ms calc(var(--i) * 60ms) both; }
+/* The lit head thuds and lifts, CSS only: the press replays whenever aria-current moves to a new li. Only while the
+   sequence plays, so pausing (or reduced motion, which never lights a head) leaves nothing thudding or lifted. */
+@keyframes mk-dot-pop { from { scale: 1.6; } }
+.mk-head > .perf { transition: translate var(--dur-hover) var(--ease-snap); }
+[data-sequence="playing"] .mk-head[aria-current="step"] > .perf { translate: 0 -4px; animation: mk-press 320ms both; }
+[data-sequence="playing"] .mk-head[aria-current="step"] .mk-head-dot { animation: mk-dot-pop 200ms var(--ease-snap) both; }
+
 /* Hover and press (motion spec §3). Buttons lift onto a hard offset shadow and sink into the paper when pressed.
    --lift-shadow is ink by default; .mk-btn-vermilion is for paper and outline buttons that sit on paper.
    The colour swaps (hover:bg-*) share the same 160ms timing. Movement and shadow only when motion is allowed. */
