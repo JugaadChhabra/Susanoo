@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { HowItWorks } from "@/components/marketing/how-it-works";
-import { Connectors, DemoBand, Hero, Plans, Trust, UseCases } from "@/components/marketing/sections";
+import { Connectors, DemoBand, Hero, Plans, Proof, Trust, UseCases } from "@/components/marketing/sections";
 import { MarketingShell } from "@/components/marketing/site-chrome";
 import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/marketing";
 
@@ -16,7 +16,7 @@ export default function Page() {
     <MarketingShell>
       <Hero />
       <HowItWorks />
-      {/* Proof (#19): before/after held-out F1, recall and false alarms from the saved run, linked to neatlogs traces. */}
+      <Proof />
       <UseCases />
       <Trust />
       <Connectors />

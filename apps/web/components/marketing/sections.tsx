@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { RunView } from "@/components/app/run-view";
+import { demoSource } from "@/lib/demo";
 import { CONNECTORS, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
+import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { FOCUS_RING } from "./site-chrome";
 
 const PRIMARY = `inline-flex h-12 items-center justify-center rounded-full bg-[var(--mk-ink)] px-6 font-medium text-white hover:bg-[var(--mk-storm)] ${FOCUS_RING}`;
@@ -65,6 +68,69 @@ function SectionIntro({ id, title, children }: { id: string; title: string; chil
       </h2>
       <p className="mt-4 text-lg leading-relaxed text-[var(--mk-storm)]">{children}</p>
     </div>
+  );
+}
+
+export function Proof() {
+  const stats = proofStats(PROOF_RUN.before, PROOF_RUN.after);
+  const template = process.env.NEXT_PUBLIC_NEATLOGS_TRACE_URL_TEMPLATE;
+  return (
+    <section id="proof" aria-labelledby="proof-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <SectionIntro id="proof-heading" title="Before and after, from a real run">
+          Susanoo built a code reviewer from the spec above, tested it, found it let a hard-coded access token through,
+          fixed its instructions and kept the fix only after rerunning every test. These are that run&apos;s numbers.
+        </SectionIntro>
+        <dl className="mt-12 grid gap-6 sm:grid-cols-3">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-2xl border border-[var(--mk-rule)] bg-white p-6">
+              <dt className="text-sm font-medium text-[var(--mk-storm)]">{s.label}</dt>
+              <dd className="mt-3 flex items-baseline gap-3">
+                <span className="text-xl text-[var(--mk-storm)] line-through decoration-1" aria-label={`before ${s.before}`}>
+                  {s.before}
+                </span>
+                <span aria-hidden className="text-[var(--mk-storm)]">
+                  →
+                </span>
+                <span className="mk-display text-4xl text-[var(--mk-ink)]" aria-label={`after ${s.after}`}>
+                  {s.after}
+                </span>
+              </dd>
+              <dd className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{s.note}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-6 max-w-3xl text-sm leading-relaxed text-[var(--mk-storm)]">
+          What moved and why: the false alarms went because Susanoo judged four test answers wrong and sent that change to
+          a person; it wasn&apos;t approved, so those tests were set aside rather than graded. The token fix kept every
+          other test passing. The hidden-test score held steady: the one hidden test it still misses stays hidden from the
+          heads that fix it. Cost by the last round: ${PROOF_RUN.after.cost_usd.toFixed(2)} in model calls.
+        </p>
+        <ul className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {PROOF_RUN.traces.map((t) => {
+            const href = traceUrl(template, t.traceId);
+            return (
+              <li key={t.traceId} className="text-sm">
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`inline-flex min-h-11 items-center rounded-full border border-[var(--mk-ink)] px-4 font-medium text-[var(--mk-ink)] hover:bg-white ${FOCUS_RING}`}
+                  >
+                    {t.label}: open the neatlogs trace
+                  </a>
+                ) : (
+                  <span className="text-[var(--mk-storm)]">
+                    {t.label}: neatlogs trace <code className="break-all font-mono text-xs">{t.traceId}</code>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -180,25 +246,36 @@ export function Plans() {
 }
 
 export function DemoBand() {
+  const source = demoSource(process.env.NEXT_PUBLIC_DEMO_RUN_ID, process.env.NODE_ENV === "production");
   return (
     <section id="demo" aria-labelledby="demo-heading" className="bg-[var(--mk-storm)] py-20 text-white">
-      {/* #19 replaces this band with the embedded replay of the saved run. */}
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 sm:px-6 md:flex-row md:items-center md:justify-between">
-        <div className="max-w-xl">
-          <h2 id="demo-heading" className="mk-display text-3xl sm:text-4xl">
-            Watch a whole run, start to finish
-          </h2>
-          <p className="mt-3 leading-relaxed text-slate-200">
-            A replay of a real run: the heads build a reviewer, catch it missing bugs, fix it and prove the fix. No sign-in
-            needed.
-          </p>
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-xl">
+            <h2 id="demo-heading" className="mk-display text-3xl sm:text-4xl">
+              Watch a whole run, start to finish
+            </h2>
+            <p className="mt-3 leading-relaxed text-slate-200">
+              A replay of the run above: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
+              sign-in needed.
+            </p>
+          </div>
+          <Link
+            href="/demo"
+            className="inline-flex h-12 w-fit items-center rounded-full bg-white px-6 font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Open full screen
+          </Link>
         </div>
-        <Link
-          href="/demo"
-          className="inline-flex h-12 w-fit items-center rounded-full bg-white px-6 font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          Watch the demo
-        </Link>
+        <div className="mt-10">
+          {source ? (
+            <RunView source={source} />
+          ) : (
+            <div role="status" className="rounded-2xl bg-slate-900 p-6 text-sm text-slate-300 ring-1 ring-slate-800">
+              The demo run isn&apos;t ready yet. Please check back soon.
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
