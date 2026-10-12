@@ -22,6 +22,8 @@ Takeaway for the human: in both runs the first diagnosis is a real answer-key co
 
 Backup spec, **backup-2** (05:20 IST; `docs/evidence/backup-2-run.json`): Susanoo built "Python Test Review" from `specs/backup.md` with its own 5 rules (`assertion-required`, `no-sleep`, `skip-reason-required`, `no-network-calls`, `no-swallowed-exceptions`): 32 scenarios (15 practice, 7 hidden, 10 from intake). Iteration 0: training F1 1.000, held-out F1 1.000, acceptance 0.90 (one intake example failed; acceptance examples are never shown to the Diagnostician, so it stopped). $0.89. This shows the same pipeline working on a second product.
 
+Third hero run, **hero-7** (18:20 IST, published: https://github.com/susanoo-apps/python-code-review-hero7; `docs/evidence/hero-7-run.json`): intake didn't ask the "which calls need error handling" question this time, and the answer-key conflict didn't appear. 39 scenarios (21 practice, 9 hidden, 9 from intake). Iteration 0: training recall 0.929, F1 0.963, **held-out F1 1.000**, acceptance 0.889. Diagnosis `diag-i0-1` (**prompt_policy**): the reviewer approved a cleanup job that passes an API key typed into the code (`sim-17`). Patch `patch-1`, 3 lines, commit `60edf30`, Entire checkpoint `01M4RB1D8JPSNQYGPBW8V7DCMT`: **kept**. Iteration 1: every scenario passes (training F1 1.000, held-out 1.000, acceptance 1.000); `stop_reason=all_passed`, $1.75. Held-out F1 was already perfect, so it couldn't rise; no rollback happened. GitHub's push protection blocked pushing the later commits because the Simulator planted a realistic-format fake Stripe key in `sim-17` (fixed: planted keys now use made-up formats).
+
 ## 2. We used neatlogs
 - First traced call (Haiku, via `scripts/traced_haiku_call.py`, 02:50 IST): trace id `5f0f1f3aabb3dfc3708cd3ea40e28e34`. TODO(Muaaz): paste the dashboard URL.
 - Hero run hero-2: one trace per scenario run (e.g. `5dbfa67df744d0103b14d1d0d195ec43`); all 28 final-iteration trace ids are in `docs/evidence/hero-2-run.json`. TODO(Muaaz): dashboard links.
@@ -29,7 +31,7 @@ Backup spec, **backup-2** (05:20 IST; `docs/evidence/backup-2-run.json`): Susano
 - Screenshot: Diagnostician reading failing spans:
 
 ## 3. We used Entire
-- Checkpoints on generated repo (patch kept): hero-2 `patch-1`, commit `ae319a2` "fix(prompt_policy): fix the cause of sim-04", Entire checkpoint `01M4PKQ6VKBEM41T77PB8CJE95`. The build commit `9e504ce` has checkpoint `01M4PKF5FY5R6BC2TVXCRR5233`. (The generated repo is local: publishing to the GitHub org failed with a 403 until the token gets repo-create permission.)
+- Checkpoints on generated repo (patch kept): hero-7 `patch-1`, commit `60edf30`, Entire checkpoint `01M4RB1D8JPSNQYGPBW8V7DCMT` (repo https://github.com/susanoo-apps/python-code-review-hero7). hero-2 `patch-1`, commit `ae319a2` "fix(prompt_policy): fix the cause of sim-04", Entire checkpoint `01M4PKQ6VKBEM41T77PB8CJE95`. The build commit `9e504ce` has checkpoint `01M4PKF5FY5R6BC2TVXCRR5233`. (The generated repo is local: publishing to the GitHub org failed with a 403 until the token gets repo-create permission.)
 - The generated hero-2 app boots in the sandbox (05:00 IST): built from its repo with `sandbox.docker`, started with 512 MB / 1 CPU, read-only root, all capabilities dropped, no mounts and no published ports; `/health` answered `{"status":"ok"}`.
 - Checkpoints on generated repo (patch rolled back): TODO: no rollback happened in hero-2 yet.
 - entire-graph output of this repo:
