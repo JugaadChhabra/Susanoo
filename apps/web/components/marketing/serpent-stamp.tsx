@@ -80,7 +80,7 @@ export function SerpentStamp() {
           </div>
         </StampFace>
       </Stamp>
-      <Postmark className="absolute -bottom-12 left-0 sm:-left-6" />
+      <Postmark className="absolute -bottom-20 left-0 sm:-left-8" />
     </div>
   );
 }
