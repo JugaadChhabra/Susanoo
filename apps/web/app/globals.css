@@ -153,13 +153,13 @@
 }
 /* Run view: glow for the head that is working right now. */
 @keyframes head-glow {
-  0%, 100% { box-shadow: 0 0 0 1px rgb(129 140 248 / 0.9), 0 0 18px 2px rgb(99 102 241 / 0.45); }
-  50% { box-shadow: 0 0 0 1px rgb(165 180 252), 0 0 34px 8px rgb(99 102 241 / 0.75); }
+  0%, 100% { box-shadow: 0 0 0 1px rgb(235 194 58 / 0.95), 0 0 18px 2px rgb(235 194 58 / 0.45); }
+  50% { box-shadow: 0 0 0 1px rgb(246 227 160), 0 0 34px 8px rgb(235 194 58 / 0.75); }
 }
 .head-glow { animation: head-glow 1.6s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .head-glow { animation: none; box-shadow: 0 0 0 2px rgb(129 140 248), 0 0 20px 4px rgb(99 102 241 / 0.5); }
+  .head-glow { animation: none; box-shadow: 0 0 0 2px rgb(235 194 58), 0 0 20px 4px rgb(235 194 58 / 0.5); }
   .react-flow__edge.animated path { animation: none !important; }
 }
 
@@ -204,4 +204,52 @@
 .vert {
   writing-mode: vertical-rl;
   text-orientation: upright;
+}
+
+/* Stamp palette for the app screens and the embedded run replay: the shadcn tokens and the Tailwind colours the run view
+   uses (slate, indigo, emerald, amber, sky, violet, red) are re-pointed at the stamp colours, so every screen shares one look. */
+.stamp-palette {
+  --color-slate-50: #FBF6EA; --color-slate-100: #F4EBD8; --color-slate-200: #E4D9C2; --color-slate-300: #D9CFBB;
+  --color-slate-400: #B5AB92; --color-slate-500: #8F866F; --color-slate-600: #6B6554; --color-slate-700: #4F4A3E;
+  --color-slate-800: #3A362D; --color-slate-900: #26231E; --color-slate-950: #1B1A17;
+  --color-indigo-200: #F6E3A0; --color-indigo-300: #F0D472; --color-indigo-400: #EBC23A; --color-indigo-500: #C2321B;
+  --color-indigo-950: #3B1A12;
+  --color-emerald-100: #DDEFE9; --color-emerald-200: #BFE0D6; --color-emerald-300: #9FD0C2; --color-emerald-400: #7DBAAA;
+  --color-emerald-500: #7DBAAA; --color-emerald-700: #2F6B5C; --color-emerald-800: #25574A; --color-emerald-950: #123029;
+  --color-amber-50: #FBF1CE; --color-amber-100: #F6E3A0; --color-amber-200: #F0D472; --color-amber-300: #EBC23A;
+  --color-amber-400: #EBC23A; --color-amber-500: #D9A91F; --color-amber-700: #8A6A12; --color-amber-800: #6B520E;
+  --color-amber-950: #3A2D07;
+  --color-sky-100: #E4F1EE; --color-sky-200: #BFE0D6; --color-sky-300: #9FD0C2; --color-sky-500: #7DBAAA; --color-sky-700: #2F6B5C;
+  --color-violet-200: #E7C7C0; --color-violet-300: #D9988B; --color-violet-500: #C2321B;
+  --color-red-100: #F9DDD6; --color-red-200: #F2B8AC; --color-red-300: #E88C7C; --color-red-400: #D9563F;
+  --color-red-500: #C2321B; --color-red-600: #C2321B; --color-red-700: #9E2815; --color-red-800: #7A1F10;
+}
+.app-stamp {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--vermilion);
+  --primary-foreground: var(--paper);
+  --secondary: var(--paper-dim);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-dim);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--mustard);
+  --accent-foreground: var(--ink);
+  --destructive: var(--vermilion);
+  --border: rgb(27 26 23 / 0.55);
+  --input: var(--ink);
+  --ring: var(--vermilion);
+  --radius: 0.125rem;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+.app-stamp :is(h1, h2) {
+  font-family: var(--font-stamp);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }

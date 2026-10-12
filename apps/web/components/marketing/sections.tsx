@@ -439,7 +439,7 @@ export function DemoBand() {
             Open full screen
           </Link>
         </div>
-        <div className="mt-10 border-2 border-ink bg-ink p-2 sm:p-3">
+        <div className="stamp-palette mt-10 border-2 border-ink bg-ink p-2 sm:p-3">
           <DemoReplay />
         </div>
       </div>

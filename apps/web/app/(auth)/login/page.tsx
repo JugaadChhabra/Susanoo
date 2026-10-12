@@ -3,6 +3,7 @@ import { LoginForm } from "@/components/auth/login-form";
 
 export default function Page() {
   return (
+    <div className="app-stamp stamp-palette dots flex min-h-full flex-1 flex-col">
     <main className="mx-auto w-full max-w-sm px-4 py-12">
       <h1 className="text-2xl font-semibold">Log in to Susanoo</h1>
       <p className="mt-2 text-muted-foreground">
@@ -12,5 +13,6 @@ export default function Page() {
         <LoginForm />
       </Suspense>
     </main>
+    </div>
   );
 }
