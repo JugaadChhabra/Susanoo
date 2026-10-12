@@ -16,7 +16,6 @@
 #   scripts/run-tickets.sh 5 6             # only these issues, in this order
 #   DRY_RUN=1 scripts/run-tickets.sh       # print the frontier and each prompt; change nothing
 #   MAX_TICKETS=3 scripts/run-tickets.sh   # stop after 3 merged tickets
-#   PROMPTBOOK=PROMPTBOOK_MOTION.md LABEL=motion scripts/run-tickets.sh   # another promptbook, only issues with this label
 #
 # Env: PROMPTBOOK (default PROMPTBOOK_JUGAAD.md), LABEL (optional extra label filter; default none),
 #      PERMISSION_MODE (default bypassPermissions — the session runs unattended),
