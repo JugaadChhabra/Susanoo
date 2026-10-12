@@ -2,6 +2,10 @@
 
     DATABASE_URL=... uv run python scripts/setup_checkpointer.py
 
+Also enables row-level security on the four tables (no policies) and revokes the Supabase anon/authenticated
+roles, so the public API can never read run state. If port 5432 is blocked from your network, paste
+scripts/checkpointer_tables.sql into the Supabase SQL Editor instead (same result).
+
 Use a direct or session connection (port 5432), not the transaction pooler (6543): setup() builds its
 indexes CONCURRENTLY. Idempotent: running it again only re-checks. Never prints DATABASE_URL.
 """
@@ -20,6 +24,16 @@ TABLES_SQL = (
     "select table_name from information_schema.tables "
     "where table_schema = 'public' and table_name like 'checkpoint%' order by 1"
 )
+# Supabase exposes `public` over its API: no policies = only the owner (the worker) and the service role can use them.
+LOCKDOWN_SQL = [
+    *(
+        f"alter table {t} enable row level security"
+        for t in ("checkpoint_migrations", "checkpoints", "checkpoint_blobs", "checkpoint_writes")
+    ),
+    "do $$ begin if exists (select 1 from pg_roles where rolname = 'anon') then "
+    "revoke all on checkpoint_migrations, checkpoints, checkpoint_blobs, checkpoint_writes from anon, authenticated; "
+    "end if; end $$",
+]
 INDEXES_SQL = (
     "select indexname from pg_indexes "
     "where schemaname = 'public' and indexname like 'checkpoint%thread_id_idx' order by 1"
@@ -38,6 +52,8 @@ async def main() -> int:
         async with postgres_checkpointer(url):
             pass
         async with await psycopg.AsyncConnection.connect(url, autocommit=True, prepare_threshold=0) as conn:
+            for statement in LOCKDOWN_SQL:
+                await conn.execute(statement)
             tables = [r[0] for r in await (await conn.execute(TABLES_SQL)).fetchall()]
             indexes = [r[0] for r in await (await conn.execute(INDEXES_SQL)).fetchall()]
             version = (await (await conn.execute("select max(v) from checkpoint_migrations")).fetchone())[0]
@@ -47,6 +63,7 @@ async def main() -> int:
     print("tables:", ", ".join(tables))
     print("indexes:", ", ".join(indexes))
     print("migration version:", version)
+    print("row-level security: on (no policies), anon/authenticated revoked")
     return 0
 
 
