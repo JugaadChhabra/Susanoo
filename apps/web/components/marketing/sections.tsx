@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { DemoReplay } from "@/components/app/demo-replay";
-import { CONNECTORS, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
+import { CONNECTORS, REPO_URL, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { FOCUS_RING } from "./site-chrome";
 
@@ -35,7 +35,7 @@ export function Hero() {
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-[var(--mk-storm)]">
           Describe the agent you need in plain English. Susanoo builds it into a working app, attacks it with test cases,
-          works out why it fails, fixes the part that broke and proves the fix with traces you can open.
+          works out why it fails, fixes the part that broke and proves the fix with traces.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/projects/new" className={PRIMARY}>
@@ -118,6 +118,7 @@ export function Proof() {
                     className={`inline-flex min-h-11 items-center rounded-full border border-[var(--mk-ink)] px-4 font-medium text-[var(--mk-ink)] hover:bg-white ${FOCUS_RING}`}
                   >
                     {t.label}: open the neatlogs trace
+                    <span className="sr-only"> (opens neatlogs; needs a team sign-in)</span>
                   </a>
                 ) : (
                   <span className="text-[var(--mk-storm)]">
@@ -128,6 +129,19 @@ export function Proof() {
             );
           })}
         </ul>
+        <p className="mt-3 max-w-3xl text-xs leading-relaxed text-[var(--mk-storm)]">
+          neatlogs traces are private to the Susanoo team&apos;s workspace, so the links ask for a sign-in. Screenshots of
+          both traces are in{" "}
+          <a
+            href={`${REPO_URL}/blob/main/EVIDENCE.md`}
+            target="_blank"
+            rel="noreferrer"
+            className={`underline underline-offset-2 hover:text-[var(--mk-ink)] ${FOCUS_RING}`}
+          >
+            the repo&apos;s evidence file
+          </a>
+          .
+        </p>
       </div>
     </section>
   );
