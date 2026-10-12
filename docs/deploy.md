@@ -8,7 +8,7 @@
 - **Stack:** `/opt/susanoo/` holds `docker-compose.yml`, `Caddyfile` and `.env`; the workflow copies the first two on every deploy.
 - **Worker:** has the Docker socket (group `DOCKER_GID`), a named volume for run workdirs (`/data/runs`), and joins `susanoo_sandbox` with Caddy; generated-app containers join only that network.
 - **Live checks:** `/health` OK, `/demo/<id>` 200, signed-in routes 401 without a token.
-- **Not live yet:** `run-<id>` previews (#31, #32) and passing a project's connections into runs (#28–#30).
+- **Previews (#31):** Caddy serves `run-<id>.<PREVIEW_DOMAIN>` with a certificate per host, obtained on first visit only after `http://api:8000/internal/preview-allowed` confirms the run exists with a `preview_url` recorded. It proxies to `susanoo-run-<id>:8000` on `susanoo_sandbox`. Needs `PREVIEW_DOMAIN` in `/opt/susanoo/.env`. Keeping a finished run's app up and writing its `preview_url` is #32.
 
 ## Hostnames
 
@@ -18,7 +18,7 @@ Base domain: `susanoo.jugaadchhabra.dev` (Cloudflare DNS).
 |---|---|
 | `app.susanoo.jugaadchhabra.dev` | Vercel (Next.js dashboard) |
 | `api.susanoo.jugaadchhabra.dev` | EC2 → Caddy → `api:8000` |
-| `run-<id>.susanoo.jugaadchhabra.dev` | EC2 → Caddy → generated app (comes with #31/#32; placeholder in `Caddyfile`) |
+| `run-<id>.susanoo.jugaadchhabra.dev` | EC2 → Caddy → `susanoo-run-<id>:8000` on `susanoo_sandbox` (on-demand TLS) |
 
 Cloudflare records `api.susanoo` and `*.susanoo` are A records to the Elastic IP, **DNS only** (grey cloud) so Caddy gets its own certificates; `app.susanoo` and `susanoo` point at Vercel and win over the wildcard.
 
@@ -71,6 +71,26 @@ docker compose ps
 ## Check it worked
 
 `curl -fsS https://api.susanoo.jugaadchhabra.dev/health`, then the checks in the `deploy-check` skill.
+
+### Check a run preview by hand (#31)
+
+On the server, in `/opt/susanoo`, with a real run id (`select id from public.runs limit 1;` in Supabase):
+
+```bash
+ID=<run uuid, lowercase>
+# 1. A hello-world app named and labelled like a run, on the sandbox network only.
+docker run -d --rm --name susanoo-run-$ID --network susanoo_sandbox \
+  --label susanoo.managed=true --label susanoo.run_id=$ID --label susanoo.port=8000 \
+  --cpus 0.5 --memory 128m python:3.12-slim python -m http.server 8000
+# 2. Before a preview is recorded the ask says no (run from inside the compose network):
+docker compose exec caddy wget -qSO- "http://api:8000/internal/preview-allowed?domain=run-$ID.susanoo.jugaadchhabra.dev"  # 404
+```
+
+3. Record the preview in the Supabase SQL editor: `update public.runs set preview_url = 'https://run-<ID>.susanoo.jugaadchhabra.dev' where id = '<ID>';`
+4. Repeat step 2: now 200. From outside, `curl -I https://api.susanoo.jugaadchhabra.dev/internal/preview-allowed?domain=run-<ID>.susanoo.jugaadchhabra.dev` is 404 (forwarded requests are refused).
+5. Open `https://run-<ID>.susanoo.jugaadchhabra.dev` in a browser: a directory listing over HTTPS with no warning. `docker compose logs caddy | grep -i obtain` shows the certificate for that one host.
+6. A made-up host (`https://run-nope.susanoo.jugaadchhabra.dev`) fails the TLS handshake: no certificate is issued.
+7. Clean up: `docker rm -f susanoo-run-$ID` and set `preview_url` back to `null`.
 
 ## Rollback
 
