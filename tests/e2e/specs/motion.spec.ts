@@ -48,6 +48,9 @@ test("with motion on, the spec form reveals once it scrolls into view", async ({
   await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
   const form = page.getByRole("figure", { name: "You write a spec like this one" });
   const section = page.locator("section[data-reveal]").filter({ has: form });
+  // Below the fold it waits, unrevealed, at its first frame.
+  await expect(section).not.toHaveAttribute("data-inview");
+  await expect.poll(() => paintedOpacity(form)).toBe(0);
   await form.scrollIntoViewIfNeeded();
   await expect(section).toHaveAttribute("data-inview", "");
   await expect.poll(() => paintedOpacity(form)).toBe(1);
