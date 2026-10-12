@@ -14,8 +14,8 @@ from pydantic import BaseModel, ValidationError
 from agent.tools import (
     MAX_TOOL_ROUNDS,
     TOOL_ERROR_PREFIX,
-    TOOL_SCHEMAS,
     Rule,
+    all_tool_schemas,
     annotate_diff,
     call_tool,
     load_rules,
@@ -106,7 +106,7 @@ class Reviewer:
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=system,
                 messages=list(messages),
-                tools=TOOL_SCHEMAS,
+                tools=all_tool_schemas(),
             )
         except Exception as exc:  # anthropic.APIError and network failures; never leak details or keys
             logger.error("model call failed: %s", type(exc).__name__)

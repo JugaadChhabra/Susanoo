@@ -139,3 +139,64 @@ def test_model_error_mid_loop_is_plain_english():
 
 def test_prompt_mentions_tools():
     assert "lookup_rule" in Reviewer(FakeClient([])).system_prompt()
+
+
+# --- connector tools appended by Agent Smith -------------------------------------------------
+
+SECRET = "tok-super-secret-123"
+CONNECTOR_SCHEMA = {
+    "name": "post_comment",
+    "description": "Post a comment.",
+    "input_schema": {"type": "object", "properties": {"body": {"type": "string"}}, "required": ["body"]},
+}
+
+
+@pytest.fixture
+def connector(monkeypatch):
+    import agent.tools as tools
+
+    def post_comment(body: str) -> dict:
+        return {"ok": True, "message": f"posted {body}", "data": None, "dry_run": True}
+
+    def leaky(**_kwargs) -> dict:
+        raise RuntimeError(f"401 for token {SECRET}")
+
+    monkeypatch.setattr(tools, "CONNECTOR_TOOLS", {"post_comment": post_comment, "leaky": leaky}, raising=False)
+    monkeypatch.setattr(
+        tools,
+        "CONNECTOR_TOOL_SCHEMAS",
+        [CONNECTOR_SCHEMA, dict(CONNECTOR_SCHEMA, name="parse_diff")],  # a base-name clash is ignored
+        raising=False,
+    )
+    monkeypatch.setenv("SOME_TOKEN", SECRET)
+
+
+def test_no_connector_block_changes_nothing():
+    from agent.tools import all_tool_schemas
+
+    assert all_tool_schemas() == TOOL_SCHEMAS
+    assert all_tool_schemas() is not TOOL_SCHEMAS
+
+
+def test_connector_schemas_are_offered_without_touching_base(connector):
+    from agent.tools import all_tool_schemas
+
+    names = [t["name"] for t in all_tool_schemas()]
+    assert names == ["parse_diff", "get_file_context", "lookup_rule", "post_comment"]
+    assert [t["name"] for t in TOOL_SCHEMAS] == names[:3]
+
+
+def test_connector_dispatch_and_errors(connector):
+    out = json.loads(call_tool("post_comment", {"body": "hi"}, diff=SQL_DIFF, policy=RULES))
+    assert out == {"ok": True, "message": "posted hi", "data": None, "dry_run": True}
+    bad = call_tool("post_comment", {"nope": 1}, diff=SQL_DIFF, policy=RULES)
+    assert bad.startswith("Error: ")
+    boom = call_tool("leaky", {}, diff=SQL_DIFF, policy=RULES)
+    assert boom.startswith("Error: ") and SECRET not in boom
+    assert "post_comment" in call_tool("nope", {}, diff=SQL_DIFF, policy=RULES)
+
+
+def test_reviewer_offers_and_calls_connector_tools(connector):
+    client = ScriptedClient([tool_response(("t1", "post_comment", {"body": "x"})), FINAL])
+    assert run(Reviewer(client).review(SQL_DIFF))
+    assert "post_comment" in [t["name"] for t in client.messages.calls[0]["tools"]]

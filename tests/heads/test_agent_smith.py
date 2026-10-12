@@ -758,7 +758,8 @@ async def test_a_connector_without_tool_sources_degrades_with_the_note(repo, fak
     assert not connector.info.tool_code_available
     await run(make_state(repo, connectors=["github"]))
     written = (repo / "agent" / "tools.py").read_text()
-    assert "CONNECTOR_TOOLS" not in written and "CONNECTOR_TOOL_SCHEMAS" not in written
+    # no connector tools were generated (the template's dispatcher may still mention the names)
+    assert "CONNECTOR_TOOLS = " not in written and "CONNECTOR_TOOL_SCHEMAS = " not in written
     assert "GitHub connection cannot be added to the agent yet" in sink.events[-1].message
     assert "connection tool" not in sink.events[-1].message
 

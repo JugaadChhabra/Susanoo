@@ -237,6 +237,18 @@ TOOL_SCHEMAS: list[dict] = [
 ]
 
 
+
+def all_tool_schemas() -> list[dict]:
+    """The base tools plus any connector tools Agent Smith appended below (copies; base names win)."""
+    schemas = [dict(t) for t in TOOL_SCHEMAS]
+    taken = {t["name"] for t in schemas}
+    for extra in globals().get("CONNECTOR_TOOL_SCHEMAS", None) or []:
+        if isinstance(extra, dict) and extra.get("name") not in taken:
+            taken.add(extra["name"])
+            schemas.append(dict(extra))
+    return schemas
+
+
 def _format_lines(lines: list[DiffLine]) -> str:
     out = []
     for ln in lines:
@@ -273,6 +285,25 @@ def call_tool(name: str, args: dict | None, *, diff: str, policy: list[Rule]) ->
             if rule is None:
                 return "No rule with that id. Valid ids: " + ", ".join(r.id for r in policy)
             return json.dumps(rule.model_dump())
+        connector_tools = globals().get("CONNECTOR_TOOLS", None) or {}
+        if name in connector_tools:
+            return _call_connector_tool(name, connector_tools[name], args)
     except Exception as exc:  # a tool bug must not crash the review
         return f"{TOOL_ERROR_PREFIX}{name} failed ({type(exc).__name__})."
-    return f"{TOOL_ERROR_PREFIX}unknown tool '{name}'. Available tools: " + ", ".join(t["name"] for t in TOOL_SCHEMAS)
+    return f"{TOOL_ERROR_PREFIX}unknown tool '{name}'. Available tools: " + ", ".join(
+        t["name"] for t in all_tool_schemas()
+    )
+
+
+def _call_connector_tool(name: str, fn: object, args: dict) -> str:
+    """Run one connector tool. Errors become a plain message; exception text is never echoed (it could hold a token)."""
+    try:
+        result = fn(**args)  # type: ignore[operator]
+    except TypeError:
+        return f"{TOOL_ERROR_PREFIX}{name} was called with arguments it does not accept."
+    except Exception as exc:
+        return f"{TOOL_ERROR_PREFIX}{name} failed ({type(exc).__name__})."
+    try:
+        return json.dumps(result, default=str)
+    except Exception:
+        return f"{TOOL_ERROR_PREFIX}{name} returned a result that could not be read."
