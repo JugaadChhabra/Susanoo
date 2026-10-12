@@ -11,6 +11,11 @@ function paintedOpacity(locator: Locator): Promise<number> {
   });
 }
 
+/** The ::after layer's computed opacity. */
+function afterOpacity(locator: Locator): Promise<number> {
+  return locator.evaluate((el) => Number(getComputedStyle(el, "::after").opacity));
+}
+
 /**
  * The landing page never hides content behind JavaScript or motion: with reduced motion or with JS off, the hero, the
  * spec form, the last How it works head and the Trust section are all there at full opacity. [docs/motion-spec.md §4, §5]
@@ -29,12 +34,17 @@ for (const [name, options] of [
         page.getByRole("figure", { name: "You write a spec like this one" }),
         page.getByRole("region", { name: "Eight heads, one job each" }).getByRole("listitem").last(),
         page.getByRole("region", { name: "Built so it can't fool you" }),
+        page.locator("#proof dl > div").last(),
+        page.locator("#proof dl .text-vermilion").last(),
+        page.locator("#proof .mk-proof-seal"),
       ];
       for (const target of targets) {
         await target.scrollIntoViewIfNeeded();
         await expect(target).toBeVisible();
         await expect.poll(() => paintedOpacity(target)).toBe(1);
       }
+      // The VERIFIED seal's ink ring only ever shows mid-bleed, so at rest it is invisible.
+      await expect.poll(() => afterOpacity(page.locator("#proof .mk-proof-seal"))).toBe(0);
       if (name === "reduced motion") {
         // Reduced motion means motion is never switched on, so nothing waits for the observer.
         await expect(page.locator("html")).not.toHaveAttribute("data-motion", "on");
@@ -82,4 +92,50 @@ test("with motion on, How it works settles in and the lit head thuds and lifts u
   await expect(section).toHaveAttribute("data-sequence", "still");
   await expect(litStamp).toHaveCSS("animation-name", "none");
   await expect(litStamp).toHaveCSS("translate", "none");
+});
+
+test("with motion on, Proof's stats press in once the stats are in view, then VERIFIED slams with one ring and one shake", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  const section = page.locator("section#proof");
+  const stats = section.locator("dl[data-reveal]");
+  const cards = stats.locator("> div");
+  const seal = section.locator(".mk-proof-seal");
+  const intro = section.locator(".mk-proof-shake");
+  await expect(cards).toHaveCount(3);
+
+  // Below the fold the stats and the seal wait, unrevealed, at their first frame; the ring is never drawn at rest.
+  await expect(stats).not.toHaveAttribute("data-inview");
+  await expect.poll(() => paintedOpacity(cards.last())).toBe(0);
+  await expect.poll(() => paintedOpacity(seal)).toBe(0);
+  await expect.poll(() => afterOpacity(seal)).toBe(0);
+  // The seal and the intro sit outside the stats, but their reveal scope keeps them waiting on the stats.
+  await expect(seal).toHaveCSS("animation-play-state", "paused");
+  await expect(intro).toHaveCSS("animation-play-state", "paused");
+
+  await stats.scrollIntoViewIfNeeded();
+  await expect(stats).toHaveAttribute("data-inview", "");
+  await expect(cards.first()).toHaveCSS("animation-name", "mk-press");
+  await expect(cards.last().locator(".text-vermilion")).toHaveCSS("animation-name", "mk-slam");
+  await expect(seal).toHaveCSS("animation-name", "mk-slam");
+  await expect(intro).toHaveCSS("animation-name", "mk-shake");
+  await expect.poll(() => seal.evaluate((el) => getComputedStyle(el, "::after").animationName)).toBe("mk-bleed");
+
+  // Everything lands: full opacity, the seal back at its own 10deg tilt, and the ring bled away.
+  await expect.poll(() => paintedOpacity(cards.last())).toBe(1);
+  await expect.poll(() => paintedOpacity(seal)).toBe(1);
+  await expect.poll(() => seal.evaluate((el) => getComputedStyle(el).rotate)).toMatch(/^(none|0deg)$/);
+  await expect(seal).toHaveCSS("transform", /^matrix\(0\.98/);
+  await expect.poll(() => afterOpacity(seal)).toBe(0);
+
+  // Once pressed in, a card still lifts on hover: the press holds nothing that fights the lift.
+  await cards.first().hover();
+  await expect(cards.first().locator("> .perf")).toHaveCSS("translate", "-3px -4px");
+
+  // The stats still read the same to a screen reader.
+  await expect(cards.first().getByLabel(/^before /)).toHaveCount(1);
+  await expect(cards.first().getByLabel(/^after /)).toHaveCount(1);
 });
