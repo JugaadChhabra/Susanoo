@@ -1,54 +1,20 @@
 /**
- * Agent page shapes and rules ([PRD › Non-technical users], [PRD › Frontend (marketing site + app) and API]).
- * The PRD lists agent-card, report-card and feedback routes but `schemas/` has no models for them yet,
- * so these types live here (like `Intake`) until Muaaz's router lands and they move to `generated.ts`.
+ * Agent page rules ([PRD › Non-technical users], [PRD › Frontend (marketing site + app) and API]).
+ * API data uses the generated shapes; only the "Try it" request is ours (the PRD names no route for it).
  */
+import type { FeedbackIn, Finding, ProjectSummary, ReportCard, RunStatus } from "@/types/generated";
 
-/** Plain-English summary of what the built agent does. No prompts or YAML. */
-export interface AgentCard {
-  summary: string;
-  can_do: string[];
-  cannot_do: string[];
-}
-
-export interface ReportCardRound {
-  label: string;
-  caught: number;
-  total: number;
-  false_alarms: number;
-}
-
-/** "Caught 9 of 10 problems, 1 false alarm. Last week: 6 of 10." */
-export interface ReportCard {
-  headline: string;
-  caught: number;
-  total: number;
-  false_alarms: number;
-  history: ReportCardRound[];
-}
-
-/** The slice of `GET /runs/{id}` this page needs. */
-export interface AgentRunInfo {
-  preview_url: string | null;
-  repo_url: string | null;
-}
+/** What the preview panel needs: the run's preview URL and its project's repo link. */
+export type AgentRunInfo = Pick<RunStatus, "preview_url"> & Pick<ProjectSummary, "repo_url">;
 
 export type Rating = "up" | "down";
 
-/** Wire body for POST /runs/{id}/feedback (the PRD gives no body, so this is our choice). */
-export interface FeedbackPayload {
-  rating: Rating;
-  /** The "it should have..." text; required for a thumbs down because it becomes a new test. */
-  expectation?: string;
-  /** What the agent was shown when the user tried it, so the new test can reuse it. */
-  diff?: string;
-}
-
+/** Body for `POST /runs/{id}/try`, our assumption (flagged for Muaaz); the API may not serve it yet. */
 export type TryInput = { kind: "diff"; diff: string } | { kind: "pr"; pr: string };
 
 export interface TryResult {
   summary: string;
-  findings: { text: string; why: string }[];
+  findings: Finding[];
 }
 
 export const MAX_DIFF_CHARS = 20000;
@@ -88,17 +54,21 @@ export function toTryInput(mode: "diff" | "pr", text: string): TryInput | null {
   return pr ? { kind: "pr", pr } : null;
 }
 
-/** A thumbs down must say what was expected, since that becomes a test. */
-export function toFeedback(rating: Rating, expectation: string, diff?: string): FeedbackPayload | null {
+/** A thumbs down becomes a new test, so it needs what was expected and the change the agent reviewed. */
+export function toFeedbackIn(expectation: string, diff: string | undefined, findings: Finding[] = []): FeedbackIn | null {
   const text = expectation.trim();
-  if (rating === "down" && !text) return null;
-  return { rating, ...(text ? { expectation: text } : {}), ...(diff ? { diff } : {}) };
+  if (!text || !diff) return null;
+  return { thumbs_down: true, expectation: text, diff, findings };
 }
 
-export function problemsLine(caught: number, total: number, falseAlarms: number): string {
-  const alarms = falseAlarms === 1 ? "1 false alarm" : `${falseAlarms} false alarms`;
-  return `Caught ${caught} of ${total} problems, ${alarms}.`;
+/** "app.py line 12: Logs a customer's email." */
+export function findingLine(f: Finding): string {
+  const where = f.file ? `${f.file}${f.line > 0 ? ` line ${f.line}` : ""}: ` : "";
+  return `${where}${f.message}`;
 }
+
+/** The bar label for one round of the report card. */
+export const roundLabel = (card: ReportCard) => (card.iteration === 0 ? "First round" : `Round ${card.iteration}`);
 
 /** Share of problems caught, clamped to 0-100 for bars. */
 export function caughtPercent(caught: number, total: number): number {

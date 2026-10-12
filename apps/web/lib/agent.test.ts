@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { caughtPercent, parsePrRef, problemsLine, resolvePreviewUrl, safePreviewUrl, toFeedback, toTryInput } from "./agent";
+import type { Finding } from "@/types/generated";
+import { caughtPercent, findingLine, parsePrRef, resolvePreviewUrl, roundLabel, safePreviewUrl, toFeedbackIn, toTryInput } from "./agent";
 
 describe("agent rules", () => {
   it("only allows http(s) preview URLs", () => {
@@ -30,15 +31,23 @@ describe("agent rules", () => {
     expect(toTryInput("pr", "a/b#7")).toEqual({ kind: "pr", pr: "a/b#7" });
   });
 
-  it("requires an expectation for a thumbs down only", () => {
-    expect(toFeedback("down", "  ")).toBeNull();
-    expect(toFeedback("down", " flag the secret ", "+ x")).toEqual({ rating: "down", expectation: "flag the secret", diff: "+ x" });
-    expect(toFeedback("up", "")).toEqual({ rating: "up" });
+  it("turns a thumbs down into feedback only with an expectation and the reviewed diff", () => {
+    const finding: Finding = { file: "a.py", line: 3, rule_id: "r1", severity: "warn", message: "Looks risky." };
+    expect(toFeedbackIn("  ", "+ x")).toBeNull();
+    expect(toFeedbackIn("flag the secret", undefined)).toBeNull();
+    expect(toFeedbackIn(" flag the secret ", "+ x", [finding])).toEqual({ thumbs_down: true, expectation: "flag the secret", diff: "+ x", findings: [finding] });
+    expect(toFeedbackIn("flag it", "+ x")).toEqual({ thumbs_down: true, expectation: "flag it", diff: "+ x", findings: [] });
   });
 
-  it("words the report line and clamps percentages", () => {
-    expect(problemsLine(9, 10, 1)).toBe("Caught 9 of 10 problems, 1 false alarm.");
-    expect(problemsLine(6, 10, 0)).toBe("Caught 6 of 10 problems, 0 false alarms.");
+  it("words findings and rounds plainly", () => {
+    expect(findingLine({ file: "a.py", line: 3, rule_id: "r1", severity: "warn", message: "Looks risky." })).toBe("a.py line 3: Looks risky.");
+    expect(findingLine({ file: "", line: 0, rule_id: "r1", severity: "warn", message: "Looks risky." })).toBe("Looks risky.");
+    const card = { iteration: 0 } as Parameters<typeof roundLabel>[0];
+    expect(roundLabel(card)).toBe("First round");
+    expect(roundLabel({ ...card, iteration: 2 })).toBe("Round 2");
+  });
+
+  it("clamps percentages", () => {
     expect(caughtPercent(5, 0)).toBe(0);
     expect(caughtPercent(15, 10)).toBe(100);
   });
