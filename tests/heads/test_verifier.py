@@ -889,6 +889,31 @@ async def test_the_pre_patch_level2_run_uses_a_distinct_run_id_and_image_tag(rep
     assert long != "a" * 40 and len(long) <= 40 and re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?", long)
 
 
+async def test_the_pre_patch_level2_run_gets_the_real_runs_connections(repo, fakes, monkeypatch):
+    from susanoo.connectors import runtime_env
+
+    resolvers: list = []
+    original = fakes.level2
+
+    async def spy(state, scenarios, **kw):
+        resolvers.append(kw.get("connection_env"))
+        return await original(state, scenarios, **kw)
+
+    asked: list[str] = []
+
+    async def run_connection_env(run_id: str) -> dict[str, str]:
+        asked.append(run_id)
+        return {}
+
+    monkeypatch.setattr(runner, "run_level2", spy)
+    monkeypatch.setattr(runtime_env, "run_connection_env", run_connection_env)
+    await run_verifier(make_state(repo, layer="code"))
+    baseline = resolvers[0]
+    assert baseline is not None
+    await baseline(verifier._baseline_run_id("run-1"))
+    assert asked == ["run-1"]
+
+
 class Boom(Exception):
     pass
 

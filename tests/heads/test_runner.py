@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 import pytest
 
+from susanoo.connectors import redact_secret_values
 from susanoo.emit import InMemorySink, use_sink
 from susanoo.guards import budget
 from susanoo.heads import agent_smith, runner
@@ -480,10 +481,26 @@ def l2env(monkeypatch):
     monkeypatch.delenv("UNSET_VAR_X", raising=False)
 
 
+VAULT_TOKEN = "vault-token-of-no-known-shape-" + "c" * 20  # only exact-value redaction can hide this
+
+
+def vault(values: dict[str, str]) -> tuple[Callable[[str], Any], list[str]]:
+    """A stand-in for `connectors.runtime_env.run_connection_env`: registers the secret, as the real one does."""
+    asked: list[str] = []
+
+    async def resolve(run_id: str) -> dict[str, str]:
+        asked.append(run_id)
+        redact_secret_values([VAULT_TOKEN])
+        return dict(values)
+
+    return resolve, asked
+
+
 async def test_level2_scores_through_the_app_and_stops_the_container(repo, l2env, caplog):
     sandbox = FakeSandbox()
     scenarios = [scenario("tr-a"), scenario("tr-b", planted=False), scenario("ho-a", "heldout")]
     state = make_state(repo, scenarios, connectors=["github"], iteration=3)
+    resolve, asked = vault({"GITHUB_TOKEN": VAULT_TOKEN, "NOT_DECLARED": "x" * 10})
     with caplog.at_level(logging.DEBUG):
         results = await runner.run_level2(
             state,
@@ -491,16 +508,58 @@ async def test_level2_scores_through_the_app_and_stops_the_container(repo, l2env
             sandbox=sandbox,
             http_client=http_for(healthy({"tr-a": finding_json()})),
             poll_interval_s=0,
+            connection_env=resolve,
         )  # type: ignore[arg-type]
     r = by_id(results)
     assert r["tr-a"].passed and r["tr-b"].passed and not r["ho-a"].passed
     assert all(x.iteration == 3 for x in results)
     assert len({x.trace_id for x in results}) == 3
     assert [c[0] for c in sandbox.calls] == ["build", "start", "stop"]
-    # only names that are set reach the container
-    assert set(sandbox.env or {}) == {runner.APP_KEY_ENV, "GITHUB_TOKEN"}
-    assert sandbox.env[runner.APP_KEY_ENV] == APP_KEY
-    assert APP_KEY not in caplog.text and "b" * 30 not in caplog.text
+    assert asked == ["run-1"]
+    # the connector's values come from Vault, not the worker's own env; only declared names that are set pass
+    assert sandbox.env == {runner.APP_KEY_ENV: APP_KEY, "GITHUB_TOKEN": VAULT_TOKEN}
+    assert APP_KEY not in caplog.text and VAULT_TOKEN not in caplog.text
+
+
+async def test_level2_never_lets_a_connection_value_reach_an_event_or_log_line(repo, l2env, caplog):
+    sandbox = FakeSandbox()
+
+    def echoing(request: httpx.Request) -> httpx.Response:  # an app that leaks its token in an error
+        if request.url.path == "/health":
+            return httpx.Response(200)
+        return httpx.Response(502, json={"detail": f"GitHub refused token {VAULT_TOKEN}"})
+
+    scenarios = [scenario("tr-a")]
+    resolve, _ = vault({"GITHUB_TOKEN": VAULT_TOKEN})
+    sink = InMemorySink()
+    with use_sink(sink), caplog.at_level(logging.DEBUG):
+        results = await runner.run_level2(
+            make_state(repo, scenarios, connectors=["github"]),
+            scenarios,
+            sandbox=sandbox,
+            http_client=http_for(echoing),
+            poll_interval_s=0,
+            connection_env=resolve,
+        )  # type: ignore[arg-type]
+    assert sandbox.env and sandbox.env["GITHUB_TOKEN"] == VAULT_TOKEN
+    assert "status 502" in (results[0].error or "")
+    blob = json.dumps([(e.message, e.payload) for e in sink.events]) + results[0].model_dump_json() + caplog.text
+    assert VAULT_TOKEN not in blob
+
+
+async def test_level2_without_connections_never_asks_vault_and_starts_as_before(repo, l2env):
+    sandbox = FakeSandbox()
+    resolve, asked = vault({"GITHUB_TOKEN": VAULT_TOKEN})
+    await runner.run_level2(
+        make_state(repo, [scenario("tr-a")]),
+        [scenario("tr-a")],
+        sandbox=sandbox,
+        http_client=http_for(healthy({})),
+        poll_interval_s=0,
+        connection_env=resolve,
+    )  # type: ignore[arg-type]
+    assert asked == []
+    assert sandbox.env == {runner.APP_KEY_ENV: APP_KEY}
 
 
 async def test_level2_stops_the_container_when_the_app_never_becomes_ready(repo, l2env):

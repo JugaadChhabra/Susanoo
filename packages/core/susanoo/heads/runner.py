@@ -27,7 +27,7 @@ import json
 import logging
 import os
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -379,7 +379,8 @@ class SandboxLike(Protocol):
 def level2_env(connectors: Iterable[str], environ: Mapping[str, str] | None = None) -> dict[str, str]:
     """The env for the container: the app's Anthropic key plus the connectors' env vars that are set.
 
-    Values come from the host environment (the vault fills it in later). Only names that are set are passed.
+    `run_level2` passes the app key from the worker's environment plus the connections' values from Vault
+    (`connectors.runtime_env`). Only names that are set are passed.
     """
     from susanoo.heads import agent_smith  # lazy: keeps this module light for Level 1 only users
 
@@ -471,16 +472,25 @@ async def run_level2(
     iteration: int | None = None,
     ready_timeout_s: float = LEVEL2_READY_TIMEOUT_S,
     poll_interval_s: float = LEVEL2_POLL_INTERVAL_S,
+    connection_env: Callable[[str], Awaitable[Mapping[str, str]]] | None = None,
 ) -> list[ScenarioResult]:
     """Run scenarios against the whole app in a container (the Verifier's final check). [PRD › Testing environments]
 
     Builds and starts the generated app, POSTs each scenario's diff to its `/review`, scores the findings, and
     always stops the container, even on failure. Env values are passed to the container and never logged.
+    When the run has connectors, their values come from `connection_env` (default: the user's picked
+    connections read from Vault by `connectors.runtime_env`), never from the worker's own environment.
     """
     sandbox = sandbox or docker_sandbox  # type: ignore[assignment]
     assert sandbox is not None
     iteration = state.get("iteration", 0) if iteration is None else iteration
-    env = level2_env(state.get("connectors", []))
+    connectors = state.get("connectors", [])
+    resolved: Mapping[str, str] = {}
+    if connectors:  # the user's picked connections, read from Vault now and already registered for redaction
+        from susanoo.connectors import runtime_env  # lazy: needs the db
+
+        resolved = await (connection_env or runtime_env.run_connection_env)(state["run_id"])
+    env = level2_env(connectors, {**resolved, APP_KEY_ENV: os.environ.get(APP_KEY_ENV, "")})
     if APP_KEY_ENV not in env:
         raise RunnerError(f"The Level 2 check needs {APP_KEY_ENV} to be set for the agent's app, and it is not.")
     agent_text = load_agent_text(state["repo_path"], state["agent"])

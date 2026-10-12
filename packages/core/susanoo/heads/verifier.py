@@ -477,8 +477,17 @@ async def _level2_baseline(state: SusanooState, active: list[Scenario], patch: P
             return have
     tree = await asyncio.to_thread(_add_worktree_sync, repo, parent)
     try:
-        before_state = {**state, "repo_path": str(tree), "run_id": _baseline_run_id(state["run_id"])}
-        return await runner.run_level2(before_state, active, iteration=state.get("iteration", 0))
+        run_id = state["run_id"]
+        before_state = {**state, "repo_path": str(tree), "run_id": _baseline_run_id(run_id)}
+
+        async def connections(_baseline_id: str) -> dict[str, str]:  # the real run's, not the baseline id's
+            from susanoo.connectors import runtime_env  # lazy: needs the db
+
+            return await runtime_env.run_connection_env(run_id)
+
+        return await runner.run_level2(
+            before_state, active, iteration=state.get("iteration", 0), connection_env=connections
+        )
     finally:
         await asyncio.to_thread(_remove_worktree_sync, repo, tree)
 
