@@ -6,6 +6,7 @@ The preview is faked with an httpx mock transport, so nothing leaves the test.
 # ruff: noqa: F811  (fixtures imported from conftest_ai are used as test arguments)
 
 import uuid
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -18,16 +19,17 @@ DIFF = '--- a/app/db.py\n+++ b/app/db.py\n@@ -1,1 +1,2 @@\n x = 1\n+cur.execute(
 FINDING = {"file": "app/db.py", "line": 2, "rule_id": "no-raw-sql", "severity": "block", "message": "Raw SQL."}
 
 
-PREVIEW = "https://run-abc123.example.dev"
-
-
-def live_run(store, owner=ALICE, preview_url=PREVIEW) -> str:
-    return store.add_run(owner, "done", preview_url=preview_url)
+def live_run(store, owner=ALICE, preview_url: str | None = None) -> str:
+    run = store.add_run(owner, "done")
+    owner_, row = store.rows[run]
+    store.rows[run] = (owner_, replace(row, preview_url=preview_url or f"https://run-{run}.example.dev"))
+    return run
 
 
 @pytest.fixture
 def preview(monkeypatch):
     """The fake preview: records each request and answers with whatever `reply` holds."""
+    monkeypatch.setenv("PREVIEW_DOMAIN", "example.dev")
     seen: list[httpx.Request] = []
     review = {"id": "r1", "created_at": "now", "findings": [FINDING]}
     state: dict = {"reply": lambda _: httpx.Response(200, json=review)}
@@ -57,7 +59,7 @@ def test_a_diff_comes_back_with_the_agents_findings(client, store, quota_store, 
     assert [f.model_dump() for f in body.findings] == [FINDING]
     assert body.summary == "Found 1 possible problem, and it should block the change."
     (request,) = preview["seen"]
-    assert str(request.url) == f"{PREVIEW}/review"
+    assert str(request.url) == f"https://run-{run}.example.dev/review"
     assert request.method == "POST" and httpx.Response(200, content=request.content).json() == {"diff": DIFF.strip()}
     assert not store.costs and quota_store.runs_today == {}  # no quota cost
 
@@ -114,11 +116,18 @@ def test_a_preview_that_times_out_is_a_503(client, store, preview):
     assert response.status_code == 503 and "took too long" in response.json()["error"]["message"]
 
 
+def test_an_asleep_preview_behind_caddy_says_it_may_be_asleep(client, store, preview):
+    preview["reply"] = lambda _: httpx.Response(502, text="")  # Caddy, with the container stopped
+    response = post(client, live_run(store))
+    assert response.status_code == 503
+    assert response.json()["error"]["message"].startswith("Your agent's preview isn't answering")
+
+
 @pytest.mark.parametrize(
     "reply",
     [
         httpx.Response(502, json={"detail": "The model failed."}),
-        httpx.Response(503, text="asleep"),
+        httpx.Response(503, json={"detail": "No Anthropic key."}),
         httpx.Response(200, text="not json"),
         httpx.Response(200, json={"findings": [{"file": "a.py"}]}),
         httpx.Response(200, json={"findings": [{**FINDING, "severity": "critical"}]}),
@@ -139,6 +148,14 @@ def test_a_run_without_a_preview_is_a_503(client, store, preview, status):
     assert response.status_code == 503 and not preview["seen"]
 
 
-def test_a_non_https_preview_url_is_never_called(client, store, preview):
-    response = post(client, live_run(store, preview_url="http://169.254.169.254/latest"))
+@pytest.mark.parametrize(
+    "url", ["http://169.254.169.254/latest", "https://169.254.169.254", "https://run-other.example.dev"]
+)
+def test_a_preview_url_that_is_not_the_runs_own_address_is_never_called(client, store, preview, url):
+    response = post(client, live_run(store, preview_url=url))
     assert response.status_code == 503 and not preview["seen"]
+
+
+def test_an_unknown_kind_is_a_422(client, store, preview):
+    response = post(client, live_run(store), kind="patch")
+    assert response.status_code == 422 and not preview["seen"]

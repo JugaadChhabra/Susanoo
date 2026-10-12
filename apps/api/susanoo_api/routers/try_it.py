@@ -10,11 +10,13 @@ Muaaz owns agent.py; this is a separate platform router so his file stays untouc
 """
 
 import logging
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
 
+from susanoo.sandbox.docker import preview_domain
 from susanoo.schemas import Finding
 from susanoo_api.deps import CurrentUserDep
 from susanoo_api.models import TryResult
@@ -31,7 +33,10 @@ PREVIEW_TIMEOUT_S = 60.0
 _transport: httpx.AsyncBaseTransport | None = None
 
 NOT_FINISHED = "Your agent isn't finished yet. You can try it here once the run is done."
-NO_PREVIEW = "Your agent has no live preview right now, so it can't review changes from this page."
+NO_PREVIEW = (
+    "Your agent has no live preview right now, so it can't review changes from this page. "
+    "If the run only just finished, its preview may still be starting: try again in a minute."
+)
 ASLEEP = (
     "Your agent's preview isn't answering, so it couldn't review this change. "
     "It may be asleep: previews go to sleep a while after the run finishes."
@@ -43,7 +48,7 @@ FAILED = "Your agent couldn't review this change right now. Please try again in 
 class TryIn(BaseModel):
     """What the agent page sends: `{"kind": "diff", "diff": ...}` (or a PR, which isn't supported yet)."""
 
-    kind: str
+    kind: Literal["diff", "pr"]
     diff: str | None = None
     pr: str | None = None
 
@@ -60,14 +65,22 @@ def _diff_from(body: TryIn) -> str:
 
 
 def _review_url(run: RunRow) -> str:
-    """The preview's review route. Only an https preview URL is ever called (the worker only records those)."""
+    """The preview's review route, built from the run id (never from a stored host, so it can't point elsewhere).
+
+    The worker records preview_url once the app answers, always as https://run-<id>.<PREVIEW_DOMAIN>; a stored URL
+    that says anything else is refused rather than called.
+    """
     if not run.preview_url:
         raise HTTPException(503, NO_PREVIEW if run.status == "done" else NOT_FINISHED)
-    url = httpx.URL(run.preview_url)
-    if url.scheme != "https" or not url.host:
-        logger.warning("Run %s has a preview URL that isn't https; not calling it", run.id)
+    try:
+        expected = f"https://run-{run.id}.{preview_domain()}"
+    except ValueError:
+        logger.error("PREVIEW_DOMAIN is not a valid domain name; Try it can't reach any preview")
+        raise HTTPException(503, NO_PREVIEW) from None
+    if run.preview_url.rstrip("/").lower() != expected:
+        logger.warning("Run %s has a preview URL that isn't its own preview address; not calling it", run.id)
         raise HTTPException(503, NO_PREVIEW)
-    return str(url.copy_with(path="/review", query=None, fragment=None))
+    return f"{expected}/review"
 
 
 async def _review(run_id: str, url: str, diff: str) -> list[Finding]:
@@ -82,13 +95,18 @@ async def _review(run_id: str, url: str, diff: str) -> list[Finding]:
         raise HTTPException(503, ASLEEP) from None
     if response.status_code != 200:
         logger.warning("Run %s: the preview answered %s to a review", run_id, response.status_code)
-        raise HTTPException(503, FAILED)
+        # The app's own errors are JSON; Caddy answers a stopped (asleep) preview's container with a bare 502.
+        raise HTTPException(503, FAILED if _is_json(response) else ASLEEP)
     try:
         data = response.json()
         return [Finding.model_validate(item) for item in data["findings"]]
     except (ValueError, KeyError, TypeError, ValidationError) as exc:  # ValueError covers bad JSON
         logger.warning("Run %s: the preview's review wasn't readable (%s)", run_id, type(exc).__name__)
         raise HTTPException(503, FAILED) from None
+
+
+def _is_json(response: httpx.Response) -> bool:
+    return response.headers.get("content-type", "").startswith("application/json")
 
 
 def summarize(findings: list[Finding]) -> str:
