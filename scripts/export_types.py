@@ -87,16 +87,18 @@ def main() -> None:
             if inspect.isclass(getattr(route, "response_model", None)) and issubclass(route.response_model, BaseModel)
         ]
 
-    by_name: dict[str, type[BaseModel]] = {}
-    for model in models:
-        if by_name.setdefault(model.__name__, model) is not model:
-            raise SystemExit(f"Two different models are both called {model.__name__}; rename one")
-
     defs: dict[str, dict] = {}
+
+    def add(name: str, schema: dict) -> None:
+        # Nested models arrive through $defs too: two different shapes under one name must fail, not overwrite.
+        if defs.setdefault(name, schema) != schema:
+            raise SystemExit(f"Two different models are both called {name}; rename one")
+
     for model in models:
         schema = model.model_json_schema(ref_template="#/$defs/{model}")
-        defs.update(schema.pop("$defs", {}))
-        defs[model.__name__] = schema
+        for name, nested in schema.pop("$defs", {}).items():
+            add(name, nested)
+        add(model.__name__, schema)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(HEADER + "\n" + "\n".join(interface(n, s) for n, s in sorted(defs.items())))
