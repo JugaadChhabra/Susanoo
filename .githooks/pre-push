@@ -1,40 +1,10 @@
-#!/usr/bin/env bash
-# Rejects pushes containing commits by non-allowed identities or with AI attribution,
-# and rejects non-fast-forward (force) pushes to main.
-set -euo pipefail
-. "$(git rev-parse --show-toplevel)/.githooks/_lib.sh"
-zero="0000000000000000000000000000000000000000"
-fail=0
-
-while read -r local_ref local_sha remote_ref remote_sha; do
-  [ "$local_sha" = "$zero" ] && continue            # branch deletion
-  if [ "$remote_sha" = "$zero" ]; then
-    range="$local_sha --not --remotes"
-  else
-    if [ "$remote_ref" = "refs/heads/main" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
-      echo "✖ Push blocked: non-fast-forward push to main (force push). Pull with --rebase instead." >&2
-      exit 1
-    fi
-    range="$remote_sha..$local_sha"
-  fi
-  for c in $(git rev-list $range); do
-    an="$(git show -s --format='%an' "$c")"; ae="$(git show -s --format='%ae' "$c")"
-    cn="$(git show -s --format='%cn' "$c")"; ce="$(git show -s --format='%ce' "$c")"
-    if ! is_allowed_identity "$an" "$ae"; then
-      echo "✖ $c: author '$an <$ae>' is not allowed." >&2; fail=1
-    fi
-    if ! is_allowed_identity "$cn" "$ce" && [ "$cn" != "GitHub" ]; then
-      echo "✖ $c: committer '$cn <$ce>' is not allowed." >&2; fail=1
-    fi
-    tmp="$(mktemp)"; git show -s --format='%B' "$c" > "$tmp"
-    if has_banned_lines "$tmp"; then
-      echo "✖ $c: commit message contains AI attribution (Co-Authored-By/Claude-Session/Generated with)." >&2; fail=1
-    fi
-    rm -f "$tmp"
-  done
-done
-
-if [ "$fail" -ne 0 ]; then
-  echo "  Allowed: $(allowed_names). Fix with: git commit --amend --reset-author (after setting git user.name), or git rebase -i to reword." >&2
-  exit 1
+#!/bin/sh
+# Entire CLI hooks
+# Pre-push hook: push session logs alongside user's push
+# $1 is the remote name (e.g., "origin")
+if command -v entire >/dev/null 2>&1; then entire hooks git pre-push "$1"; else :; fi
+# Chain: run pre-existing hook
+_entire_hook_dir="$(dirname "$0")"
+if [ -x "$_entire_hook_dir/pre-push.pre-entire" ]; then
+    "$_entire_hook_dir/pre-push.pre-entire" "$@"
 fi
