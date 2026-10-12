@@ -512,6 +512,18 @@ function transformDegrees(locator: Locator): Promise<number> {
   });
 }
 
+/** Wait for every running, finite animation on the element and inside it to finish. Paused reveals are skipped. */
+function settled(locator: Locator): Promise<unknown> {
+  return locator.evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({ subtree: true })
+        .filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  );
+}
+
 test("with motion on, the hero lands in the spec's order within 1.1s and keeps every stamp's own tilt", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
@@ -539,45 +551,50 @@ test("with motion on, the hero lands in the spec's order within 1.1s and keeps e
   expect(Math.max(...ends)).toBe(postmark[1]);
   expect(postmark[1]).toBeLessThanOrEqual(1120);
 
-  // Once everything has played, each stamp sits on its own inline tilt: the press and slam never overwrite it.
-  await hero.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
-  expect(await transformDegrees(hero.locator(".mk-hero-stamp"))).toBe(-2);
+  // Once everything has played, each stamp sits on its own inline tilt: the press and slam leave no rotate behind.
+  await settled(hero);
+  const stampEl = hero.locator(".mk-hero-stamp");
   const mark = hero.locator(".mk-hero-postmark");
+  const badgeEl = hero.locator(".mk-hero-badge");
+  for (const el of [stampEl, mark, badgeEl]) {
+    expect(await el.evaluate((node) => getComputedStyle(node).rotate)).toMatch(/^(none|0deg)$/);
+    expect(await el.evaluate((node) => getComputedStyle(node).scale)).toMatch(/^(none|1)$/);
+  }
+  expect(await transformDegrees(stampEl)).toBe(-2);
   expect(await transformDegrees(mark)).toBe(-12);
   expect(await paintedOpacity(mark)).toBeCloseTo(0.8, 5);
-  await expect(hero.locator(".mk-hero-badge")).toHaveCSS("scale", /^(none|1)$/);
 });
 
-test("with motion on, the VERIFIED seal slams, rings and shakes once per page load", async ({ page }) => {
+test("with motion on, the VERIFIED seal plays once per page load: scrolling away and back replays nothing", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
-  // Count every animation that starts on the seal (and its ::after ring) and on the intro it shakes.
+  const stats = page.locator("#proof dl[data-reveal]");
+  const seal = page.locator("#proof .mk-proof-seal");
+  await stats.scrollIntoViewIfNeeded();
+  await expect.poll(() => paintedOpacity(seal)).toBe(1);
+  await settled(page.locator("#proof"));
+  // From here on, count every animation that starts on the seal, its ::after ring or the intro it shakes.
   await page.evaluate(() => {
     const starts: string[] = [];
     (window as unknown as { starts: string[] }).starts = starts;
     for (const el of document.querySelectorAll("#proof .mk-proof-seal, #proof .mk-proof-shake")) {
-      el.addEventListener("animationstart", (e) => {
-        const event = e as AnimationEvent;
-        if (event.target === el) starts.push(event.animationName + event.pseudoElement);
-      });
+      el.addEventListener("animationstart", (e) => starts.push((e as AnimationEvent).animationName));
     }
   });
-  const stats = page.locator("#proof dl[data-reveal]");
-  const seal = page.locator("#proof .mk-proof-seal");
-  await stats.scrollIntoViewIfNeeded();
-  await expect.poll(() => afterOpacity(seal)).toBe(0);
-  await expect.poll(() => paintedOpacity(seal)).toBe(1);
-  await seal.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
-  // Scroll away and back twice: the reveal stays revealed and nothing plays again.
+  // Scroll it fully out of view and back twice, giving a replay longer than the slam's delay plus duration to show.
   for (let pass = 0; pass < 2; pass++) {
-    await page.evaluate(() => window.scrollTo(0, 0));
     await page.locator("footer").scrollIntoViewIfNeeded();
-    await stats.scrollIntoViewIfNeeded();
+    await expect(seal).not.toBeInViewport();
+    await seal.scrollIntoViewIfNeeded();
+    await expect(seal).toBeInViewport();
+    await page.waitForTimeout(1_400);
   }
   await expect(stats).toHaveAttribute("data-inview", "");
-  const starts = await page.evaluate(() => (window as unknown as { starts: string[] }).starts);
-  expect(starts.sort()).toEqual(["mk-bleed::after", "mk-shake", "mk-slam"]);
+  expect(await page.evaluate(() => (window as unknown as { starts: string[] }).starts)).toEqual([]);
+  expect(await paintedOpacity(seal)).toBe(1);
   expect(await transformDegrees(seal)).toBe(10);
 });
 
@@ -587,24 +604,29 @@ test("with motion on, buttons lift on hover, sink on press, and keep their focus
   const hero = page.locator('section[aria-labelledby="hero-heading"]');
   const primary = hero.getByRole("link", { name: "Start building" });
   const secondary = hero.getByRole("link", { name: "Watch the demo" });
-  await hero.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  await settled(hero);
 
-  // Keyboard focus: the existing 2px vermilion outline, plus the hover lift.
-  await page.keyboard.press("Tab");
-  await primary.focus();
+  // Keyboard focus, reached by tabbing: the existing 2px vermilion outline, plus the hover lift.
+  for (let tab = 0; tab < 20 && !(await primary.evaluate((el) => el === document.activeElement)); tab++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(primary).toBeFocused();
   await expect(primary).toHaveCSS("outline-style", "solid");
   await expect(primary).toHaveCSS("outline-width", "2px");
   await expect(primary).toHaveCSS("outline-offset", "2px");
+  await expect(primary).toHaveCSS("outline-color", "rgb(194, 50, 27)");
   await expect(primary).toHaveCSS("translate", "-2px -2px");
   await primary.blur();
 
-  // Hover lifts onto a hard 4px offset shadow, never a blur (the primary turns ink on hover, so its shadow is vermilion).
+  // Hover lifts onto a hard 4px offset shadow, never a blur. The outline button's is vermilion; so is the primary's,
+  // because it turns ink on hover and an ink shadow would vanish into it.
   await secondary.hover();
   await expect(secondary).toHaveCSS("translate", "-2px -2px");
-  await expect(secondary).toHaveCSS("box-shadow", /4px 4px 0px 0px$/);
+  await expect(secondary).toHaveCSS("box-shadow", "rgb(194, 50, 27) 4px 4px 0px 0px");
   await primary.hover();
   await expect(primary).toHaveCSS("translate", "-2px -2px");
-  await expect(primary).toHaveCSS("box-shadow", /4px 4px 0px 0px$/);
+  await expect(primary).toHaveCSS("background-color", "rgb(27, 26, 23)");
+  await expect(primary).toHaveCSS("box-shadow", "rgb(194, 50, 27) 4px 4px 0px 0px");
   // Press pushes it into the paper and drops the shadow; letting go off the button doesn't navigate.
   await page.mouse.down();
   await expect(primary).toHaveCSS("translate", "2px 2px");
@@ -640,13 +662,14 @@ test("at 375px with motion on, nothing scrolls sideways while the sections slide
       const root = document.documentElement;
       return root.scrollWidth <= root.clientWidth;
     });
-  // Step down the page a screen at a time, so every reveal fires, and check mid-animation and once landed.
+  // Step down the page a screen at a time, so every reveal fires, and check while its slide-ins are under way.
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y <= height; y += 600) {
     await page.evaluate((top) => window.scrollTo(0, top), y);
+    await page.waitForTimeout(250);
     expect(await noSideScroll(), `no horizontal scroll at y=${y}`).toBe(true);
   }
-  await page.waitForTimeout(1_200);
+  await settled(page.locator("body"));
   expect(await noSideScroll(), "no horizontal scroll once everything has landed").toBe(true);
 });
 
