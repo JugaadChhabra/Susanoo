@@ -251,11 +251,19 @@
 .mk-head { animation: mk-settle var(--dur-reveal) var(--ease-ink) calc(300ms + var(--i) * 60ms) both; }
 .mk-head-legend { animation: mk-press 320ms calc(var(--i) * 60ms) both; }
 /* The lit head thuds and lifts, CSS only: the press replays whenever aria-current moves to a new li. Only while the
-   sequence plays, so pausing (or reduced motion, which never lights a head) leaves nothing thudding or lifted. */
+   sequence plays and the heads have been revealed, so pausing (or reduced motion, which never lights a head) leaves
+   nothing thudding or lifted. The lift has no transition on the way up, because a transition would override the press
+   keyframes' translate; mk-press settles into the lift instead, and the transition only eases the stamp back down. */
 @keyframes mk-dot-pop { from { scale: 1.6; } }
 .mk-head > .perf { transition: translate var(--dur-hover) var(--ease-snap); }
-[data-sequence="playing"] .mk-head[aria-current="step"] > .perf { translate: 0 -4px; animation: mk-press 320ms both; }
-[data-sequence="playing"] .mk-head[aria-current="step"] .mk-head-dot { animation: mk-dot-pop 200ms var(--ease-snap) both; }
+[data-inview][data-sequence="playing"] .mk-head[aria-current="step"] > .perf {
+  translate: 0 -4px;
+  transition: none;
+  animation: mk-press 320ms both;
+}
+[data-inview][data-sequence="playing"] .mk-head[aria-current="step"] .mk-head-dot {
+  animation: mk-dot-pop 200ms var(--ease-snap) both;
+}
 
 /* Hover and press (motion spec §3). Buttons lift onto a hard offset shadow and sink into the paper when pressed.
    --lift-shadow is ink by default; .mk-btn-vermilion is for paper and outline buttons that sit on paper.
