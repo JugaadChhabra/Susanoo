@@ -38,6 +38,21 @@ export function resolvePreviewUrl(runId: string, info: AgentRunInfo | null, doma
   return `https://run-${runId}.${domain}`;
 }
 
+export const PREVIEW_ASLEEP = "This preview is asleep";
+
+/**
+ * Whether the preview's app answers `/health` in time. Idle previews are stopped by the sandbox's reaper, and
+ * Caddy then answers with an error, so anything but a 200 (or no answer) means it's asleep. Never throws.
+ */
+export async function probePreview(url: string, fetchImpl: typeof fetch = fetch, timeoutMs = 10000): Promise<"awake" | "asleep"> {
+  try {
+    const reply = await fetchImpl(new URL("/health", url).href, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    return reply.ok ? "awake" : "asleep";
+  } catch {
+    return "asleep";
+  }
+}
+
 /** Accepts a GitHub PR link or `owner/repo#123`. */
 export function parsePrRef(input: string): string | null {
   const value = input.trim();

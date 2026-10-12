@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Finding } from "@/types/generated";
-import { caughtPercent, findingLine, parsePrRef, resolvePreviewUrl, roundLabel, safePreviewUrl, toFeedbackIn, toTryInput } from "./agent";
+import { caughtPercent, findingLine, parsePrRef, PREVIEW_ASLEEP, probePreview, resolvePreviewUrl, roundLabel, safePreviewUrl, toFeedbackIn, toTryInput } from "./agent";
 
 describe("agent rules", () => {
   it("only allows http(s) preview URLs", () => {
@@ -16,6 +16,21 @@ describe("agent rules", () => {
     expect(resolvePreviewUrl("abc", null, undefined)).toBeNull();
     expect(resolvePreviewUrl("a/b", null, "ex.com")).toBeNull();
     expect(resolvePreviewUrl("abc", null, "ex.com/evil")).toBeNull();
+  });
+
+  it("calls a preview asleep when it doesn't answer, instead of framing a blank page", async () => {
+    const answering = vi.fn(async () => new Response("{}", { status: 200 }));
+    expect(await probePreview("https://run-1.ex.com", answering as typeof fetch)).toBe("awake");
+    expect(answering).toHaveBeenCalledWith("https://run-1.ex.com/health", expect.objectContaining({ cache: "no-store" }));
+    // the reaper stopped it, so Caddy answers 502
+    expect(await probePreview("https://run-1.ex.com", (async () => new Response("", { status: 502 })) as typeof fetch)).toBe("asleep");
+    // no answer at all (DNS, TLS or CORS failure)
+    expect(await probePreview("https://run-1.ex.com", (async () => Promise.reject(new TypeError("Failed to fetch"))) as typeof fetch)).toBe("asleep");
+    // an answer that never comes
+    const hanging = ((_url: string, init?: RequestInit) =>
+      new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)))) as typeof fetch;
+    expect(await probePreview("https://run-1.ex.com", hanging, 20)).toBe("asleep");
+    expect(PREVIEW_ASLEEP).toBe("This preview is asleep");
   });
 
   it("parses PR references", () => {
