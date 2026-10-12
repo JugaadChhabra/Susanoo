@@ -80,9 +80,6 @@ export function SiteFooter() {
               須佐之男
             </span>
           </div>
-          <p className="mt-3 text-base leading-relaxed text-ink-on-dark">
-            Built in a weekend for neatHack 2026 by Muaaz Shaikh and Jugaad Chhabra. The code is open source.
-          </p>
         </div>
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-x-6 gap-y-3 text-base">
