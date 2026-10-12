@@ -13,6 +13,11 @@
 }
 
 {$API_DOMAIN} {
+	# Caddy 2.11 treats this name as covered by the preview wildcard below and so never loads its managed
+	# certificate; on-demand makes it load (or get) one at handshake, and the ask allows API_DOMAIN.
+	tls {
+		on_demand
+	}
 	# Flush every write at once so the run's live event stream (SSE) isn't held in a buffer.
 	reverse_proxy api:8000 {
 		flush_interval -1
