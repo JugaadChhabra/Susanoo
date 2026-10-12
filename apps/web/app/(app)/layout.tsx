@@ -4,8 +4,8 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-stamp stamp-palette dots flex min-h-full flex-1 flex-col">
-      <header className="flex items-center justify-between gap-2 border-b-[3px] border-ink px-4 py-3 sm:px-6">
-        <nav className="flex items-center gap-5 text-base font-medium tracking-[0.06em] uppercase">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-ink px-4 py-3 sm:px-6">
+        <nav className="flex items-center gap-3 text-base font-medium tracking-[0.06em] uppercase sm:gap-5">
           <Link href="/projects" className="flex items-center gap-3">
             <span
               aria-hidden
