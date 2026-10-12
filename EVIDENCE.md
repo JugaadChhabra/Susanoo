@@ -34,6 +34,7 @@ Third hero run, **hero-7** (18:20 IST, published: https://github.com/susanoo-app
 - Checkpoints on generated repo (patch kept): hero-7 `patch-1`, commit `60edf30`, Entire checkpoint `01M4RB1D8JPSNQYGPBW8V7DCMT` (repo https://github.com/susanoo-apps/python-code-review-hero7). hero-2 `patch-1`, commit `ae319a2` "fix(prompt_policy): fix the cause of sim-04", Entire checkpoint `01M4PKQ6VKBEM41T77PB8CJE95`. The build commit `9e504ce` has checkpoint `01M4PKF5FY5R6BC2TVXCRR5233`. (The generated repo is local: publishing to the GitHub org failed with a 403 until the token gets repo-create permission.)
 - The generated hero-2 app boots in the sandbox (05:00 IST): built from its repo with `sandbox.docker`, started with 512 MB / 1 CPU, read-only root, all capabilities dropped, no mounts and no published ports; `/health` answered `{"status":"ok"}`.
 - Checkpoints on generated repo (patch rolled back): TODO: no rollback happened in hero-2 yet.
+- Entire's own view of the hero-7 generated repo (`entire checkpoint list` / `explain` / `tokens`): two checkpoints, the Builder session on `c76bbe6` and the Fixer session on the kept fix `60edf30` (intent, diagnosis, failing scenario, the user's rules, and the one file it changed, `agent/prompt.md`): `docs/evidence/entire-hero7-checkpoints.txt`. The checkpoints themselves live in the generated repo's Entire refs (not pushed: session pushing is off).
 - entire-graph output of this repo:
 - Checkpoints from building Susanoo itself:
 
