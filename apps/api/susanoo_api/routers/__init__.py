@@ -1,15 +1,28 @@
 """Router mounting point.
 
 Each owner appends their routers to their own list so merges never collide.
-Every router here needs auth except /health, /demo/* (see CLAUDE.md §5).
+Every router here needs auth except /health, /demo/* (see CLAUDE.md §5) and /internal/*, which refuses
+anything forwarded by Caddy so it only answers on the compose network.
 """
 
 from fastapi import APIRouter, FastAPI
 
-from susanoo_api.routers import agent, approvals, connectors, demo, events, feedback, intake, me, projects, runs
+from susanoo_api.routers import (
+    agent,
+    approvals,
+    connectors,
+    demo,
+    events,
+    feedback,
+    intake,
+    internal,
+    me,
+    projects,
+    runs,
+)
 
-# Jugaad: projects, connectors, demo, me
-PLATFORM_ROUTERS: list[APIRouter] = [connectors.router, demo.router, me.router, projects.router]
+# Jugaad: projects, connectors, demo, me, internal (Caddy's preview ask; compose network only)
+PLATFORM_ROUTERS: list[APIRouter] = [connectors.router, demo.router, internal.router, me.router, projects.router]
 
 # Muaaz: runs, events, intake, approvals, feedback, agent
 AI_ROUTERS: list[APIRouter] = [
