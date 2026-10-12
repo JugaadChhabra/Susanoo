@@ -24,6 +24,8 @@ Real runs so far (all local, real models, unattended): see `EVIDENCE.md` and `do
 
 ## 2. Setup remaining: Muaaz
 
+0. **Create the LangGraph tables in Supabase** (Jugaad OK'd it): add `DATABASE_URL` to `.env` as a **direct or session connection (port 5432, not the 6543 pooler)**, then ask Claude to run `postgres_checkpointer()` setup once. It creates `checkpoint_migrations`, `checkpoints`, `checkpoint_blobs`, `checkpoint_writes` and three `thread_id` indexes in `public`.
+
 Do these first; they unblock the Phase 4 headline.
 
 1. **GitHub token:** add **Administration: Read and write** for the `susanoo-apps` org (repo creation currently fails with 403).
@@ -32,7 +34,7 @@ Do these first; they unblock the Phase 4 headline.
    `uv run python scripts/run_local.py specs/code-review.md --run-id hero-4 --out runs/hero-4.json`
    (that script never approves test changes; for a run you drive yourself, use the worker and API once they're live, or ask me to add an answering mode).
 4. **neatlogs:** open a trace, paste its dashboard URL (we'll derive `NEATLOGS_TRACE_URL_TEMPLATE` from it), and add the dashboard links and screenshots to `EVIDENCE.md` §1, §2 and §5. Optional: `NEATLOGS_TOKEN` (`observability:read`) so the Diagnostician can read traces from neatlogs, not just the in-process recorder.
-5. **Save the demo run:** `DATABASE_URL=<supabase> uv run python scripts/save_demo_run.py docs/evidence/hero-2-run.json --user-id <demo account> --dry-run`, then without `--dry-run`. Give Jugaad the `DEMO_RUN_IDS=` line it prints.
+5. ~~**Save the demo run:**~~ Done by Jugaad (hero-2 is the demo). Kept for reference: `DATABASE_URL=<supabase> uv run python scripts/save_demo_run.py docs/evidence/hero-2-run.json --user-id <demo account> --dry-run`, then without `--dry-run`. Give Jugaad the `DEMO_RUN_IDS=` line it prints.
 6. **Publish the posts** in `docs/posts/drafts.md` and log each link in `EVIDENCE.md` §6.
 7. **Commit your `.env.example` edit:** `GITHUB_ORG=` already exists in the file, so drop the duplicate line.
 8. **Root commit `46709f3`** (created in GitHub's web UI) uses an identity outside the allowed list. It can't be fixed without rewriting history (forbidden). Decide whether to mention it or leave it.
@@ -41,9 +43,9 @@ Do these first; they unblock the Phase 4 headline.
 
 Full details in `docs/integration-points.md`.
 
-- [ ] Apply `docs/proposals/006_run_queue.sql` as `supabase/migrations/006_run_queue.sql`. Until then the deployed worker logs errors. The API inserts runs as `queued`; answers carry the pause token.
-- [ ] Mount the AI routers in `apps/api/susanoo_api/routers/__init__.py` (`AI_ROUTERS` is `[]`). Update `tests/api/test_quota.py`, add `queued` and `cancelled` to `RunSummary.status`, count `queued` runs in `usage_since`, and export the routers' response models to `generated.ts`.
-- [ ] Caddy: `reverse_proxy api:8000 { flush_interval -1 }` for SSE, plus the `run-*` preview routing on the `susanoo_sandbox` network (proposed labels in integration-points). Restrict egress and block 169.254.169.254.
+- [x] Apply `docs/proposals/006_run_queue.sql` as `supabase/migrations/006_run_queue.sql` (done by Jugaad; matches the proposal). Until then the deployed worker logs errors. The API inserts runs as `queued`; answers carry the pause token.
+- [x] Mount the AI routers, queued/cancelled statuses, quota counts queued runs, router models in `generated.ts` (done by Jugaad). Update `tests/api/test_quota.py`, add `queued` and `cancelled` to `RunSummary.status`, count `queued` runs in `usage_since`, and export the routers' response models to `generated.ts`.
+- [x] Caddy unbuffered SSE (done by Jugaad). [ ] Still: the `run-*` preview routing on the `susanoo_sandbox` network (proposed labels in integration-points). Restrict egress and block 169.254.169.254.
 - [ ] Worker in compose:
   - Docker socket.
   - `stop_grace_period: 60s`.
@@ -52,7 +54,7 @@ Full details in `docs/integration-points.md`.
   - Keys on EC2.
 - [ ] Frontend: stream events with `fetch` (Bearer header), and send `pause_token` back with answers and approvals (expect 409 when stale).
 - [ ] Connectors: a credential-free `tool_sources()` so generated agents get GitHub tools.
-- [ ] OK running `PostgresSaver.setup()` on Supabase (tables listed in integration-points).
+- [x] OK running `PostgresSaver.setup()` on Supabase (given by Jugaad; tables not created yet: needs Muaaz's `DATABASE_URL`, see §2).
 - [ ] Fix `apps/web/lib/fixtures/run-events.json`: `stop_reason` is `all_passed`.
 
 ## 4. Decisions only you can make (current default in brackets)
