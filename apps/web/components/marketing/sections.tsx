@@ -241,15 +241,15 @@ export function UseCases() {
         Any team can turn a manual workflow into an agent they can trust. We started where the answers are easiest to
         check: reviewing code against your team&apos;s rules.
       </SectionIntro>
-      <div className="flex flex-wrap gap-7">
+      <div data-reveal className="flex flex-wrap gap-7">
         <div className="grid flex-[2_1_460px] gap-7">
           {live.map((u) => (
-            <div key={u.title} className="mk-lift">
+            <div key={u.title} className="mk-anim mk-usecase-live mk-lift">
               <Stamp className="h-full">
                 <StampFace tone="vermilion" as="article" className="flex h-full flex-col gap-4 p-8">
                   <div className="flex items-start justify-between">
                     <StatusTag live label="Live now" />
-                    <span aria-hidden className="font-mincho text-[30px] leading-none font-extrabold">
+                    <span aria-hidden className="mk-anim mk-usecase-kanji font-mincho text-[30px] leading-none font-extrabold">
                       査読
                     </span>
                   </div>
@@ -267,8 +267,12 @@ export function UseCases() {
           ))}
         </div>
         <ul className="m-0 flex flex-[1_1_300px] list-none flex-col gap-4 p-0">
-          {later.map((u) => (
-            <li key={u.title} className="flex flex-col gap-1 border-2 border-dashed border-ink p-5 opacity-80">
+          {later.map((u, i) => (
+            <li
+              key={u.title}
+              className="mk-anim mk-usecase-later flex flex-col gap-1 border-2 border-dashed border-ink p-5 opacity-80"
+              style={{ "--i": i } as CSSProperties}
+            >
               <StatusTag live={false} label="Coming soon" />
               <h3 className="mk-display mt-1 text-2xl">{u.title}</h3>
               <p className="text-base">{u.body}</p>
@@ -299,14 +303,30 @@ export function Trust() {
         <SectionIntro id="trust-heading" title="Built so it can't fool you">
           An agent that fixes itself could easily learn to pass its own tests. These rules stop that.
         </SectionIntro>
-        <dl className="grid gap-9" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))" }}>
+        <dl
+          data-reveal
+          className="grid gap-9"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))" }}
+        >
           {TRUST_POINTS.map((t, i) => {
             const seal = SEALS[i % SEALS.length];
             return (
-              <div key={t.title} className="flex flex-col gap-3.5">
-                <HankoSeal char={seal.char} shape={seal.shape} rotate={seal.rotate} />
-                <dt className="mk-display text-[22px] leading-tight">{t.title}</dt>
-                <dd className="m-0 text-base">{t.body}</dd>
+              <div
+                key={t.title}
+                className="mk-trust-col flex flex-col gap-3.5"
+                style={{ "--i": i, "--tilt": `${seal.rotate}deg` } as CSSProperties}
+              >
+                {/* The holder takes the hover, so the slam's held end state never fights it. */}
+                <span className="mk-trust-hold flex w-fit">
+                  <HankoSeal
+                    char={seal.char}
+                    shape={seal.shape}
+                    rotate={seal.rotate}
+                    className="mk-anim mk-trust-seal relative"
+                  />
+                </span>
+                <dt className="mk-anim mk-trust-rise mk-display text-[22px] leading-tight">{t.title}</dt>
+                <dd className="mk-anim mk-trust-rise m-0 text-base">{t.body}</dd>
               </div>
             );
           })}

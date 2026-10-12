@@ -291,6 +291,33 @@
 /* The intro wrapper holds the seal, so it defines the impact time for both. */
 .mk-proof-shake { --impact: calc(650ms + var(--dur-slam) * 0.6); animation: mk-shake 180ms var(--impact) both; }
 
+/* UseCases (motion spec §2). In view, the live card presses in and its 査読 kanji slams at 300ms; the coming-soon cards
+   settle in at 200ms + --i × 80ms and, the keyframe being from-only, end at their own opacity-80. */
+.mk-usecase-live { animation: mk-press var(--dur-press) both; }
+.mk-usecase-kanji { --slam-from: 1.6; --slam-under: 0.94; animation: mk-slam 380ms 300ms both; }
+.mk-usecase-later { animation: mk-settle var(--dur-reveal) var(--ease-ink) calc(200ms + var(--i) * 80ms) both; }
+
+/* Trust (motion spec §2). In view on the dl, each seal slams at --i × 140ms onto its own inline tilt (the keyframe's
+   rotate composes with it), and its dt and dd rise 120ms after it. On impact one ink ring bleeds out; border-radius:
+   inherit gives it the seal's own shape class, rounded-full on the round seal and rounded-md on the rest. */
+.mk-trust-seal { --slam-at: calc(var(--i) * 140ms); animation: mk-slam var(--dur-slam) var(--slam-at) both; }
+.mk-trust-seal::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 4px solid var(--vermilion);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: mk-bleed var(--dur-bleed) var(--ease-ink) calc(var(--slam-at) + var(--dur-slam) * 0.6) forwards;
+}
+.mk-trust-rise { animation: mk-rise var(--dur-reveal) var(--ease-ink) calc(var(--i) * 140ms + 120ms) both; }
+/* Hovering a column picks the seal up and straightens it: the holder turns back by the seal's --tilt and grows. */
+.mk-trust-hold { transition: rotate var(--dur-hover) var(--ease-snap), scale var(--dur-hover) var(--ease-snap); }
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .mk-trust-col:hover .mk-trust-hold { rotate: calc(-1 * var(--tilt)); scale: 1.06; }
+}
+
 /* Hover and press (motion spec §3). Buttons lift onto a hard offset shadow and sink into the paper when pressed.
    --lift-shadow is ink by default; .mk-btn-vermilion is for paper and outline buttons that sit on paper.
    The colour swaps (hover:bg-*) share the same 160ms timing. Movement and shadow only when motion is allowed. */
