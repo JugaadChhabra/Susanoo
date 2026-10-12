@@ -1,4 +1,4 @@
-import type { ConnectionSummary, ConnectorSpec } from "@/types/generated";
+import type { ConnectionSummary, ConnectorInfo, ConnectorSpec } from "@/types/generated";
 
 /** [PRD › Connectors and API budget] Plain-English helpers for the connectors screen and the connector picker. */
 
@@ -14,6 +14,20 @@ export const connectionStatusLabel = (status: ConnectionSummary["status"]) => ST
 export function connectionLabel(spec: Pick<ConnectorSpec, "name">, connection: ConnectionSummary): string {
   const reach = Object.values(connection.settings).filter(Boolean).join(", ");
   return reach ? `${spec.name} · ${reach}` : spec.name;
+}
+
+/** The user's saved connections, each with the connector it belongs to, ready for a picker. */
+export function savedConnections(connectors: ConnectorInfo[]): (ConnectorInfo & { connection: ConnectionSummary })[] {
+  return connectors.filter((c): c is ConnectorInfo & { connection: ConnectionSummary } => c.connection !== null);
+}
+
+/** A project's connections by name, in the order the API lists them; ids of revoked connections are skipped. */
+export function connectionNames(ids: string[], connectors: ConnectorInfo[]): { id: string; name: string }[] {
+  const byId = new Map(savedConnections(connectors).map(({ spec, connection }) => [connection.id, connectionLabel(spec, connection)]));
+  return ids.flatMap((id) => {
+    const name = byId.get(id);
+    return name === undefined ? [] : [{ id, name }];
+  });
 }
 
 export const writesLabel = (connection: ConnectionSummary) =>

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ConnectionSummary, ConnectorSpec } from "@/types/generated";
-import { connectionLabel, connectionStatusLabel, guideSegments, missingField, writesLabel } from "./connectors";
+import type { ConnectionSummary, ConnectorGuide, ConnectorInfo, ConnectorSpec } from "@/types/generated";
+import {
+  connectionLabel,
+  connectionNames,
+  connectionStatusLabel,
+  guideSegments,
+  missingField,
+  savedConnections,
+  writesLabel,
+} from "./connectors";
 
 const spec: ConnectorSpec = {
   id: "github",
@@ -70,5 +78,31 @@ describe("guideSegments", () => {
 
   it("returns plain text untouched", () => {
     expect(guideSegments("Just text")).toEqual([{ kind: "text", text: "Just text" }]);
+  });
+});
+
+describe("connectionNames", () => {
+  const guide = {} as ConnectorGuide;
+  const slack: ConnectorSpec = { ...spec, id: "slack", name: "Slack" };
+  const connectors: ConnectorInfo[] = [
+    { spec, guide, connection: connection() },
+    { spec: slack, guide, connection: connection({ id: "c2", connector: "slack", settings: {} }) },
+    { spec: { ...spec, id: "jira", name: "Jira" }, guide, connection: null },
+  ];
+
+  it("names a project's connections in the order given", () => {
+    expect(connectionNames(["c2", "c1"], connectors)).toEqual([
+      { id: "c2", name: "Slack" },
+      { id: "c1", name: "GitHub · acme/payments-api" },
+    ]);
+  });
+
+  it("skips connections that were revoked and handles none", () => {
+    expect(connectionNames(["gone", "c1"], connectors)).toEqual([{ id: "c1", name: "GitHub · acme/payments-api" }]);
+    expect(connectionNames([], connectors)).toEqual([]);
+  });
+
+  it("lists only the connectors the user has connected", () => {
+    expect(savedConnections(connectors).map((c) => c.connection.id)).toEqual(["c1", "c2"]);
   });
 });
