@@ -8,6 +8,8 @@
 #   3. verify: commits exist, tree clean, identity + no AI attribution (CLAUDE.md §3), make lint + make test
 #   4. rebase on origin/main, fast-forward main, push (hooks run), close the issue with the session's summary
 # Stops at the first failure and leaves the ticket branch for you to inspect.
+# GitHub calls, fetches and the push are retried (network blips, a teammate pushing at the same moment);
+# if closing an issue still fails after its code is on main, that's reported at the end instead of stopping.
 #
 # Usage:
 #   scripts/run-tickets.sh                 # work the frontier until nothing is unblocked
@@ -33,6 +35,19 @@ SESSION_SETTINGS='{"includeCoAuthoredBy":false,"attribution":{"commit":"","pr":"
 
 die() { echo "✖ $*" >&2; exit 1; }
 log() { echo "→ $*"; }
+warn() { echo "⚠ $*" >&2; }
+RETRIES="${RETRIES:-4}"
+
+# Run a command up to RETRIES times, waiting 5s, 10s, 15s… between tries. Stdout passes through untouched,
+# so it's safe inside $(...); retry notes go to stderr.
+retry() {
+  local i
+  for ((i = 1; i <= RETRIES; i++)); do
+    "$@" && return 0
+    [ "$i" -lt "$RETRIES" ] && { warn "failed (try $i/$RETRIES), retrying in $((i * 5))s: $*"; sleep $((i * 5)); }
+  done
+  return 1
+}
 
 # ---------- preflight ----------
 for tool in git gh jq claude make; do command -v "$tool" >/dev/null || die "$tool not found"; done
@@ -60,22 +75,49 @@ ticket_prompt() {
 # tickets merged in this run are remembered in DONE, and every candidate is re-read directly.
 SKIPPED=" "
 DONE=" "
+FOLLOW_UP=()   # things that failed after a ticket's code was already on main
+# Prints the number of open blockers not merged in this run; returns non-zero if GitHub can't be reached.
 open_blockers() {
-  local b count=0
-  for b in $(gh api "repos/$REPO/issues/$1/dependencies/blocked_by" --jq '.[] | select(.state == "open") | .number'); do
+  local b list count=0
+  list="$(retry gh api "repos/$REPO/issues/$1/dependencies/blocked_by" --jq '.[] | select(.state == "open") | .number')" || return 1
+  for b in $list; do
     [[ "$DONE" == *" $b "* ]] || count=$((count + 1))
   done
   echo "$count"
 }
 
+# Sets NEXT to the lowest unblocked open ticket, or empty. Runs in this shell (not in $(...)) so a GitHub
+# outage stops the run loudly instead of looking like "nothing left to do".
 next_ticket() {
-  local n
-  for n in $(gh issue list -R "$REPO" --state open --label ready-for-agent --limit 100 \
-               --json number --jq '.[].number' | sort -n); do
+  local n list state count
+  NEXT=""
+  list="$(retry gh issue list -R "$REPO" --state open --label ready-for-agent --limit 100 \
+            --json number --jq '.[].number')" || die "can't list issues from GitHub (network?)"
+  for n in $(sort -n <<<"$list"); do
     [[ "$SKIPPED$DONE" == *" $n "* ]] && continue
-    [ "$(gh api "repos/$REPO/issues/$n" --jq .state)" = open ] || continue
-    [ "$(open_blockers "$n")" = 0 ] && { echo "$n"; return; }
+    state="$(retry gh api "repos/$REPO/issues/$n" --jq .state)" || die "can't read #$n from GitHub (network?)"
+    [ "$state" = open ] || continue
+    count="$(open_blockers "$n")" || die "can't read #$n's blockers from GitHub (network?)"
+    [ "$count" = 0 ] && { NEXT="$n"; return; }
   done
+}
+
+# Push main; if the remote moved (a teammate pushed meanwhile), rebase onto it, re-check and try again.
+push_main() {
+  local i
+  for ((i = 1; i <= RETRIES; i++)); do
+    git push -q origin main && return 0
+    [ "$i" -lt "$RETRIES" ] || break
+    warn "push failed (try $i/$RETRIES); fetching and retrying in $((i * 5))s"
+    sleep $((i * 5))
+    retry git fetch -q origin main || continue
+    if [ "$(git merge-base HEAD origin/main)" != "$(git rev-parse origin/main)" ]; then
+      log "main moved during the push; rebasing and re-checking"
+      git rebase -q origin/main || { git rebase --abort; return 1; }
+      make lint && make test || return 1
+    fi
+  done
+  return 1
 }
 
 build_prompt() {
@@ -105,14 +147,16 @@ merged=0
 while :; do
   if [ ${#QUEUE[@]} -gt 0 ]; then
     n="${QUEUE[0]}"; QUEUE=("${QUEUE[@]:1}")
-    [ "$(open_blockers "$n")" = 0 ] || die "#$n still has open blockers"
+    count="$(open_blockers "$n")" || die "can't read #$n's blockers from GitHub (network?)"
+    [ "$count" = 0 ] || die "#$n still has open blockers"
   elif [ $# -gt 0 ]; then
     break                                   # explicit list finished
   else
-    n="$(next_ticket)"
+    next_ticket
+    n="$NEXT"
     [ -n "$n" ] || { log "No unblocked ready-for-agent tickets left."; break; }
   fi
-  title="$(gh issue view "$n" -R "$REPO" --json title --jq .title)"
+  title="$(retry gh issue view "$n" -R "$REPO" --json title --jq .title)" || die "can't read #$n from GitHub (network?)"
   echo; echo "━━━ #$n — $title ━━━"
 
   prompt="$(build_prompt "$n")"
@@ -121,7 +165,7 @@ while :; do
   fi
 
   branch="ticket/$n"
-  git fetch -q origin main
+  retry git fetch -q origin main || die "can't fetch origin (network?)"
   git merge -q --ff-only origin/main
   git rev-parse --verify -q "$branch" >/dev/null && die "branch $branch already exists; inspect or delete it first"
   git switch -q -c "$branch"
@@ -137,7 +181,8 @@ while :; do
   if grep -q '^TICKET_BLOCKED:' <<<"$result"; then
     reason="$(grep '^TICKET_BLOCKED:' <<<"$result" | head -1)"
     log "#$n blocked — $reason"
-    gh issue comment "$n" -R "$REPO" --body "Automated run stopped: ${reason#TICKET_BLOCKED: }" >/dev/null
+    retry gh issue comment "$n" -R "$REPO" --body "Automated run stopped: ${reason#TICKET_BLOCKED: }" >/dev/null \
+      || FOLLOW_UP+=("#$n: post the blocked reason on the issue (see $LOG_DIR/$n.md)")
     if [ "$(git rev-parse HEAD)" = "$base" ] && git diff --quiet && git diff --cached --quiet; then
       git switch -q main && git branch -q -D "$branch"
     else
@@ -163,7 +208,7 @@ while :; do
   log "make test"; make test
 
   # ---------- merge to main (trunk-based, fast-forward only) ----------
-  git fetch -q origin main
+  retry git fetch -q origin main || die "#$n: can't fetch origin (network?); $branch is ready, merge it by hand"
   if [ "$(git merge-base HEAD origin/main)" != "$(git rev-parse origin/main)" ]; then
     log "main moved; rebasing $branch"
     git rebase -q origin/main || { git rebase --abort; die "#$n: rebase conflict; resolve on $branch by hand"; }
@@ -171,13 +216,18 @@ while :; do
   fi
   git switch -q main
   git merge -q --ff-only "$branch"
-  git push -q origin main
+  push_main || die "#$n: couldn't push main after $RETRIES tries; it's merged locally, push and close #$n by hand"
   range="$(git rev-parse --short "$base")..$(git rev-parse --short HEAD)"
 
   summary="$(sed '/^TICKET_DONE/d' "$LOG_DIR/$n.md")"
-  gh issue close "$n" -R "$REPO" --comment "$(printf 'Merged to main (%s).\n\n%s\n' "$range" "$summary")" >/dev/null
-  git branch -q -d "$branch"
-  log "#$n merged ($range) and closed."
+  if retry gh issue close "$n" -R "$REPO" --comment "$(printf 'Merged to main (%s).\n\n%s\n' "$range" "$summary")" >/dev/null; then
+    log "#$n merged ($range) and closed."
+  else
+    FOLLOW_UP+=("#$n: merged ($range) but not closed; run: gh issue close $n --comment \"Merged to main ($range).\"")
+    warn "#$n is merged ($range) but GitHub wouldn't close the issue; carrying on."
+  fi
+  # -D, not -d: a rebase during the push gives main new commit ids, so git can't tell the branch is merged.
+  git branch -q -D "$branch"
 
   merged=$((merged + 1)); DONE+="$n "
   [ "$MAX_TICKETS" -gt 0 ] && [ "$merged" -ge "$MAX_TICKETS" ] && { log "Reached MAX_TICKETS=$MAX_TICKETS."; break; }
@@ -186,3 +236,7 @@ done
 echo
 log "Merged $merged ticket(s)."
 [ "$SKIPPED" = " " ] || log "Skipped or blocked this run:$SKIPPED"
+if [ ${#FOLLOW_UP[@]} -gt 0 ]; then
+  warn "Do these by hand:"
+  for item in "${FOLLOW_UP[@]}"; do warn "  $item"; done
+fi
