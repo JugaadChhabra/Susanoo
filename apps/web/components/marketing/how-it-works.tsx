@@ -74,7 +74,7 @@ export function HowItWorks() {
           <button
             type="button"
             onClick={() => setPaused((p) => !p)}
-            className="inline-flex h-11 w-fit items-center gap-2 rounded-[2px] border-2 border-ink bg-paper px-4 text-base font-semibold text-ink transition-colors hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vermilion"
+            className="mk-btn mk-btn-vermilion inline-flex h-11 w-fit items-center gap-2 rounded-[2px] border-2 border-ink bg-paper px-4 text-base font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vermilion"
           >
             {paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
             {paused ? "Play the sequence" : "Pause the sequence"}

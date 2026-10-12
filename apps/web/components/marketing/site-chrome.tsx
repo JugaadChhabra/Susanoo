@@ -59,7 +59,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/projects/new"
-            className={`rounded-[2px] bg-ink px-5 py-3 font-semibold text-paper hover:bg-vermilion ${FOCUS_RING}`}
+            className={`mk-btn rounded-[2px] bg-ink px-5 py-3 font-semibold text-paper hover:bg-vermilion ${FOCUS_RING}`}
           >
             Start building
           </Link>

@@ -8,8 +8,8 @@ import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
 import { SerpentStamp } from "./serpent-stamp";
 import { FOCUS_RING } from "./site-chrome";
 
-const PRIMARY = `inline-flex items-center justify-center rounded-[2px] bg-vermilion px-7 py-4 text-lg font-semibold text-paper hover:bg-ink ${FOCUS_RING}`;
-const SECONDARY = `inline-flex items-center justify-center rounded-[2px] border-2 border-ink px-[26px] py-3.5 text-lg font-semibold text-ink hover:bg-paper ${FOCUS_RING}`;
+const PRIMARY = `mk-btn inline-flex items-center justify-center rounded-[2px] bg-vermilion px-7 py-4 text-lg font-semibold text-paper hover:bg-ink ${FOCUS_RING}`;
+const SECONDARY = `mk-btn mk-btn-vermilion inline-flex items-center justify-center rounded-[2px] border-2 border-ink px-[26px] py-3.5 text-lg font-semibold text-ink hover:bg-paper ${FOCUS_RING}`;
 
 /** Page gutters shared by every section. */
 const GUTTER = "mx-auto w-full max-w-[1280px] px-[clamp(20px,4vw,48px)]";
@@ -150,21 +150,23 @@ export function Proof() {
         </div>
         <dl className="grid gap-8 sm:grid-cols-3">
           {stats.map((s) => (
-            <Stamp key={s.label} className="p-4">
-              <StampFace className="flex h-full flex-col gap-2.5 p-6">
-                <dt className="font-label text-[13px] tracking-[0.14em] uppercase">{s.label}</dt>
-                <dd className="m-0 flex flex-wrap items-baseline gap-3">
-                  <span className="font-label text-xl line-through decoration-1" aria-label={`before ${s.before}`}>
-                    {s.before}
-                  </span>
-                  <span aria-hidden>→</span>
-                  <span className="mk-display text-5xl text-vermilion" aria-label={`after ${s.after}`}>
-                    {s.after}
-                  </span>
-                </dd>
-                <dd className="m-0 text-base leading-snug font-medium">{s.note}</dd>
-              </StampFace>
-            </Stamp>
+            <div key={s.label} className="mk-lift">
+              <Stamp className="h-full p-4">
+                <StampFace className="flex h-full flex-col gap-2.5 p-6">
+                  <dt className="font-label text-[13px] tracking-[0.14em] uppercase">{s.label}</dt>
+                  <dd className="m-0 flex flex-wrap items-baseline gap-3">
+                    <span className="font-label text-xl line-through decoration-1" aria-label={`before ${s.before}`}>
+                      {s.before}
+                    </span>
+                    <span aria-hidden>→</span>
+                    <span className="mk-display text-5xl text-vermilion" aria-label={`after ${s.after}`}>
+                      {s.after}
+                    </span>
+                  </dd>
+                  <dd className="m-0 text-base leading-snug font-medium">{s.note}</dd>
+                </StampFace>
+              </Stamp>
+            </div>
           ))}
         </dl>
         <p className="max-w-3xl text-base leading-relaxed">
@@ -228,24 +230,26 @@ export function UseCases() {
       <div className="flex flex-wrap gap-7">
         <div className="grid flex-[2_1_460px] gap-7">
           {live.map((u) => (
-            <Stamp key={u.title}>
-              <StampFace tone="vermilion" as="article" className="flex h-full flex-col gap-4 p-8">
-                <div className="flex items-start justify-between">
-                  <StatusTag live label="Live now" />
-                  <span aria-hidden className="font-mincho text-[30px] leading-none font-extrabold">
-                    査読
-                  </span>
-                </div>
-                <h3 className="mk-display text-[40px] leading-tight">{u.title}</h3>
-                <p className="max-w-[30em] text-lg">{u.body}</p>
-                <Link
-                  href="/projects/new"
-                  className="mt-auto inline-flex w-fit items-center rounded-[2px] bg-paper px-6 py-3.5 font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
-                >
-                  Start building
-                </Link>
-              </StampFace>
-            </Stamp>
+            <div key={u.title} className="mk-lift">
+              <Stamp className="h-full">
+                <StampFace tone="vermilion" as="article" className="flex h-full flex-col gap-4 p-8">
+                  <div className="flex items-start justify-between">
+                    <StatusTag live label="Live now" />
+                    <span aria-hidden className="font-mincho text-[30px] leading-none font-extrabold">
+                      査読
+                    </span>
+                  </div>
+                  <h3 className="mk-display text-[40px] leading-tight">{u.title}</h3>
+                  <p className="max-w-[30em] text-lg">{u.body}</p>
+                  <Link
+                    href="/projects/new"
+                    className="mk-btn mt-auto inline-flex w-fit items-center rounded-[2px] bg-paper px-6 py-3.5 font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
+                  >
+                    Start building
+                  </Link>
+                </StampFace>
+              </Stamp>
+            </div>
           ))}
         </div>
         <ul className="m-0 flex flex-[1_1_300px] list-none flex-col gap-4 p-0">
@@ -310,7 +314,7 @@ export function Connectors() {
         style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))" }}
       >
         {CONNECTORS.map((c) => (
-          <li key={c.name} className={cn(!c.live && "opacity-70")}>
+          <li key={c.name} className={cn(c.live ? "mk-lift" : "opacity-70")}>
             <Stamp size="sm" tone={c.live ? "paper" : "dim"} className="h-full p-3">
               <StampFace className="flex h-full min-h-[150px] flex-col gap-2 bg-transparent p-4">
                 <span
@@ -345,7 +349,7 @@ export function Plans() {
           {PLANS.map((plan) => {
             const { featured } = plan;
             return (
-              <li key={plan.name}>
+              <li key={plan.name} className="mk-lift">
                 <Stamp tone={featured ? "mustard" : "paper"} className="h-full">
                   <StampFace tone={featured ? "ink" : "light"} as="article" className="flex h-full flex-col gap-4 p-7">
                     <div className="flex items-start justify-between gap-3">
@@ -434,7 +438,7 @@ export function DemoBand() {
           </div>
           <Link
             href="/demo"
-            className="inline-flex w-fit items-center rounded-[2px] bg-paper px-8 py-[18px] text-[19px] font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
+            className="mk-btn inline-flex w-fit items-center rounded-[2px] bg-paper px-8 py-[18px] text-[19px] font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
           >
             Open full screen
           </Link>
