@@ -503,3 +503,165 @@ test("with motion on, Proof's after numbers count up behind their unchanged labe
   await expect(after.locator(".sr-only")).toHaveText("100%");
   await expect(stats.getByLabel(/^after /)).toHaveCount(3);
 });
+
+/** The element's own rotation in whole degrees, read from its computed transform (the inline rotate()). */
+function transformDegrees(locator: Locator): Promise<number> {
+  return locator.evaluate((el) => {
+    const { a, b } = new DOMMatrix(getComputedStyle(el).transform);
+    return Math.round((Math.atan2(b, a) * 180) / Math.PI);
+  });
+}
+
+test("with motion on, the hero lands in the spec's order within 1.1s and keeps every stamp's own tilt", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const hero = page.locator('section[aria-labelledby="hero-heading"]');
+  // Start and end of each load animation, in ms, from its computed delay and duration. [docs/motion-spec.md §2 Hero]
+  const timing = (selector: string) =>
+    hero.locator(selector).evaluateAll((els) =>
+      els.map((el) => {
+        const style = getComputedStyle(el);
+        const start = Number.parseFloat(style.animationDelay) * 1000;
+        return [Math.round(start), Math.round(start + Number.parseFloat(style.animationDuration) * 1000)];
+      }),
+    );
+  const [kanji] = await timing(".mk-hero-brush");
+  const [h1, lead, ctas] = await timing(".mk-hero-rise");
+  const [stamp] = await timing(".mk-hero-stamp");
+  const [badge] = await timing(".mk-hero-badge");
+  const [postmark] = await timing(".mk-hero-postmark");
+  const [shake] = await timing(".mk-hero-shake");
+  expect([kanji, h1, lead, ctas, stamp, badge, postmark, shake].map(([start]) => start)).toEqual([
+    0, 80, 180, 260, 240, 640, 760, 760,
+  ]);
+  // The postmark is the last to land, at 760 + 360ms: "about 1.1s" in the spec's own table.
+  const ends = [kanji, h1, lead, ctas, stamp, badge, postmark, shake].map(([, end]) => end);
+  expect(Math.max(...ends)).toBe(postmark[1]);
+  expect(postmark[1]).toBeLessThanOrEqual(1120);
+
+  // Once everything has played, each stamp sits on its own inline tilt: the press and slam never overwrite it.
+  await hero.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  expect(await transformDegrees(hero.locator(".mk-hero-stamp"))).toBe(-2);
+  const mark = hero.locator(".mk-hero-postmark");
+  expect(await transformDegrees(mark)).toBe(-12);
+  expect(await paintedOpacity(mark)).toBeCloseTo(0.8, 5);
+  await expect(hero.locator(".mk-hero-badge")).toHaveCSS("scale", /^(none|1)$/);
+});
+
+test("with motion on, the VERIFIED seal slams, rings and shakes once per page load", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  // Count every animation that starts on the seal (and its ::after ring) and on the intro it shakes.
+  await page.evaluate(() => {
+    const starts: string[] = [];
+    (window as unknown as { starts: string[] }).starts = starts;
+    for (const el of document.querySelectorAll("#proof .mk-proof-seal, #proof .mk-proof-shake")) {
+      el.addEventListener("animationstart", (e) => {
+        const event = e as AnimationEvent;
+        if (event.target === el) starts.push(event.animationName + event.pseudoElement);
+      });
+    }
+  });
+  const stats = page.locator("#proof dl[data-reveal]");
+  const seal = page.locator("#proof .mk-proof-seal");
+  await stats.scrollIntoViewIfNeeded();
+  await expect.poll(() => afterOpacity(seal)).toBe(0);
+  await expect.poll(() => paintedOpacity(seal)).toBe(1);
+  await seal.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  // Scroll away and back twice: the reveal stays revealed and nothing plays again.
+  for (let pass = 0; pass < 2; pass++) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator("footer").scrollIntoViewIfNeeded();
+    await stats.scrollIntoViewIfNeeded();
+  }
+  await expect(stats).toHaveAttribute("data-inview", "");
+  const starts = await page.evaluate(() => (window as unknown as { starts: string[] }).starts);
+  expect(starts.sort()).toEqual(["mk-bleed::after", "mk-shake", "mk-slam"]);
+  expect(await transformDegrees(seal)).toBe(10);
+});
+
+test("with motion on, buttons lift on hover, sink on press, and keep their focus ring", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const hero = page.locator('section[aria-labelledby="hero-heading"]');
+  const primary = hero.getByRole("link", { name: "Start building" });
+  const secondary = hero.getByRole("link", { name: "Watch the demo" });
+  await hero.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+
+  // Keyboard focus: the existing 2px vermilion outline, plus the hover lift.
+  await page.keyboard.press("Tab");
+  await primary.focus();
+  await expect(primary).toHaveCSS("outline-style", "solid");
+  await expect(primary).toHaveCSS("outline-width", "2px");
+  await expect(primary).toHaveCSS("outline-offset", "2px");
+  await expect(primary).toHaveCSS("translate", "-2px -2px");
+  await primary.blur();
+
+  // Hover lifts onto a hard 4px offset shadow, never a blur (the primary turns ink on hover, so its shadow is vermilion).
+  await secondary.hover();
+  await expect(secondary).toHaveCSS("translate", "-2px -2px");
+  await expect(secondary).toHaveCSS("box-shadow", /4px 4px 0px 0px$/);
+  await primary.hover();
+  await expect(primary).toHaveCSS("translate", "-2px -2px");
+  await expect(primary).toHaveCSS("box-shadow", /4px 4px 0px 0px$/);
+  // Press pushes it into the paper and drops the shadow; letting go off the button doesn't navigate.
+  await page.mouse.down();
+  await expect(primary).toHaveCSS("translate", "2px 2px");
+  await expect(primary).toHaveCSS("box-shadow", /0px 0px 0px 0px$/);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+});
+
+test("with motion on, a stamp card's offset shadow sits on its wrapper and follows the perforated edge", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const card = page.locator("#proof dl[data-reveal] > div").first();
+  await card.scrollIntoViewIfNeeded();
+  await expect.poll(() => paintedOpacity(card)).toBe(1);
+  // The .perf mask is on the Stamp inside, never on the wrapper, so the wrapper's shadow is not masked away.
+  expect(await card.evaluate((el) => getComputedStyle(el).maskImage)).toBe("none");
+  expect(await card.locator("> .perf").evaluate((el) => getComputedStyle(el).maskImage)).not.toBe("none");
+  // A drop-shadow (not a box-shadow) traces the perforations, and it grows to 6px on hover.
+  await card.hover();
+  await expect.poll(() => card.evaluate((el) => getComputedStyle(el).filter)).toMatch(/^drop-shadow\(.* 6px 6px 0px\)$/);
+  await expect(card).toHaveCSS("box-shadow", "none");
+});
+
+test("at 375px with motion on, nothing scrolls sideways while the sections slide in", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  // .mk keeps its overflow-x clip, which is what holds back the slide-ins. [docs/motion-spec.md §7]
+  await expect(page.locator(".mk").first()).toHaveCSS("overflow-x", "clip");
+  const noSideScroll = () =>
+    page.evaluate(() => {
+      const root = document.documentElement;
+      return root.scrollWidth <= root.clientWidth;
+    });
+  // Step down the page a screen at a time, so every reveal fires, and check mid-animation and once landed.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y <= height; y += 600) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    expect(await noSideScroll(), `no horizontal scroll at y=${y}`).toBe(true);
+  }
+  await page.waitForTimeout(1_200);
+  expect(await noSideScroll(), "no horizontal scroll once everything has landed").toBe(true);
+});
+
+test("with reduced motion, nothing animates anywhere and hover changes colour without moving", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  // Not one animation on the page, from first paint to the footer. [docs/motion-spec.md §5]
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await page.locator("footer").scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  const primary = page.locator('section[aria-labelledby="hero-heading"]').getByRole("link", { name: "Start building" });
+  await primary.hover();
+  await expect(primary).toHaveCSS("translate", "none");
+  await expect(primary).toHaveCSS("background-color", "rgb(27, 26, 23)");
+  const card = page.locator("#proof dl[data-reveal] > div").first();
+  await card.hover();
+  await expect(card.locator("> .perf")).toHaveCSS("translate", "none");
+});
