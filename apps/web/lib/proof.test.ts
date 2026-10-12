@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PROOF_RUN, proofStats, traceUrl } from "./proof";
+import { PROOF_RUN, countUpFrame, proofStats, traceUrl } from "./proof";
 
 const saved = JSON.parse(
   readFileSync(path.resolve(__dirname, "../../../docs/evidence/hero-2-run.json"), "utf8"),
@@ -48,5 +48,23 @@ describe("traceUrl", () => {
     expect(traceUrl(undefined, "abc")).toBeNull();
     expect(traceUrl("  ", "abc")).toBeNull();
     expect(traceUrl("https://app.example/traces", "abc")).toBeNull();
+  });
+});
+
+describe("countUpFrame", () => {
+  it("climbs from the before value to the after value, keeping the after value's decimals and suffix", () => {
+    expect(countUpFrame("88%", "100%", 0)).toBe("88%");
+    expect(countUpFrame("88%", "100%", 0.5)).toBe("94%");
+    expect(countUpFrame("0.50", "0.91", 0.5)).toBe("0.71");
+  });
+  it("ends on the after value exactly, and clamps progress outside 0 to 1", () => {
+    for (const s of proofStats(PROOF_RUN.before, PROOF_RUN.after)) expect(countUpFrame(s.before, s.after, 1)).toBe(s.after);
+    expect(countUpFrame("88%", "100%", 1.4)).toBe("100%");
+    expect(countUpFrame("88%", "100%", -1)).toBe("88%");
+  });
+  it("leaves an unchanged number, or anything that isn't a number, as the after value", () => {
+    expect(countUpFrame("0%", "0%", 0.5)).toBe("0%");
+    expect(countUpFrame("n/a", "100%", 0.5)).toBe("100%");
+    expect(countUpFrame("88%", "n/a", 0.5)).toBe("n/a");
   });
 });

@@ -6,6 +6,7 @@ import { DemoReplay } from "@/components/app/demo-replay";
 import { CONNECTORS, PLANS, REPO_URL, TEAM_LINKS, TRUST_POINTS, USE_CASES, specLines } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
+import { CountUp } from "./count-up";
 import { SerpentStamp } from "./serpent-stamp";
 import { FOCUS_RING } from "./site-chrome";
 
@@ -180,12 +181,12 @@ export function Proof() {
                     <span aria-hidden className="mk-anim mk-proof-arrow">
                       →
                     </span>
-                    <span
+                    <CountUp
+                      from={s.before}
+                      value={s.after}
+                      label={`after ${s.after}`}
                       className="mk-anim mk-proof-after mk-display text-5xl text-vermilion"
-                      aria-label={`after ${s.after}`}
-                    >
-                      {s.after}
-                    </span>
+                    />
                   </dd>
                   <dd className="m-0 text-base leading-snug font-medium">{s.note}</dd>
                 </StampFace>

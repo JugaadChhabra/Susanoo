@@ -67,6 +67,22 @@ export function proofStats(before: IterationMetrics, after: IterationMetrics): P
   ];
 }
 
+const NUMBER = /^(\d+(?:\.(\d+))?)(.*)$/;
+
+/**
+ * One frame of the count-up on an "after" number: from the before value to the after value at progress (clamped to
+ * 0..1), with the after value's decimals and suffix, so "88%" → "100%" climbs through 94%. An unchanged number, or
+ * anything that isn't one, is just the after value.
+ */
+export function countUpFrame(from: string, to: string, progress: number): string {
+  const start = NUMBER.exec(from);
+  const end = NUMBER.exec(to);
+  const p = Math.min(Math.max(progress, 0), 1);
+  if (!start || !end || p === 1) return to;
+  const [a, b] = [Number(start[1]), Number(end[1])];
+  return `${(a + (b - a) * p).toFixed(end[2]?.length ?? 0)}${end[3]}`;
+}
+
 /**
  * Link to a trace in the neatlogs dashboard, or null if the link format isn't configured.
  * Same rule as NEATLOGS_TRACE_URL_TEMPLATE in packages/core/susanoo/integrations/tracing.py.
