@@ -6,7 +6,7 @@ One prompt per ticket. The tickets are GitHub issues #1–#34 on `JugaadChhabra/
 - **Automatically:** `scripts/run-tickets.sh` picks the next unblocked `ready-for-agent` issue, starts a fresh Claude Code session, and runs `/mattpocock-skills:implement` with that issue's prompt from this file. The prompt is found by its heading, `### #<issue> — <title>`, so keep that heading format and keep exactly one fenced block under each heading.
 - **By hand:** start a new session, paste the session-start prompt, then `/mattpocock-skills:implement` followed by the ticket's prompt.
 - Every ticket ends the same way: typecheck and tests pass, `/code-review` is done, and work is committed in the `CLAUDE.md` §3 format. The script then merges to `main`, pushes and closes the issue.
-- `ready-for-human` tickets (#2, #21) are never run by the script. Run them by hand.
+- `ready-for-human` tickets (#21, #19, and the trackers #4, #26, #27) are never run by the script. #21 and #19 are done by hand; the trackers close themselves when their slices merge.
 - Your git identity must be `JugaadChhabra` (`make check-identity`).
 
 ---
