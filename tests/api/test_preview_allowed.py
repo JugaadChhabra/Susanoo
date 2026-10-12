@@ -29,7 +29,7 @@ def test_run_with_a_recorded_preview_gets_a_certificate(client):
     assert ask(client, f"run-{RUN_ID}.{DOMAIN}").status_code == 200
 
 
-def test_host_case_does_not_matter(client):
+def test_host_case_does_not_matter_like_dns(client):
     assert ask(client, f"RUN-{RUN_ID.upper()}.{DOMAIN.upper()}").status_code == 200
 
 
@@ -67,6 +67,20 @@ def test_not_reachable_through_the_public_api_domain(client):
     host = f"run-{RUN_ID}.{DOMAIN}"
     assert ask(client, host, **{"X-Forwarded-For": "203.0.113.7"}).status_code == 404
     assert ask(client, host, **{"X-Forwarded-Host": "api.susanoo.example.dev"}).status_code == 404
+
+
+def test_requests_addressed_to_the_api_domain_are_refused(client, monkeypatch):
+    monkeypatch.setenv("API_DOMAIN", "api.susanoo.example.dev")
+    host = f"run-{RUN_ID}.{DOMAIN}"
+    assert ask(client, host, Host="api.susanoo.example.dev").status_code == 404
+    assert ask(client, host, Host="api:8000").status_code == 200  # how Caddy itself calls it
+
+
+def test_bad_preview_domain_setting_refuses_with_a_plain_message(client, monkeypatch):
+    monkeypatch.setenv("PREVIEW_DOMAIN", "Not A Domain!")
+    response = ask(client, f"run-{RUN_ID}.{DOMAIN}")
+    assert response.status_code == 503
+    assert "set up" in response.json()["error"]["message"]
 
 
 def test_database_trouble_refuses_rather_than_issuing(client, monkeypatch):
