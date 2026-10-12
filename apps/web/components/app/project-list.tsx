@@ -4,11 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Play, Plus, RotateCw } from "lucide-react";
-import { listProjects, startRun, updateProjectRules } from "@/lib/api";
+import { ConnectionCheckboxes } from "@/components/app/connection-checkboxes";
+import { listConnectors, listProjects, startRun, updateProjectRules } from "@/lib/api";
+import { connectionNames, savedConnections } from "@/lib/connectors";
 import { formatCost, formatScore, parseRules, rulesProblem, rulesToText, runStatusLabel } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
-import type { ProjectSummary, RunSummary } from "@/types/generated";
+import type { ConnectorInfo, ProjectSummary, RunSummary } from "@/types/generated";
 
 const primaryLink =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-foreground px-5 text-sm font-medium text-background hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
@@ -27,8 +29,9 @@ const STATUS_TONE: Record<RunSummary["status"], string> = {
 /** The signed-in user's projects and their runs. [PRD › Frontend and API › Screens › Projects] */
 export function ProjectList() {
   const state = useAsync(listProjects, "projects");
-  // Only the rules are overridden after a save, so runs and statuses always come from the latest load.
-  const [savedRules, setSavedRules] = useState<Record<string, string[]>>({});
+  const connectors = useAsync(listConnectors, "connectors");
+  // Only rules and connections are overridden after a save, so runs and statuses always come from the latest load.
+  const [saved, setSaved] = useState<Record<string, Pick<ProjectSummary, "rules" | "connection_ids">>>({});
 
   if (state.status === "loading") {
     return (
@@ -66,23 +69,45 @@ export function ProjectList() {
   }
 
   return (
-    <ul className="space-y-4">
-      {state.data.map((project) => (
-        <ProjectCard
-          key={project.id}
-          project={project.id in savedRules ? { ...project, rules: savedRules[project.id] } : project}
-          onSaved={(saved) => setSavedRules((prev) => ({ ...prev, [saved.id]: saved.rules }))}
-        />
-      ))}
-    </ul>
+    <>
+      {connectors.status === "error" && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 text-sm text-red-600">
+          We couldn&rsquo;t load which accounts your projects use.
+          <button type="button" onClick={connectors.retry} className={outlineButton}>
+            <RotateCw className="size-4" aria-hidden /> Try again
+          </button>
+        </div>
+      )}
+      <ul className="space-y-4">
+        {state.data.map((project) => (
+          <ProjectCard
+            key={project.id}
+            project={{ ...project, ...saved[project.id] }}
+            connectors={connectors}
+            onSaved={(p) => setSaved((prev) => ({ ...prev, [p.id]: { rules: p.rules, connection_ids: p.connection_ids } }))}
+          />
+        ))}
+      </ul>
+    </>
   );
 }
 
-function ProjectCard({ project, onSaved }: { project: ProjectSummary; onSaved: (p: ProjectSummary) => void }) {
+type ConnectorsState = ReturnType<typeof useAsync<ConnectorInfo[]>>;
+
+function ProjectCard({
+  project,
+  connectors,
+  onSaved,
+}: {
+  project: ProjectSummary;
+  connectors: ConnectorsState;
+  onSaved: (p: ProjectSummary) => void;
+}) {
   return (
     <li className="min-w-0 rounded-xl border border-border p-4">
       <h2 className="font-semibold break-words">{project.name}</h2>
       <RulesEditor project={project} onSaved={onSaved} />
+      <ConnectionsEditor project={project} connectors={connectors} onSaved={onSaved} />
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium">Runs</h3>
         <StartRunButton projectId={project.id} />
@@ -194,6 +219,102 @@ function RulesEditor({ project, onSaved }: { project: ProjectSummary; onSaved: (
         </button>
       </div>
     </div>
+  );
+}
+
+/** Which of the user's connections this project's agent may use, by name, with a way to change them. */
+function ConnectionsEditor({
+  project,
+  connectors,
+  onSaved,
+}: {
+  project: ProjectSummary;
+  connectors: ConnectorsState;
+  onSaved: (p: ProjectSummary) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved(await updateProjectRules(project.id, { rules: project.rules, connection_ids: picked }));
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "We couldn't save your connections.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (connectors.status === "loading") {
+    return <div className="mt-4 h-10 animate-pulse rounded-lg bg-muted" aria-busy="true" aria-label="Loading connections" />;
+  }
+
+  if (connectors.status === "error") return null; // ProjectList shows the error and retry once, above the list
+
+  const names = connectionNames(project.connection_ids, connectors.data);
+  const connected = savedConnections(connectors.data);
+
+  if (!editing) {
+    return (
+      <div className="mt-4">
+        <h3 className="text-sm font-medium">Accounts your agent may use</h3>
+        {names.length === 0 ? (
+          <p className="text-sm text-muted-foreground">None. Your agent works on what you paste in.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2 pt-1">
+            {names.map(({ id, name }) => (
+              <li key={id} className="rounded-full bg-muted px-2.5 py-0.5 text-sm break-all">
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
+        {connected.length === 0 ? (
+          <Link href="/connectors" className="mt-2 inline-block text-sm underline underline-offset-2">
+            Connect an account
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setPicked(project.connection_ids.filter((id) => connected.some((c) => c.connection.id === id)));
+              setError(null);
+              setEditing(true);
+            }}
+            className={cn(outlineButton, "mt-2")}
+          >
+            Change accounts
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <fieldset className="mt-4">
+      <legend className="text-sm font-medium">Accounts your agent may use</legend>
+      <div className="mt-2">
+        <ConnectionCheckboxes connected={connected} picked={picked} onChange={setPicked} />
+      </div>
+      {error && (
+        <p role="alert" className="mt-1 text-sm text-red-600">
+          {error}
+        </p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" onClick={save} disabled={saving} className={outlineButton}>
+          {saving && <Loader2 className="size-4 animate-spin" aria-hidden />} Save accounts
+        </button>
+        <button type="button" onClick={() => setEditing(false)} disabled={saving} className={outlineButton}>
+          Cancel
+        </button>
+      </div>
+    </fieldset>
   );
 }
 
