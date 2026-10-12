@@ -19,9 +19,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package susanoo-worker
 
 FROM python:3.12-slim
-RUN useradd --system --uid 10001 --create-home susanoo
+# git: the Builder, Fixer and Verifier commit to the generated repo (each repo sets its own identity).
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd --system --uid 10001 --create-home susanoo \
+    && mkdir -p /data/runs && chown susanoo:susanoo /data/runs
 WORKDIR /app
 COPY --from=build --chown=susanoo:susanoo /app /app
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+# Every generated product starts from this template (heads resolve it at /app/templates/app-template).
+COPY --chown=susanoo:susanoo templates /app/templates
+# Run workdirs live on a named volume, so a restarted worker can resume a run from its checkpoint.
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 SUSANOO_WORKDIR=/data/runs
 USER susanoo
 CMD ["python", "-m", "susanoo_worker.main"]
