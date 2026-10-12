@@ -11,10 +11,11 @@ Two kinds of connector can be selected:
    values). It obtains them by calling `tools()` and `env()` with a clearly fake placeholder credential
    and discards every value. The real credential is never read here [CLAUDE.md §5].
 
-   TODO(jugaad-connectors): the tool CODE of a registered connector is therefore not yet available to
-   the generated agent. Needs a credential-free way to get it, for example `tool_sources()` or tools that
-   read `os.environ[<VAR>]` with VAR from `env()`'s keys. Until then such a connector is recorded in
-   `ConnectorInfo` with `tool_code_available=False` and the agent gets no tools from it.
+   The tool CODE comes from `Connector.tool_sources()` (no credential): one standalone function's source per
+   tool, standard library only, reading its credential from the env vars `env()` names at call time. Each
+   source goes through the same AST vetting as a legacy function (no secret-shaped literal, no hard-coded
+   credential, no names from outside the function) before it is copied. A connector whose `tool_sources()` is
+   empty is recorded with `tool_code_available=False` and the agent gets no tools from it.
 
 2. **Legacy modules** `susanoo.connectors.<name>` with `spec` and `tools()` returning plain,
    self-contained functions. Their source is copied into the generated repo's `agent/tools.py` after AST
@@ -32,6 +33,7 @@ import builtins
 import importlib
 import inspect
 import json
+import pprint
 import re
 import textwrap
 from collections.abc import Callable, Mapping, Sequence
@@ -72,6 +74,7 @@ class ConnectorTool:
     connector: str
     name: str
     source: str  # dedented Python source of one function, no credentials
+    schema: dict[str, Any] | None = None  # {"name","description","input_schema"} offered to the model, if known
 
 
 @dataclass(frozen=True)
@@ -92,7 +95,7 @@ class ConnectorInfo:
     name: str
     env_vars: tuple[str, ...]  # keys of Connector.env(); the sandbox sets these, the agent reads them
     tools: tuple[ToolMeta, ...]
-    tool_code_available: bool  # False until the connector contract can supply credential-free tool code
+    tool_code_available: bool  # True when the connector's tool_sources() supplies credential-free tool code
 
 
 class RegisteredConnector:
@@ -101,9 +104,11 @@ class RegisteredConnector:
     def __init__(self, connector: real_connectors.Connector) -> None:
         self.spec = connector.spec
         self.info = _describe_registered(connector)
+        self.sources: tuple[str, ...] = _tool_sources(connector)
 
     def tools(self) -> list[Any]:
-        return []  # tool code is not extractable from a registered connector; see the module docstring
+        # Not callables: a registered connector's tools are closures over a credential. Its code is `sources`.
+        return []
 
 
 _CONNECTOR_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -176,7 +181,17 @@ def _describe_registered(connector: real_connectors.Connector) -> ConnectorInfo:
         )
         for t in real_tools
     )
-    return ConnectorInfo(id=spec.id, name=spec.name, env_vars=env_names, tools=metas, tool_code_available=False)
+    has_code = bool(_tool_sources(connector))
+    return ConnectorInfo(id=spec.id, name=spec.name, env_vars=env_names, tools=metas, tool_code_available=has_code)
+
+
+def _tool_sources(connector: real_connectors.Connector) -> tuple[str, ...]:
+    try:
+        return tuple(str(src) for src in connector.tool_sources())
+    except Exception as exc:  # never echo its message
+        raise ConnectorError(
+            f"The {connector.spec.id} connection's tool code could not be loaded, so the agent was not given its tools."
+        ) from exc
 
 
 def describe_connectors(connectors: Sequence[ConnectorModule], tools: Sequence[ConnectorTool]) -> list[ConnectorInfo]:
@@ -210,6 +225,13 @@ def collect_tools(connectors: Sequence[ConnectorModule]) -> list[ConnectorTool]:
     seen: set[str] = set()
     for connector in connectors:
         cname = str(connector.spec.name)
+        if isinstance(connector, RegisteredConnector):
+            for tool in _registered_tools(connector):
+                if tool.name in seen:
+                    raise ConnectorError(f"Two connection tools are both called {tool.name!r}, so none were added.")
+                seen.add(tool.name)
+                tools.append(tool)
+            continue
         for fn in connector.tools():
             fname = getattr(fn, "__name__", "")
             if not fname.isidentifier() or fname == "<lambda>":
@@ -219,6 +241,39 @@ def collect_tools(connectors: Sequence[ConnectorModule]) -> list[ConnectorTool]:
             seen.add(fname)
             source = _tool_source(cname, fname, fn)
             tools.append(ConnectorTool(connector=cname, name=fname, source=source))
+    return tools
+
+
+def _registered_tools(connector: RegisteredConnector) -> list[ConnectorTool]:
+    """Vet each `tool_sources()` entry of a registered connector and pair it with its schema by tool name."""
+    cname = str(connector.spec.name)
+    metas = {t.name: t for t in connector.info.tools}
+    tools: list[ConnectorTool] = []
+    for raw in connector.sources:
+        source = textwrap.dedent(raw).rstrip() + "\n"
+        try:
+            body = ast.parse(source).body
+        except SyntaxError as exc:
+            raise ConnectorError(
+                f"A tool from the {cname} connection was not added: its source is not plain, self-contained code."
+            ) from exc
+        if len(body) != 1 or not isinstance(body[0], (ast.FunctionDef, ast.AsyncFunctionDef)):
+            raise ConnectorError(
+                f"A tool from the {cname} connection was not added: its source is not a single function."
+            )
+        fname = body[0].name
+        meta = metas.get(fname)
+        if meta is None:
+            raise ConnectorError(
+                f"The {fname!r} tool from the {cname} connection was not added: it has no matching tool description."
+            )
+        _vet_source(cname, fname, source)
+        schema = {"name": fname, "description": meta.description or fname, "input_schema": dict(meta.input_schema)}
+        tools.append(ConnectorTool(connector=cname, name=fname, source=source, schema=schema))
+    if tools and {t.name for t in tools} != set(metas):
+        raise ConnectorError(
+            f"The {cname} connection's tool code does not match its tool list, so the agent was not given its tools."
+        )
     return tools
 
 
@@ -237,8 +292,17 @@ def _tool_source(cname: str, fname: str, fn: Any) -> str:
         raise refuse("its source is not plain, self-contained code.") from exc
     if len(tree.body) != 1 or not isinstance(tree.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)):
         raise refuse("its source is not a single function.")
-    node = tree.body[0]
+    return _vet_source(cname, fname, source)
 
+
+def _vet_source(cname: str, fname: str, source: str) -> str:
+    """The AST checks every copied tool must pass, whether it came from a function or from `tool_sources()`."""
+
+    def refuse(reason: str) -> ConnectorError:
+        return ConnectorError(f"The {fname!r} tool from the {cname} connection was not added: {reason}")
+
+    node = ast.parse(source).body[0]
+    assert isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     if tracing.looks_secret_shaped(source):
         raise refuse("it appears to contain a secret. Tools must read credentials from the environment.")
     if _hardcoded_credential(node):
@@ -397,5 +461,12 @@ def render_tools_file(
     if tools:
         registry = ", ".join(f'"{t.name}": {t.name}' for t in tools)
         parts += ["", f"CONNECTOR_TOOLS = {{{registry}}}"]
+        schemas = [t.schema for t in tools if t.schema]
+        if schemas:
+            parts += [
+                "",
+                "# What the model is offered for the tools above (name, description, input_schema).",
+                f"CONNECTOR_TOOL_SCHEMAS = {pprint.pformat(schemas, sort_dicts=False, width=110)}",
+            ]
     parts += [END_MARKER, ""]
     return "\n".join(parts)

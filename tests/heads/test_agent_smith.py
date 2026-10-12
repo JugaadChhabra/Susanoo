@@ -545,6 +545,7 @@ def test_connector_names_are_validated_before_importing(monkeypatch, name):
 # --- Jugaad's real connector contract (susanoo.connectors) --------------------------------------------------
 
 GITHUB_ENV_NAMES = ["GITHUB_REPO", "GITHUB_TOKEN", "GITHUB_WRITES_ENABLED"]
+GITHUB_TOOL_NAMES = {"list_pull_requests", "get_pull_request", "get_file", "post_review_comment"}
 REAL_TOKEN = "github_pat_" + "11ABCDEFG0" * 6  # built at runtime; stands in for a real Vault secret
 
 
@@ -562,7 +563,7 @@ def test_github_is_loaded_from_the_registry_not_by_importing_a_module(monkeypatc
     assert set(by_name) == {"list_pull_requests", "get_pull_request", "get_file", "post_review_comment"}
     assert by_name["post_review_comment"].write is True and by_name["get_file"].write is False
     assert by_name["get_pull_request"].input_schema["required"] == ["number"]
-    assert not info.tool_code_available  # the contract gives no credential-free tool code yet
+    assert info.tool_code_available  # GitHubConnector.tool_sources() supplies credential-free tool code
 
 
 def test_registry_connectors_are_only_called_with_a_placeholder_credential(monkeypatch):
@@ -647,8 +648,22 @@ async def test_github_selection_writes_env_var_names_and_no_values(repo, fake_ll
     namespace: dict = {"__file__": str(repo / "agent" / "tools.py")}
     exec(compile(tree, "tools.py", "exec"), namespace)  # the generated file imports and defines the names
     assert namespace["CONNECTOR_ENV_VARS"] == {"github": GITHUB_ENV_NAMES}
-    assert "CONNECTOR_TOOLS" not in written  # no tool code is available, so none is registered
+    assert set(namespace["CONNECTOR_TOOLS"]) == GITHUB_TOOL_NAMES
+    assert all(callable(fn) for fn in namespace["CONNECTOR_TOOLS"].values())
+    schemas = {s["name"]: s for s in namespace["CONNECTOR_TOOL_SCHEMAS"]}
+    assert set(schemas) == GITHUB_TOOL_NAMES
+    assert all(s["description"] and s["input_schema"]["type"] == "object" for s in schemas.values())
+    assert schemas["get_pull_request"]["input_schema"]["required"] == ["number"]
     assert {"parse_diff", "get_file_context", "lookup_rule"} <= set(namespace)
+    top_level = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert GITHUB_TOOL_NAMES <= top_level
+    assert (
+        written.index(_connectors.BEGIN_MARKER)
+        < written.index("def list_pull_requests")
+        < written.index(_connectors.END_MARKER)
+    )
+    for var in GITHUB_ENV_NAMES:
+        assert var in written
 
     for value in ("placeholder", REAL_TOKEN, "acme"):
         assert value not in written
@@ -656,8 +671,8 @@ async def test_github_selection_writes_env_var_names_and_no_values(repo, fake_ll
     finished = sink.events[-1]
     assert finished.type == "finished"
     assert finished.payload["connector_env_vars"] == {"github": GITHUB_ENV_NAMES}
-    assert "GitHub connection cannot be added to the agent yet" in finished.message
-    assert "connection tool" not in finished.message
+    assert "4 connection tools" in finished.message
+    assert "cannot be added" not in finished.message
     assert result["head_commit"] != before
     assert set(git(repo, "diff", "--name-only", before, "HEAD").splitlines()) <= {
         "agent/prompt.md",
@@ -686,10 +701,80 @@ async def test_legacy_stub_tools_and_registered_connectors_can_be_mixed(repo, fa
     await run(make_state(repo, connectors=["github", "legacy"]))
     written = (repo / "agent" / "tools.py").read_text()
     assert "def github_list_pull_requests" in written and '"github": [' in written
-    assert (
-        "1 connection tool" in sink.events[-1].message
-        and "GitHub connection cannot be added" in sink.events[-1].message
-    )
+    assert "5 connection tools" in sink.events[-1].message
+    assert "cannot be added" not in sink.events[-1].message
+
+
+def test_registered_tool_sources_pass_the_same_vetting_as_legacy_functions():
+    (connector,) = _connectors.load_connectors(["github"])
+    tools = _connectors.collect_tools([connector])
+    assert [t.name for t in tools] == [
+        "list_pull_requests",
+        "get_pull_request",
+        "get_file",
+        "post_review_comment",
+    ]
+    for tool in tools:
+        assert tool.connector == connector.spec.name
+        assert tool.schema and tool.schema["name"] == tool.name and tool.schema["input_schema"]
+        assert not _connectors.tracing.looks_secret_shaped(tool.source)
+        assert "placeholder" not in tool.source and "placeholder" not in repr(tool.schema)
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ('def list_pull_requests(state="open"):\n    token = "ghp_' + "a" * 30 + '"\n    return token\n', "secret"),
+        ('def list_pull_requests(state="open"):\n    api_key = "hunter2hunter2"\n    return api_key\n', "credential"),
+        ("def list_pull_requests(state='open'):\n    return helper(state)\n", "outside"),
+        ("def list_pull_requests(state='open'):\n    return 1\nx = 2\n", "single function"),
+        ("def list_pull_requests(:\n", "plain, self-contained"),
+    ],
+)
+def test_unsafe_registered_tool_sources_are_refused(monkeypatch, source, message):
+    from susanoo.connectors.github import GitHubConnector
+
+    monkeypatch.setattr(GitHubConnector, "tool_sources", lambda self: [source])
+    (connector,) = _connectors.load_connectors(["github"])
+    with pytest.raises(_connectors.ConnectorError, match=message) as err:
+        _connectors.collect_tools([connector])
+    assert "hunter2" not in str(err.value) and "ghp_" not in str(err.value)
+
+
+def test_tool_sources_that_do_not_match_the_tool_list_are_refused(monkeypatch):
+    from susanoo.connectors.github import GitHubConnector
+
+    monkeypatch.setattr(GitHubConnector, "tool_sources", lambda self: ["def unknown_tool():\n    return 1\n"])
+    (connector,) = _connectors.load_connectors(["github"])
+    with pytest.raises(_connectors.ConnectorError, match="no matching tool description"):
+        _connectors.collect_tools([connector])
+
+
+async def test_a_connector_without_tool_sources_degrades_with_the_note(repo, fake_llm, sink, monkeypatch):
+    from susanoo.connectors.github import GitHubConnector
+
+    monkeypatch.setattr(GitHubConnector, "tool_sources", lambda self: [])
+    (connector,) = _connectors.load_connectors(["github"])
+    assert not connector.info.tool_code_available
+    await run(make_state(repo, connectors=["github"]))
+    written = (repo / "agent" / "tools.py").read_text()
+    assert "CONNECTOR_TOOLS" not in written and "CONNECTOR_TOOL_SCHEMAS" not in written
+    assert "GitHub connection cannot be added to the agent yet" in sink.events[-1].message
+    assert "connection tool" not in sink.events[-1].message
+
+
+async def test_generated_github_tools_run_in_the_generated_file_with_env_only(repo, fake_llm, sink, monkeypatch):
+    await run(make_state(repo, connectors=["github"]))
+    namespace: dict = {"__file__": str(repo / "agent" / "tools.py")}
+    exec(compile((repo / "agent" / "tools.py").read_text(), "tools.py", "exec"), namespace)
+    for var in GITHUB_ENV_NAMES:
+        monkeypatch.delenv(var, raising=False)
+    result = namespace["CONNECTOR_TOOLS"]["get_file"]("README.md")
+    assert result["ok"] is False and "isn't connected" in result["message"]  # no env, no network call
+    monkeypatch.setenv("GITHUB_REPO", "acme/payments-api")
+    monkeypatch.setenv("GITHUB_TOKEN", REAL_TOKEN)
+    result = namespace["CONNECTOR_TOOLS"]["post_review_comment"](1, "hi")
+    assert result["ok"] is True and result["dry_run"] is True  # writes are off by default
 
 
 # --- git errors and git flags ------------------------------------------------------------------------------
