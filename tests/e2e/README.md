@@ -1,6 +1,6 @@
 # E2E smoke test
 
-Playwright walks the signed-in journey: log in → new project → intake → the run view receives events → the agent page loads. A second test checks the public demo replay. [PRD › Team and ownership › Testing]
+Playwright walks the signed-in journey: log in → new project → intake → the run view receives events → the agent page loads. Two more check the public demo replay and the landing page's proof section and embedded replay. [PRD › Team and ownership › Testing]
 
 It runs against a production build of `apps/web`. `stub/server.ts` stands in for Supabase Auth and the Susanoo API, so no keys, network or database are needed:
 

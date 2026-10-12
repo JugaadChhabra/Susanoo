@@ -85,3 +85,13 @@ test("the public demo replays the saved run without logging in", async ({ page }
   await expect(page.getByText("Replay of a saved run")).toBeVisible();
   await expect(page.getByText("Run started. Reading your spec.")).toBeVisible();
 });
+
+test("the landing page shows the saved run's before/after and plays the replay in place", async ({ page }) => {
+  await page.goto("/");
+  const proof = page.locator("#proof");
+  await expect(proof.getByRole("heading", { name: "Before and after a fix, from a real run" })).toBeVisible();
+  await expect(proof.getByLabel("before 88%")).toBeVisible();
+  await expect(proof.getByLabel("after 100%")).toBeVisible();
+  await page.locator("#demo").getByRole("button", { name: "Play the replay" }).click();
+  await expect(page.locator("#demo").getByText("Run started. Reading your spec.")).toBeVisible();
+});

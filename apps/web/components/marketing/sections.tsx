@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { RunView } from "@/components/app/run-view";
-import { demoSource } from "@/lib/demo";
+import { DemoReplay } from "@/components/app/demo-replay";
 import { CONNECTORS, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { FOCUS_RING } from "./site-chrome";
@@ -77,9 +76,10 @@ export function Proof() {
   return (
     <section id="proof" aria-labelledby="proof-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <SectionIntro id="proof-heading" title="Before and after, from a real run">
-          Susanoo built a code reviewer from the spec above, tested it, found it let a hard-coded access token through,
-          fixed its instructions and kept the fix only after rerunning every test. These are that run&apos;s numbers.
+        <SectionIntro id="proof-heading" title="Before and after a fix, from a real run">
+          In a test round, the code reviewer Susanoo built let an access token typed into code slip through. Susanoo
+          traced the miss to the agent&apos;s instructions, changed three lines and kept the change only after every test
+          was rerun. These are the scores either side of that fix.
         </SectionIntro>
         <dl className="mt-12 grid gap-6 sm:grid-cols-3">
           {stats.map((s) => (
@@ -101,10 +101,9 @@ export function Proof() {
           ))}
         </dl>
         <p className="mt-6 max-w-3xl text-sm leading-relaxed text-[var(--mk-storm)]">
-          What moved and why: the false alarms went because Susanoo judged four test answers wrong and sent that change to
-          a person; it wasn&apos;t approved, so those tests were set aside rather than graded. The token fix kept every
-          other test passing. The hidden-test score held steady: the one hidden test it still misses stays hidden from the
-          heads that fix it. Cost by the last round: ${PROOF_RUN.after.cost_usd.toFixed(2)} in model calls.
+          Both rounds score the same 28 tests. No new false alarms, and the hidden-test score held steady rather than
+          rising: the one hidden test it still misses stays hidden from the heads that fix it, so they can&apos;t tune
+          the agent to it. The whole run cost ${PROOF_RUN.totalCostUsd.toFixed(2)} in model calls.
         </p>
         <ul className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           {PROOF_RUN.traces.map((t) => {
@@ -246,7 +245,6 @@ export function Plans() {
 }
 
 export function DemoBand() {
-  const source = demoSource(process.env.NEXT_PUBLIC_DEMO_RUN_ID, process.env.NODE_ENV === "production");
   return (
     <section id="demo" aria-labelledby="demo-heading" className="bg-[var(--mk-storm)] py-20 text-white">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -256,7 +254,7 @@ export function DemoBand() {
               Watch a whole run, start to finish
             </h2>
             <p className="mt-3 leading-relaxed text-slate-200">
-              A replay of the run above: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
+              A replay of a saved run: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
               sign-in needed.
             </p>
           </div>
@@ -268,13 +266,7 @@ export function DemoBand() {
           </Link>
         </div>
         <div className="mt-10">
-          {source ? (
-            <RunView source={source} />
-          ) : (
-            <div role="status" className="rounded-2xl bg-slate-900 p-6 text-sm text-slate-300 ring-1 ring-slate-800">
-              The demo run isn&apos;t ready yet. Please check back soon.
-            </div>
-          )}
+          <DemoReplay />
         </div>
       </div>
     </section>
