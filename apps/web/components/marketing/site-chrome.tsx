@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MotionRoot } from "@/components/marketing/motion-root";
 import { FOOTER_LINKS } from "@/lib/marketing";
 
 const NAV = [
@@ -124,6 +125,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <MotionRoot />
     </div>
   );
 }
