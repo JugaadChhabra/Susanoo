@@ -49,7 +49,7 @@ export function SiteHeader() {
           className="hidden flex-1 flex-wrap gap-6 text-base font-medium tracking-[0.08em] text-ink uppercase md:flex"
         >
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className={`rounded-sm hover:text-vermilion ${FOCUS_RING}`}>
+            <Link key={item.href} href={item.href} className={`mk-nav-link rounded-sm hover:text-vermilion ${FOCUS_RING}`}>
               {item.label}
             </Link>
           ))}

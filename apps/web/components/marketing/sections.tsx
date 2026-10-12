@@ -19,12 +19,13 @@ const GUTTER = "mx-auto w-full max-w-[1280px] px-[clamp(20px,4vw,48px)]";
 const EXAMPLE_SPEC =
   "Build a code review app for our Python services. Developers paste a diff or a PR link and get a review. Rules: never log PII; every FastAPI endpoint needs auth; no raw SQL string formatting; no secrets in code; flag missing error handling on external calls. Severity: block, warn, or nit.";
 
-function StatusTag({ live, label }: { live: boolean; label: string }) {
+function StatusTag({ live, label, className }: { live: boolean; label: string; className?: string }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 self-start px-2 py-0.5 font-label text-xs tracking-[0.12em] uppercase",
         live ? "bg-vermilion text-paper" : "border border-ink text-ink",
+        className,
       )}
     >
       {live && <span aria-hidden className="size-1.5 rounded-full bg-paper" />}
@@ -347,17 +348,22 @@ export function Connectors() {
         again.
       </SectionIntro>
       <ul
+        data-reveal
         className="m-0 grid list-none gap-5 p-0"
         style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))" }}
       >
-        {CONNECTORS.map((c) => (
-          <li key={c.name} className={cn(c.live ? "mk-lift" : "opacity-70")}>
+        {CONNECTORS.map((c, i) => (
+          <li
+            key={c.name}
+            className={cn("mk-anim mk-connector", c.live ? "mk-lift" : "mk-connector-dim opacity-70")}
+            style={{ "--i": i } as CSSProperties}
+          >
             <Stamp size="sm" tone={c.live ? "paper" : "dim"} className="h-full p-3">
               <StampFace className="flex h-full min-h-[150px] flex-col gap-2 bg-transparent p-4">
                 <span
                   className={cn(
                     "self-start px-2 py-0.5 font-label text-xs tracking-[0.12em] uppercase",
-                    c.live ? "bg-vermilion text-paper" : "text-ink",
+                    c.live ? "mk-anim mk-connector-tag bg-vermilion text-paper" : "text-ink",
                   )}
                 >
                   {c.live ? "Available" : "On the roadmap"}
@@ -382,57 +388,68 @@ export function Plans() {
           Try Susanoo free. We&apos;re setting Team and Enterprise prices from the real cost of each run, so for now just
           get in touch.
         </SectionIntro>
-        <ul className="m-0 grid list-none gap-7 p-0 lg:grid-cols-3">
-          {PLANS.map((plan) => {
-            const { featured } = plan;
-            return (
-              <li key={plan.name} className="mk-lift">
-                <Stamp tone={featured ? "mustard" : "paper"} className="h-full">
-                  <StampFace tone={featured ? "ink" : "light"} as="article" className="flex h-full flex-col gap-4 p-7">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="mk-display text-[32px] leading-tight">{plan.name}</h3>
-                      {featured && <StatusTag live label="Most teams" />}
-                    </div>
-                    <p className="text-base lg:min-h-12">{plan.who}</p>
-                    {/* Blank until cfo.ai sets prices; on wide screens it keeps its height so the feature lists line up. */}
-                    <p
-                      className={cn(
-                        "mk-display text-3xl lg:min-h-9",
-                        featured ? "text-mustard" : "text-vermilion",
-                        !plan.price && "hidden lg:block",
-                      )}
-                    >
-                      {plan.price}
-                    </p>
-                    <ul className="m-0 flex flex-1 list-none flex-col gap-3 p-0 text-base">
-                      {plan.features.map((feature) => (
-                        <li key={feature} className="flex gap-3">
-                          <Check
-                            aria-hidden
-                            className={cn("mt-1 size-4 shrink-0", featured ? "text-mustard" : "text-vermilion")}
-                          />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                    <Link
-                      href={plan.cta.href}
-                      className={cn(
-                        "mt-4 inline-flex items-center justify-center rounded-[2px] px-6 py-3.5 text-lg font-semibold",
-                        featured
-                          ? "bg-paper text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
-                          : `bg-ink text-paper hover:bg-vermilion ${FOCUS_RING}`,
-                      )}
-                    >
-                      {plan.cta.label}
-                      {plan.price && <span className="sr-only"> about the {plan.name} plan</span>}
-                    </Link>
-                  </StampFace>
-                </Stamp>
-              </li>
-            );
-          })}
-        </ul>
+        {/* The featured plan presses in last, so it takes the last slot in the stagger and the rest close up. */}
+        <div data-reveal>
+          <ul
+            className="mk-anim mk-plans-shake m-0 grid list-none gap-7 p-0 lg:grid-cols-3"
+            style={{ "--last": PLANS.length - 1 } as CSSProperties}
+          >
+            {PLANS.map((plan) => {
+              const { featured } = plan;
+              const order = featured ? PLANS.length - 1 : PLANS.filter((p) => !p.featured).indexOf(plan);
+              return (
+                <li
+                  key={plan.name}
+                  className={cn("mk-anim mk-plan mk-lift", featured && "mk-plan-featured mk-lift-mustard")}
+                  style={{ "--i": order } as CSSProperties}
+                >
+                  <Stamp tone={featured ? "mustard" : "paper"} className="h-full">
+                    <StampFace tone={featured ? "ink" : "light"} as="article" className="flex h-full flex-col gap-4 p-7">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="mk-display text-[32px] leading-tight">{plan.name}</h3>
+                        {featured && <StatusTag live label="Most teams" className="mk-anim mk-plan-badge" />}
+                      </div>
+                      <p className="text-base lg:min-h-12">{plan.who}</p>
+                      {/* Blank until cfo.ai sets prices; on wide screens it keeps its height so the feature lists line up. */}
+                      <p
+                        className={cn(
+                          "mk-display text-3xl lg:min-h-9",
+                          featured ? "text-mustard" : "text-vermilion",
+                          !plan.price && "hidden lg:block",
+                        )}
+                      >
+                        {plan.price}
+                      </p>
+                      <ul className="m-0 flex flex-1 list-none flex-col gap-3 p-0 text-base">
+                        {plan.features.map((feature, i) => (
+                          <li key={feature} className="mk-anim mk-plan-feature flex gap-3" style={{ "--i": i } as CSSProperties}>
+                            <Check
+                              aria-hidden
+                              className={cn("mt-1 size-4 shrink-0", featured ? "text-mustard" : "text-vermilion")}
+                            />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      <Link
+                        href={plan.cta.href}
+                        className={cn(
+                          "mt-4 inline-flex items-center justify-center rounded-[2px] px-6 py-3.5 text-lg font-semibold",
+                          featured
+                            ? "bg-paper text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
+                            : `bg-ink text-paper hover:bg-vermilion ${FOCUS_RING}`,
+                        )}
+                      >
+                        {plan.cta.label}
+                        {plan.price && <span className="sr-only"> about the {plan.name} plan</span>}
+                      </Link>
+                    </StampFace>
+                  </Stamp>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
         <div
           id="contact"
           className="flex scroll-mt-6 flex-col gap-6 border-2 border-dashed border-ink p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
@@ -461,27 +478,30 @@ export function Plans() {
 
 export function DemoBand() {
   return (
-    <section id="demo" aria-labelledby="demo-heading" className="px-[clamp(20px,4vw,48px)] pt-8 pb-24 sm:pb-[104px]">
-      <div className="mx-auto max-w-[1280px] border-[3px] border-ink bg-vermilion p-[clamp(24px,4vw,56px)] text-paper shadow-[12px_12px_0_var(--ink)]">
-        <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-          <div className="flex max-w-[620px] flex-col gap-2.5">
-            <h2 id="demo-heading" className="mk-display text-[clamp(30px,3.4vw,46px)] leading-[1.05]">
-              Watch a whole run, start to finish
-            </h2>
-            <p className="text-[19px] leading-relaxed">
-              A replay of a saved run: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
-              sign-in needed.
-            </p>
+    <section data-reveal id="demo" aria-labelledby="demo-heading" className="px-[clamp(20px,4vw,48px)] pt-8 pb-24 sm:pb-[104px]">
+      {/* The wrapper settles and isolates, so the block's ::after ink shadow sits behind it, not behind the section. */}
+      <div className="mk-anim mk-demo-block isolate mx-auto max-w-[1280px]">
+        <div className="mk-anim mk-offset-shadow mk-demo-shadow border-[3px] border-ink bg-vermilion p-[clamp(24px,4vw,56px)] text-paper [--offset-border:3px]">
+          <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+            <div className="flex max-w-[620px] flex-col gap-2.5">
+              <h2 id="demo-heading" className="mk-display text-[clamp(30px,3.4vw,46px)] leading-[1.05]">
+                Watch a whole run, start to finish
+              </h2>
+              <p className="text-[19px] leading-relaxed">
+                A replay of a saved run: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
+                sign-in needed.
+              </p>
+            </div>
+            <Link
+              href="/demo"
+              className="mk-anim mk-demo-open mk-btn inline-flex w-fit items-center rounded-[2px] bg-paper px-8 py-[18px] text-[19px] font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
+            >
+              Open full screen
+            </Link>
           </div>
-          <Link
-            href="/demo"
-            className="mk-btn inline-flex w-fit items-center rounded-[2px] bg-paper px-8 py-[18px] text-[19px] font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
-          >
-            Open full screen
-          </Link>
-        </div>
-        <div className="stamp-palette mt-10 border-2 border-ink bg-ink p-2 sm:p-3">
-          <DemoReplay />
+          <div className="stamp-palette mt-10 border-2 border-ink bg-ink p-2 sm:p-3">
+            <DemoReplay />
+          </div>
         </div>
       </div>
     </section>
