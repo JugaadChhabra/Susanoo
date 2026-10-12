@@ -76,7 +76,7 @@ export function Hero() {
 /** The example spec and what comes back, set as a telegram on a dark band. */
 export function Telegram() {
   return (
-    <section aria-labelledby="spec-heading" className="bg-ink px-[clamp(20px,4vw,48px)] py-20 text-paper">
+    <section data-reveal aria-labelledby="spec-heading" className="bg-ink px-[clamp(20px,4vw,48px)] py-20 text-paper">
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-12">
         <div className="flex flex-[1_1_340px] flex-col gap-4">
           <h2 id="spec-heading" className="mk-display text-[clamp(30px,3.4vw,42px)] leading-[1.08]">
@@ -87,25 +87,28 @@ export function Telegram() {
             what it caught before and after each fix.
           </p>
         </div>
-        <figure
-          aria-labelledby="spec-heading"
-          className="m-0 min-w-0 flex-[1_1_560px] border-2 border-paper bg-paper text-ink shadow-[10px_10px_0_var(--vermilion)]"
-        >
-          <div className="flex items-center justify-between gap-3 bg-vermilion px-5 py-2.5 text-paper">
-            <span aria-hidden className="mk-display text-lg tracking-[0.1em]">
-              SPEC FORM 01
-            </span>
-            <span aria-hidden className="font-label text-[13px]">
-              TO: SUSANOO · FROM: YOUR TEAM
-            </span>
-          </div>
-          <blockquote
-            className="m-0 px-6 py-[22px] font-label text-base leading-8"
-            style={{ backgroundImage: "repeating-linear-gradient(transparent 0 31px, rgb(27 26 23 / 0.18) 31px 32px)" }}
+        {/* The wrapper settles and isolates, so the figure's ::after shadow sits behind the paper, not the section. */}
+        <div className="mk-anim mk-telegram-form isolate min-w-0 flex-[1_1_560px]">
+          <figure
+            aria-labelledby="spec-heading"
+            className="mk-anim mk-offset-shadow mk-telegram-shadow m-0 border-2 border-paper bg-paper text-ink [--offset-border:2px]"
           >
-            {EXAMPLE_SPEC}
-          </blockquote>
-        </figure>
+            <div className="mk-anim mk-telegram-bar flex items-center justify-between gap-3 bg-vermilion px-5 py-2.5 text-paper">
+              <span aria-hidden className="mk-display text-lg tracking-[0.1em]">
+                SPEC FORM 01
+              </span>
+              <span aria-hidden className="font-label text-[13px]">
+                TO: SUSANOO · FROM: YOUR TEAM
+              </span>
+            </div>
+            <blockquote
+              className="m-0 px-6 py-[22px] font-label text-base leading-8"
+              style={{ backgroundImage: "repeating-linear-gradient(transparent 0 31px, rgb(27 26 23 / 0.18) 31px 32px)" }}
+            >
+              {EXAMPLE_SPEC}
+            </blockquote>
+          </figure>
+        </div>
       </div>
     </section>
   );
