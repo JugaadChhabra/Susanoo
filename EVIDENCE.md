@@ -39,7 +39,10 @@ Third hero run, **hero-7** (18:20 IST, published: https://github.com/susanoo-app
 - Checkpoints from building Susanoo itself: Entire was enabled on this repo late (Mon 12 Oct 21:14 IST, `49a7e2c`), not from the first commit, so live checkpoints exist only from then on. `--import-history` imported 186 turns of the Claude Code history still on disk: the main build session (from Sun 11 Oct 17:53 IST) and today's. They show in `entire checkpoint list` as `[imported]` (read-only). They are kept local: a scan of every checkpoint (570 unique blobs) found no real credentials (only fake test literals and `REDACTED` placeholders) but did find personal email addresses in all 190 checkpoints, so we did not push them to the public repo. Because they aren't on origin, `entire recap` shows 0 (logged in at 21:26 IST). Earlier scratch sessions (generated-repo runs) are not included.
 
 ## 4. We used cfo.ai
-- Business plan (pricing, costs, revenue, runway): `docs/business-plan/`
+- Business plan (pricing, costs, revenue, runway), exported from cfo.ai into `docs/business-plan/`:
+  - Unit economics: `susanoo-unit-economics.xlsx` (model cost $1.50 + sandbox $0.05 = $1.55 per run; fixed overhead $89 a month; Team $79 for 12 expected runs is a 76% run-cost margin, Enterprise 90%; 2 Team customers cover the overhead).
+  - 12-month forecast: `susanoo-12-month-forecast.xlsx`. Base case: revenue $25,908, costs $12,420, ending cash $13,488; the only funding needed is $45.70 in month 1, then cash-generating every month. Growth case (engineer hired from month 6): revenue $97,470, ending cash $540, minimum funding $4,760.
+  - The inputs behind both are in `cfo-ai-inputs.md` and `cost-inputs.md`.
 
 ## 5. The agent recovers from failures
 - Worker crash and resume (`scripts/worker_crash_demo.py`, local Postgres, stub heads): worker A is killed with exit 137 inside the Builder; worker B reclaims the run after the stale window and resumes from the last PostgresSaver checkpoint; nodes that had finished never ran again. Output: `docs/evidence/worker-crash-resume.txt`.
