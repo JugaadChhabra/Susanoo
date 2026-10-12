@@ -87,8 +87,8 @@ docker compose exec caddy wget -qSO- "http://api:8000/internal/preview-allowed?d
 ```
 
 3. Record the preview in the Supabase SQL editor: `update public.runs set preview_url = 'https://run-<ID>.susanoo.jugaadchhabra.dev' where id = '<ID>';`
-4. Repeat step 2: now 200. From outside, `curl -I https://api.susanoo.jugaadchhabra.dev/internal/preview-allowed?domain=run-<ID>.susanoo.jugaadchhabra.dev` is 404 (forwarded requests are refused).
-5. Open `https://run-<ID>.susanoo.jugaadchhabra.dev` in a browser: a directory listing over HTTPS with no warning. `docker compose logs caddy | grep -i obtain` shows the certificate for that one host.
+4. Repeat step 2: now 200. From your laptop, `curl -sI "https://api.susanoo.jugaadchhabra.dev/internal/preview-allowed?domain=run-$ID.susanoo.jugaadchhabra.dev"` is 404 (public requests are refused).
+5. Open `https://run-$ID.susanoo.jugaadchhabra.dev` in a browser: a directory listing over HTTPS with no warning. `docker compose logs caddy | grep -i obtain` shows the certificate for that one host.
 6. A made-up host (`https://run-nope.susanoo.jugaadchhabra.dev`) fails the TLS handshake: no certificate is issued.
 7. Clean up: `docker rm -f susanoo-run-$ID` and set `preview_url` back to `null`.
 

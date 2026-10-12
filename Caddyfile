@@ -1,10 +1,14 @@
-# API_DOMAIN and PREVIEW_DOMAIN come from /opt/susanoo/.env, e.g. api.susanoo.jugaadchhabra.dev and
+# API_DOMAIN and PREVIEW_DOMAIN (same default as sandbox/docker.py) come from /opt/susanoo/.env, e.g. api.susanoo.jugaadchhabra.dev and
 # susanoo.jugaadchhabra.dev. Caddy gets and renews the HTTPS certificates on its own.
 {
 	# run-<id> previews get a certificate per host at first visit, only once the API confirms the run
 	# exists and has a preview recorded. api:8000 is the compose network; the public api domain refuses this.
 	on_demand_tls {
 		ask http://api:8000/internal/preview-allowed
+	}
+	# The Host header must match the TLS name, so one run's certificate can't reach another run's container.
+	servers {
+		strict_sni_host on
 	}
 }
 
@@ -17,7 +21,7 @@
 
 # Live previews (#4): run-<run_id>.<PREVIEW_DOMAIN> → susanoo-run-<run_id>:8000 on susanoo_sandbox.
 # The upstream comes from the host name, so there's no per-run config (labels: docs/integration-points.md).
-*.{$PREVIEW_DOMAIN} {
+*.{$PREVIEW_DOMAIN:susanoo.jugaadchhabra.dev} {
 	tls {
 		on_demand
 	}
