@@ -137,12 +137,11 @@ async def finish(run_id: str, worker_id: str, status: str, cost_usd: float, erro
         return cur.rowcount > 0
 
 
-async def set_preview_url(run_id: str, worker_id: str, url: str) -> bool:
-    """Record where the finished run's app is live (preview.py). False means this worker no longer owns it."""
+async def set_preview_url(run_id: str, url: str) -> bool:
+    """Record where a 'done' run's app is live (preview.py). Nothing else writes a done run, so no claim fence."""
     async with session() as conn:
         cur = await conn.execute(
-            "update public.runs set preview_url = %s where id = %s and claimed_by = %s and status = 'running'",
-            (url, run_id, worker_id),
+            "update public.runs set preview_url = %s where id = %s and status = 'done'", (url, run_id)
         )
         return cur.rowcount > 0
 

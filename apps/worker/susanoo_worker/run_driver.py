@@ -58,6 +58,7 @@ class Disposition:
     error: str | None = None
     checkpoint_id: str | None = None  # paused
     cost_usd: float = 0.0
+    state: dict | None = None  # finished 'done': the final state, for its preview
 
 
 def _checkpoint_id(snapshot: Any) -> str:
@@ -72,7 +73,7 @@ def _finished(values: dict) -> Disposition:
     status = values.get("status")
     cost = float(values.get("cost_usd", 0.0))
     if status == "done":
-        return Disposition("finished", "done", None, cost_usd=cost)
+        return Disposition("finished", "done", None, cost_usd=cost, state=values)
     if status == "failed":
         reason = (
             "The run reached its cost limit before the first test finished."
@@ -156,6 +157,8 @@ class RunSession:
             return "paused" if owned else "lost"
         assert d.status is not None
         owned = await store.finish(rid, me, d.status, d.cost_usd, d.error)
+        if owned and d.status == "done" and self.preview_sandbox is not None and d.state is not None:
+            await keep_preview(rid, d.state, self.preview_sandbox)  # after the write: nothing can undo 'done' (#32)
         return d.status if owned else "lost"
 
     async def _cancelled(self) -> str:
@@ -227,7 +230,7 @@ class RunSession:
                     {"resumed_at": list(snapshot.next), "attempt": run.attempts},
                 )
             else:  # the graph already finished; only the status write was lost
-                return await self._conclude(dict(snapshot.values))
+                return _finished(dict(snapshot.values))
 
             async for chunk in graph.astream(payload, config, stream_mode="updates"):
                 for update in chunk.values():
@@ -244,14 +247,7 @@ class RunSession:
                 return Disposition("paused", checkpoint_id=_checkpoint_id(final), cost_usd=self._cost)
             if final.next:
                 raise RuntimeError("The graph stopped before reaching Done and is not waiting for an answer")
-            return await self._conclude(dict(final.values))
-
-    async def _conclude(self, values: dict) -> Disposition:
-        """A 'done' run keeps its final app running at its preview URL (#32), while this worker still owns it."""
-        disposition = _finished(values)
-        if disposition.status == "done" and self.preview_sandbox is not None:
-            await keep_preview(self.run.id, self.worker_id, values, self.preview_sandbox)
-        return disposition
+            return _finished(dict(final.values))
 
     async def _answer_or_park(self, graph: Any, snapshot: Any, config: dict) -> Command | Disposition:
         """The thread sits at an interrupt: apply the stored answer if it is for this pause, else park it again."""
