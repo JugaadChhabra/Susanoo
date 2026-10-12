@@ -57,6 +57,8 @@ Push to `main` touching `apps/api`, `apps/worker`, `packages`, `docker-compose.y
 cd /opt/susanoo && docker compose pull && docker compose up -d
 ```
 
+**Migrations first.** Nothing applies `supabase/migrations/` automatically. Before a push whose api or worker code reads a new column reaches the server, run the new file(s) in the Supabase SQL editor (or `supabase db push`), oldest first. `007_project_connections.sql` and `008_run_connectors.sql` (Mon 12 Oct, #28/#29) must be applied before that deploy, or starting and claiming runs fails on the missing `projects.connection_ids` / `runs.connectors` columns.
+
 ## Logs
 
 ```bash
