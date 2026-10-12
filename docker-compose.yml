@@ -12,6 +12,8 @@ services:
     image: ghcr.io/jugaadchhabra/susanoo-worker:latest
     env_file: /opt/susanoo/.env
     restart: unless-stopped
+    # Docker's 10 s default kills the worker before it can hand its runs back to the queue.
+    stop_grace_period: 60s
 
   caddy:
     image: caddy:2

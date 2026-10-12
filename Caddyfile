@@ -1,7 +1,10 @@
 # API_DOMAIN comes from /opt/susanoo/.env, e.g. api.susanoo.jugaadchhabra.dev.
 # Caddy gets and renews the HTTPS certificate on its own.
 {$API_DOMAIN} {
-	reverse_proxy api:8000
+	# Flush every write at once so the run's live event stream (SSE) isn't held in a buffer.
+	reverse_proxy api:8000 {
+		flush_interval -1
+	}
 }
 
 # Live previews (#4): wildcard needs a DNS-challenge certificate, so this stays
