@@ -6,7 +6,7 @@ const NAV = [
   { label: "Use cases", href: "/#use-cases" },
   { label: "Trust", href: "/#trust" },
   { label: "Connectors", href: "/#connectors" },
-  { label: "Pricing", href: "/pricing" },
+  { label: "Pricing", href: "/#pricing" },
 ];
 
 export const FOCUS_RING =
@@ -18,7 +18,7 @@ export const FOCUS_RING_DARK =
 
 /** Kept in the footer because the header nav is hidden at phone width. */
 const FOOTER_PAGES = [
-  { label: "Pricing", href: "/pricing" },
+  { label: "Pricing", href: "/#pricing" },
   { label: "Watch the demo", href: "/demo" },
 ];
 

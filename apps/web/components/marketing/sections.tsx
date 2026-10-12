@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DemoReplay } from "@/components/app/demo-replay";
-import { CONNECTORS, REPO_URL, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
+import { CONNECTORS, PLANS, REPO_URL, TEAM_LINKS, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
 import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
 import { SerpentStamp } from "./serpent-stamp";
@@ -331,19 +332,87 @@ export function Connectors() {
   );
 }
 
+/** Free / Team / Enterprise, inline on the landing page. Prices stay blank or "Contact us" until the cfo.ai model sets them. [PRD › Business model (inputs for cfo.ai)] */
 export function Plans() {
   return (
-    <section id="pricing" aria-labelledby="pricing-heading" className="border-t-[3px] border-ink py-16">
-      <div className={`${GUTTER} flex flex-col gap-6 md:flex-row md:items-center md:justify-between`}>
-        <div>
-          <h2 id="pricing-heading" className="mk-display text-[clamp(26px,3vw,36px)]">
-            Free, Team and Enterprise plans
-          </h2>
-          <p className="mt-2 text-lg">Try it free. Larger teams get private repos, custom rules, SSO and support.</p>
+    <section id="pricing" aria-labelledby="pricing-heading" className="border-t-[3px] border-ink">
+      <div className={`${GUTTER} flex flex-col gap-10 py-20 sm:py-[104px]`}>
+        <SectionIntro id="pricing-heading" title="Pick the plan that fits your team">
+          Try Susanoo free. We&apos;re setting Team and Enterprise prices from the real cost of each run, so for now just
+          get in touch.
+        </SectionIntro>
+        <ul className="m-0 grid list-none gap-7 p-0 lg:grid-cols-3">
+          {PLANS.map((plan) => {
+            const { featured } = plan;
+            return (
+              <li key={plan.name}>
+                <Stamp tone={featured ? "mustard" : "paper"} className="h-full">
+                  <StampFace tone={featured ? "ink" : "light"} as="article" className="flex h-full flex-col gap-4 p-7">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="mk-display text-[32px] leading-tight">{plan.name}</h3>
+                      {featured && <StatusTag live label="Most teams" />}
+                    </div>
+                    <p className="text-base lg:min-h-12">{plan.who}</p>
+                    {/* Blank until cfo.ai sets prices; on wide screens it keeps its height so the feature lists line up. */}
+                    <p
+                      className={cn(
+                        "mk-display text-3xl lg:min-h-9",
+                        featured ? "text-mustard" : "text-vermilion",
+                        !plan.price && "hidden lg:block",
+                      )}
+                    >
+                      {plan.price}
+                    </p>
+                    <ul className="m-0 flex flex-1 list-none flex-col gap-3 p-0 text-base">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex gap-3">
+                          <Check
+                            aria-hidden
+                            className={cn("mt-1 size-4 shrink-0", featured ? "text-mustard" : "text-vermilion")}
+                          />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={plan.cta.href}
+                      className={cn(
+                        "mt-4 inline-flex items-center justify-center rounded-[2px] px-6 py-3.5 text-lg font-semibold",
+                        featured
+                          ? "bg-paper text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
+                          : `bg-ink text-paper hover:bg-vermilion ${FOCUS_RING}`,
+                      )}
+                    >
+                      {plan.cta.label}
+                      {plan.price && <span className="sr-only"> about the {plan.name} plan</span>}
+                    </Link>
+                  </StampFace>
+                </Stamp>
+              </li>
+            );
+          })}
+        </ul>
+        <div
+          id="contact"
+          className="flex scroll-mt-6 flex-col gap-6 border-2 border-dashed border-ink p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
+        >
+          <div className="max-w-xl">
+            <h3 className="mk-display text-[clamp(24px,2.6vw,32px)]">Talk to us</h3>
+            <p className="mt-2 text-lg">
+              Tell us what your team wants to automate and we&apos;ll set up a plan with you. You can reach Muaaz and
+              Jugaad through their sites.
+            </p>
+          </div>
+          <ul className="m-0 flex list-none flex-col gap-3 p-0 sm:flex-row">
+            {TEAM_LINKS.map((site) => (
+              <li key={site.href}>
+                <a href={site.href} target="_blank" rel="noopener noreferrer" className={SECONDARY}>
+                  {site.label}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
-        <Link href="/pricing" className={SECONDARY}>
-          Compare plans
-        </Link>
       </div>
     </section>
   );

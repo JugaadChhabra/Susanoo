@@ -10,7 +10,7 @@ describe("isProtectedPath", () => {
     }
   });
   it("leaves marketing, demo, login and callback public", () => {
-    for (const p of ["/", "/pricing", "/demo", "/login", "/auth/callback", "/projectsx"]) {
+    for (const p of ["/", "/demo", "/login", "/auth/callback", "/projectsx"]) {
       expect(isProtectedPath(p)).toBe(false);
     }
   });

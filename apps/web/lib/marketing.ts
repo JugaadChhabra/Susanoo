@@ -67,7 +67,7 @@ export type Plan = {
   /** Left blank or "Contact us" until the cfo.ai model sets real prices. */
   price: "Contact us" | null;
   features: string[];
-  /** The plan the pricing page highlights. */
+  /** The plan the landing page's pricing section highlights. */
   featured?: boolean;
   cta: { label: string; href: string };
 };
