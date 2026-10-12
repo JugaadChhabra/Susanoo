@@ -23,25 +23,48 @@ def bearer(user_id: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {jwt.encode(claims, SECRET, algorithm='HS256')}"}
 
 
+ALICE_GITHUB = "33333333-3333-4333-8333-333333333333"
+BOB_GITHUB = "44444444-4444-4444-8444-444444444444"
+
+
 class FakeStore:
     """In-memory store that, like the real one, only ever answers for the user it is asked about."""
 
     def __init__(self) -> None:
         self.rows: dict[str, tuple[str, ProjectSummary]] = {}
+        self.connections = {ALICE_GITHUB: ALICE, BOB_GITHUB: BOB}  # connection id -> owner
 
     async def list_for_user(self, user_id: str) -> list[ProjectSummary]:
         return [p for owner, p in reversed(self.rows.values()) if owner == user_id]
 
-    async def create(self, user_id: str, name: str, spec: str, rules: list[str]) -> ProjectSummary:
-        project = ProjectSummary(id=str(uuid.uuid4()), name=name, spec=spec, rules=rules, repo_url=None, runs=[])
+    async def foreign_connections(self, user_id: str, connection_ids: list[str]) -> list[str]:
+        return [cid for cid in connection_ids if self.connections.get(cid) != user_id]
+
+    async def create(
+        self, user_id: str, name: str, spec: str, rules: list[str], connection_ids: list[str]
+    ) -> ProjectSummary:
+        project = ProjectSummary(
+            id=str(uuid.uuid4()),
+            name=name,
+            spec=spec,
+            rules=rules,
+            connection_ids=connection_ids,
+            repo_url=None,
+            runs=[],
+        )
         self.rows[project.id] = (user_id, project)
         return project
 
-    async def set_rules(self, user_id: str, project_id: str, rules: list[str]) -> ProjectSummary | None:
+    async def set_rules(
+        self, user_id: str, project_id: str, rules: list[str], connection_ids: list[str] | None
+    ) -> ProjectSummary | None:
         owner, project = self.rows.get(project_id, (None, None))
         if owner != user_id or project is None:
             return None
-        updated = project.model_copy(update={"rules": rules})
+        update: dict[str, object] = {"rules": rules}
+        if connection_ids is not None:
+            update["connection_ids"] = connection_ids
+        updated = project.model_copy(update=update)
         self.rows[project_id] = (owner, updated)
         return updated
 
@@ -115,6 +138,68 @@ def test_cannot_edit_another_users_rules(client):
     assert response.status_code == 404
     assert response.json()["error"]["message"] == "We couldn't find that project."
     assert client.get("/projects", headers=bearer(ALICE)).json()[0]["rules"] == ["Keep me."]
+
+
+def test_picked_connections_are_saved_and_returned(client):
+    response = client.post(
+        "/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": [], "connection_ids": [ALICE_GITHUB]}
+    )
+    assert response.status_code == 201
+    assert response.json()["connection_ids"] == [ALICE_GITHUB]
+    assert client.get("/projects", headers=bearer(ALICE)).json()[0]["connection_ids"] == [ALICE_GITHUB]
+
+
+def test_no_connections_behaves_as_before(client):
+    project = client.post("/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": []}).json()
+    assert project["connection_ids"] == []
+    response = client.put(f"/projects/{project['id']}/rules", headers=bearer(ALICE), json={"rules": ["A rule."]})
+    assert response.status_code == 200
+    assert response.json()["connection_ids"] == []
+
+
+def test_updating_rules_can_change_connections_or_leave_them(client):
+    project = client.post("/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": []}).json()
+    path = f"/projects/{project['id']}/rules"
+    added = client.put(path, headers=bearer(ALICE), json={"rules": [], "connection_ids": [ALICE_GITHUB]})
+    assert added.status_code == 200 and added.json()["connection_ids"] == [ALICE_GITHUB]
+    kept = client.put(path, headers=bearer(ALICE), json={"rules": ["New rule."]})
+    assert kept.json()["connection_ids"] == [ALICE_GITHUB]  # leaving the field out keeps them
+    cleared = client.put(path, headers=bearer(ALICE), json={"rules": [], "connection_ids": []})
+    assert cleared.json()["connection_ids"] == []
+
+
+def test_the_same_connection_twice_is_saved_once(client):
+    body = {"spec": SPEC, "rules": [], "connection_ids": [ALICE_GITHUB, ALICE_GITHUB.upper()]}
+    response = client.post("/projects", headers=bearer(ALICE), json=body)
+    assert response.status_code == 201
+    assert response.json()["connection_ids"] == [ALICE_GITHUB]
+
+
+def test_another_users_connection_is_refused_in_plain_english(client):
+    response = client.post(
+        "/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": [], "connection_ids": [BOB_GITHUB]}
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == projects.FOREIGN_CONNECTION
+    assert client.get("/projects", headers=bearer(ALICE)).json() == []  # nothing was created
+
+    project = client.post("/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": ["Keep me."]}).json()
+    response = client.put(
+        f"/projects/{project['id']}/rules",
+        headers=bearer(ALICE),
+        json={"rules": ["Changed."], "connection_ids": [ALICE_GITHUB, BOB_GITHUB]},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == projects.FOREIGN_CONNECTION
+    assert client.get("/projects", headers=bearer(ALICE)).json()[0]["rules"] == ["Keep me."]
+
+
+def test_a_connection_id_that_is_not_an_id_is_a_422(client):
+    response = client.post(
+        "/projects", headers=bearer(ALICE), json={"spec": SPEC, "rules": [], "connection_ids": ["github"]}
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
 
 
 def test_blank_rules_do_not_count_toward_the_limit(client):

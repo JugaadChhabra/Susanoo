@@ -4,6 +4,7 @@ scripts/export_types.py exports these into apps/web/types/generated.ts next to t
 """
 
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field, SecretStr, StringConstraints
 
@@ -26,6 +27,17 @@ def _drop_blank(rules: list[str]) -> list[str]:
 Rules = Annotated[list[Sentence], Field(max_length=MAX_RULES * 4), AfterValidator(_drop_blank)]
 
 
+MAX_CONNECTIONS = 10
+
+
+def _distinct(ids: list[UUID]) -> list[UUID]:
+    return list(dict.fromkeys(ids))
+
+
+# The caller's own connection ids, as picked on the new-project screen; the same id twice is kept once.
+ConnectionIds = Annotated[list[UUID], Field(max_length=MAX_CONNECTIONS), AfterValidator(_distinct)]
+
+
 class RunSummary(BaseModel):
     """One run as the projects screen shows it. heldout_f1 is the latest iteration's, if any."""
 
@@ -42,6 +54,7 @@ class ProjectSummary(BaseModel):
     name: str
     spec: str
     rules: list[str]  # plain-English sentences, compiled into prompt.md and policy.yaml later
+    connection_ids: list[str]  # the owner's connections the agent may use; revoked ones are left out
     repo_url: str | None
     runs: list[RunSummary]  # newest first
 
@@ -49,10 +62,12 @@ class ProjectSummary(BaseModel):
 class NewProject(BaseModel):
     spec: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)]
     rules: Rules
+    connection_ids: ConnectionIds = []
 
 
 class ProjectRules(BaseModel):
     rules: Rules
+    connection_ids: ConnectionIds | None = None  # left out (or null) keeps the project's current connections
 
 
 class RunQuota(BaseModel):

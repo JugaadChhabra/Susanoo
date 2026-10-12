@@ -358,7 +358,20 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL) {
     const spec = String(body.spec ?? "").trim();
     if (!spec) return apiError(res, 422, "validation_error", "Describe what you want to build first.");
     const rules = Array.isArray(body.rules) ? body.rules.map(String) : [];
-    const project: Project = { id: randomUUID(), ownerId: user.id, name: nameFromSpec(spec), spec, rules, repo_url: null, runs: [] };
+    // The stub user has no connections (GET /connectors is empty), so any picked id isn't theirs, as in the real API.
+    if (Array.isArray(body.connection_ids) && body.connection_ids.length > 0) {
+      return apiError(res, 422, "validation_error", "One of the connections you picked isn't yours or has been removed. Refresh the page and pick again.");
+    }
+    const project: Project = {
+      id: randomUUID(),
+      ownerId: user.id,
+      name: nameFromSpec(spec),
+      spec,
+      rules,
+      connection_ids: [],
+      repo_url: null,
+      runs: [],
+    };
     projects.set(project.id, project);
     return send(res, 201, toSummary(project));
   }

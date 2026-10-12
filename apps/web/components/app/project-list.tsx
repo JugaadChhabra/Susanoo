@@ -130,7 +130,7 @@ function RulesEditor({ project, onSaved }: { project: ProjectSummary; onSaved: (
     setSaving(true);
     setError(null);
     try {
-      onSaved(await updateProjectRules(project.id, { rules }));
+      onSaved(await updateProjectRules(project.id, { rules, connection_ids: null }));
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "We couldn't save your rules.");

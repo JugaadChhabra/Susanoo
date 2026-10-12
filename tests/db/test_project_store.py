@@ -37,8 +37,8 @@ def users(monkeypatch):
 async def test_create_list_and_runs_with_latest_heldout_f1(users):
     a, _, c = users
     store = PostgresProjectStore()
-    created = await store.create(a, "Reviewer", "spec", ["Never log emails."])
-    assert created.rules == ["Never log emails."] and created.runs == []
+    created = await store.create(a, "Reviewer", "spec", ["Never log emails."], [])
+    assert created.rules == ["Never log emails."] and created.runs == [] and created.connection_ids == []
 
     old = c.execute(
         "insert into public.runs (project_id, status, cost_usd, created_at) "
@@ -61,17 +61,50 @@ async def test_create_list_and_runs_with_latest_heldout_f1(users):
 async def test_another_users_projects_never_appear(users):
     a, b, _ = users
     store = PostgresProjectStore()
-    mine = await store.create(a, "Mine", "spec a", [])
-    await store.create(b, "Theirs", "spec b", [])
+    mine = await store.create(a, "Mine", "spec a", [], [])
+    await store.create(b, "Theirs", "spec b", [], [])
     assert [p.id for p in await store.list_for_user(a)] == [mine.id]
 
 
 async def test_rules_are_only_editable_by_the_owner(users):
     a, b, _ = users
     store = PostgresProjectStore()
-    project = await store.create(a, "Mine", "spec", ["Old."])
-    assert await store.set_rules(b, project.id, ["Hijacked."]) is None
-    updated = await store.set_rules(a, project.id, ["New."])
+    project = await store.create(a, "Mine", "spec", ["Old."], [])
+    assert await store.set_rules(b, project.id, ["Hijacked."], None) is None
+    updated = await store.set_rules(a, project.id, ["New."], None)
     assert updated is not None and updated.rules == ["New."]
     [listed] = await store.list_for_user(a)
     assert listed.rules == ["New."]
+
+
+def connection(c: psycopg.Connection, user_id: str, connector: str) -> str:
+    return c.execute(
+        "insert into public.connections (user_id, connector, vault_secret_id) "
+        "values (%s, %s, gen_random_uuid()::text) returning id::text",
+        (user_id, connector),
+    ).fetchone()[0]
+
+
+async def test_projects_keep_their_owners_connections(users):
+    a, b, c = users
+    store = PostgresProjectStore()
+    github, slack, theirs = connection(c, a, "github"), connection(c, a, "slack"), connection(c, b, "github")
+
+    unknown = str(uuid.uuid4())
+    assert await store.foreign_connections(a, [github, theirs, unknown]) == [theirs, unknown]
+    assert await store.foreign_connections(a, []) == []
+
+    created = await store.create(a, "Reviewer", "spec", [], [slack, github])
+    assert created.connection_ids == [github, slack]  # ordered by connector name
+
+    updated = await store.set_rules(a, created.id, ["A rule."], None)
+    assert updated is not None and updated.connection_ids == [github, slack]  # None leaves them alone
+    updated = await store.set_rules(a, created.id, ["A rule."], [github])
+    assert updated is not None and updated.connection_ids == [github]
+
+    updated = await store.set_rules(a, created.id, [], [github, theirs])  # e.g. theirs was revoked mid-save
+    assert updated is not None and updated.connection_ids == [github]  # only the owner's ids are ever written
+
+    c.execute("delete from public.connections where id = %s", (github,))  # revoked
+    [listed] = await store.list_for_user(a)
+    assert listed.connection_ids == []

@@ -172,6 +172,7 @@ export interface NewConnection {
 export interface NewProject {
   spec: string;
   rules: Array<string>;
+  connection_ids: Array<string>;
 }
 
 export interface Patch {
@@ -194,6 +195,7 @@ export interface Plan {
 
 export interface ProjectRules {
   rules: Array<string>;
+  connection_ids: Array<string> | null;
 }
 
 export interface ProjectSummary {
@@ -201,6 +203,7 @@ export interface ProjectSummary {
   name: string;
   spec: string;
   rules: Array<string>;
+  connection_ids: Array<string>;
   repo_url: string | null;
   runs: Array<RunSummary>;
 }

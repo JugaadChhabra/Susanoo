@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCw } from "lucide-react";
 import { createProject, listConnectors, startRun, updateProjectRules } from "@/lib/api";
-import { connectionLabel, connectionStatusLabel } from "@/lib/connectors";
+import { ConnectionCheckboxes } from "@/components/app/connection-checkboxes";
+import { savedConnections } from "@/lib/connectors";
 import { EXAMPLE_SPECS, parseRules, rulesProblem, rulesToText, type ExampleSpec } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
-import type { ConnectionSummary, ConnectorInfo } from "@/types/generated";
 
 const field = "mt-1 w-full rounded-lg border border-border bg-background p-3 text-sm";
 
@@ -23,7 +23,7 @@ export function NewProjectForm() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set once the project is saved, so a failed run start doesn't create a second copy on retry.
-  const [saved, setSaved] = useState<{ id: string; spec: string; rules: string[] } | null>(null);
+  const [saved, setSaved] = useState<{ id: string; spec: string; rules: string[]; connectionIds: string[] } | null>(null);
   const savedId = saved?.id ?? null;
 
   function pickExample(next: ExampleSpec) {
@@ -54,12 +54,14 @@ export function NewProjectForm() {
     try {
       if (!saved || saved.spec !== trimmed) {
         // A changed spec is a different product, so it becomes its own project.
-        projectId = (await createProject({ spec: trimmed, rules: parsed })).id;
+        projectId = (await createProject({ spec: trimmed, rules: parsed, connection_ids: connectors })).id;
       } else {
         projectId = saved.id;
-        if (saved.rules.join("\n") !== parsed.join("\n")) await updateProjectRules(projectId, { rules: parsed });
+        const changed =
+          saved.rules.join("\n") !== parsed.join("\n") || saved.connectionIds.join() !== connectors.join();
+        if (changed) await updateProjectRules(projectId, { rules: parsed, connection_ids: connectors });
       }
-      setSaved({ id: projectId, spec: trimmed, rules: parsed });
+      setSaved({ id: projectId, spec: trimmed, rules: parsed, connectionIds: connectors });
     } catch (err) {
       setError(err instanceof Error ? err.message : "We couldn't create your project.");
       setSending(false);
@@ -141,15 +143,12 @@ export function NewProjectForm() {
 /** The user's real connections to pick from. [PRD › Frontend and API › Screens › New project] */
 function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (ids: string[]) => void }) {
   const state = useAsync(listConnectors, "connectors");
-  const connected =
-    state.status === "ready"
-      ? state.data.filter((c): c is ConnectorInfo & { connection: ConnectionSummary } => c.connection !== null)
-      : [];
+  const connected = state.status === "ready" ? savedConnections(state.data) : [];
 
   return (
     <fieldset>
       <legend className="text-sm font-medium">Accounts your agent may use (optional)</legend>
-      <p className="text-sm text-muted-foreground">Coming soon: your choice here isn&rsquo;t saved with the project yet.</p>
+      <p className="text-sm text-muted-foreground">Ticked accounts are saved with the project. You can change them later.</p>
       {state.status === "loading" && (
         <div className="mt-2 h-14 animate-pulse rounded-lg bg-muted" aria-busy="true" aria-label="Loading your connections" />
       )}
@@ -176,27 +175,7 @@ function ConnectorPicker({ picked, onChange }: { picked: string[]; onChange: (id
       )}
       {connected.length > 0 && (
         <div className="mt-2 space-y-2">
-          {connected.map(({ spec, connection }) => (
-            <label
-                key={connection.id}
-                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4"
-                  checked={picked.includes(connection.id)}
-                  onChange={(e) =>
-                    onChange(e.target.checked ? [...picked, connection.id] : picked.filter((id) => id !== connection.id))
-                  }
-                />
-                <span className="min-w-0">
-                  <span className="font-medium break-words">{connectionLabel(spec, connection)}</span>
-                  <span className="block text-muted-foreground">
-                    {connectionStatusLabel(connection.status)} · {spec.summary}
-                  </span>
-                </span>
-              </label>
-          ))}
+          <ConnectionCheckboxes connected={connected} picked={picked} onChange={onChange} />
           <Link href="/connectors" className="inline-block text-sm underline underline-offset-2">
             Manage connections
           </Link>
