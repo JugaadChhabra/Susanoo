@@ -226,6 +226,10 @@
   [data-motion="on"] [data-reveal]:not([data-inview]) .mk-anim::after { animation-play-state: paused; }
   [data-motion="on"] [data-reveal][data-inview] .mk-anim,
   [data-motion="on"] [data-reveal][data-inview] .mk-anim::after { animation-play-state: running; }
+  /* A [data-reveal-scope] stretches its one [data-reveal]'s trigger over the whole scope, so a .mk-anim outside the
+     revealed element (Proof's seal, above its stats) still waits for it. */
+  [data-motion="on"] [data-reveal-scope]:has([data-reveal]:not([data-inview])) .mk-anim,
+  [data-motion="on"] [data-reveal-scope]:has([data-reveal]:not([data-inview])) .mk-anim::after { animation-play-state: paused; }
 }
 
 /* Telegram (motion spec §2): the form settles in from the right, its vermilion offset shadow grows out from under it,
@@ -264,6 +268,28 @@
 [data-inview][data-sequence="playing"] .mk-head[aria-current="step"] .mk-head-dot {
   animation: mk-dot-pop 200ms var(--ease-snap) both;
 }
+
+/* Proof (motion spec §2). In view on the stats, each card presses in at --i × 90ms; inside it the struck-out "before"
+   fades, the arrow slides in and the "after" value slams. Then the VERIFIED seal slams onto its own inline 10deg
+   (the keyframe's rotate composes with it), and on impact (60% of the slam) an ink ring bleeds out and the intro
+   wrapper shakes. The ring rests at opacity 0 and only fills forwards, so it never shows while waiting or with no motion. */
+@keyframes mk-fade { from { opacity: 0; } }
+.mk-proof-stat { animation: mk-press var(--dur-press) calc(var(--i) * 90ms) both; }
+.mk-proof-before { animation: mk-fade 200ms var(--ease-ink) calc(120ms + var(--i) * 90ms) both; }
+.mk-proof-arrow { --settle-from: -8px 0; animation: mk-settle 200ms var(--ease-ink) calc(180ms + var(--i) * 90ms) both; }
+.mk-proof-after { --slam-from: 1.5; --slam-under: 0.94; animation: mk-slam 380ms calc(250ms + var(--i) * 90ms) both; }
+.mk-proof-seal { animation: mk-slam var(--dur-slam) 650ms both; }
+.mk-proof-seal::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 4px solid var(--vermilion);
+  opacity: 0;
+  pointer-events: none;
+  animation: mk-bleed var(--dur-bleed) var(--ease-ink) var(--impact) forwards;
+}
+/* The intro wrapper holds the seal, so it defines the impact time for both. */
+.mk-proof-shake { --impact: calc(650ms + var(--dur-slam) * 0.6); animation: mk-shake 180ms var(--impact) both; }
 
 /* Hover and press (motion spec §3). Buttons lift onto a hard offset shadow and sink into the paper when pressed.
    --lift-shadow is ink by default; .mk-btn-vermilion is for paper and outline buttons that sit on paper.

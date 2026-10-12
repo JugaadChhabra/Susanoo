@@ -19,8 +19,10 @@ export function MotionRoot() {
             el.dataset.inview = "";
             observer.unobserve(el);
           } else if (entry.boundingClientRect.top >= window.innerHeight) {
-            // Before hydration nothing was paused, so rewind what already played out of sight to its first frame.
-            for (const animation of el.getAnimations({ subtree: true })) animation.currentTime = 0;
+            // Before hydration nothing was paused, so rewind what already played out of sight to its first frame,
+            // including anything in its [data-reveal-scope] that waits on it.
+            const scope = el.closest("[data-reveal-scope]") ?? el;
+            for (const animation of scope.getAnimations({ subtree: true })) animation.currentTime = 0;
           }
         }
       },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DemoReplay } from "@/components/app/demo-replay";
@@ -142,27 +143,37 @@ export function Proof() {
       aria-labelledby="proof-heading"
       className="border-y-[3px] border-ink bg-jade px-[clamp(20px,4vw,48px)] py-20 sm:py-24"
     >
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-11">
-        <div className="relative">
+      <div data-reveal-scope className="mx-auto flex max-w-[1280px] flex-col gap-11">
+        <div className="mk-anim mk-proof-shake relative">
           <SectionIntro id="proof-heading" title="Before and after a fix, from a real run">
             In a test round, the code reviewer Susanoo built let an access token typed into code slip through. Susanoo
             traced the miss to the agent&apos;s instructions, changed three lines and kept the change only after every test
             was rerun. These are the scores either side of that fix.
           </SectionIntro>
-          <HankoSeal char="検証済" label="VERIFIED" rotate={10} className="absolute top-0 right-2 hidden lg:inline-flex" />
+          <HankoSeal char="検証済" label="VERIFIED" rotate={10}
+            className="mk-anim mk-proof-seal absolute top-0 right-2 hidden lg:inline-flex"
+          />
         </div>
-        <dl className="grid gap-8 sm:grid-cols-3">
-          {stats.map((s) => (
-            <div key={s.label} className="mk-lift">
+        <dl data-reveal className="grid gap-8 sm:grid-cols-3">
+          {stats.map((s, i) => (
+            <div key={s.label} className="mk-anim mk-proof-stat mk-lift" style={{ "--i": i } as CSSProperties}>
               <Stamp className="h-full p-4">
                 <StampFace className="flex h-full flex-col gap-2.5 p-6">
                   <dt className="font-label text-[13px] tracking-[0.14em] uppercase">{s.label}</dt>
                   <dd className="m-0 flex flex-wrap items-baseline gap-3">
-                    <span className="font-label text-xl line-through decoration-1" aria-label={`before ${s.before}`}>
+                    <span
+                      className="mk-anim mk-proof-before font-label text-xl line-through decoration-1"
+                      aria-label={`before ${s.before}`}
+                    >
                       {s.before}
                     </span>
-                    <span aria-hidden>→</span>
-                    <span className="mk-display text-5xl text-vermilion" aria-label={`after ${s.after}`}>
+                    <span aria-hidden className="mk-anim mk-proof-arrow">
+                      →
+                    </span>
+                    <span
+                      className="mk-anim mk-proof-after mk-display text-5xl text-vermilion"
+                      aria-label={`after ${s.after}`}
+                    >
                       {s.after}
                     </span>
                   </dd>
