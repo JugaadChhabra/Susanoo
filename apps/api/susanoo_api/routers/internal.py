@@ -1,8 +1,9 @@
 """GET /internal/preview-allowed: Caddy's on-demand TLS ask for run-<id> previews. [PRD › Deployment]
 
 Caddy calls http://api:8000/internal/preview-allowed?domain=<host> before getting a certificate for a host.
-200 only for run-<run_id>.<PREVIEW_DOMAIN> whose run exists and has a preview URL recorded; 404 for everything
-else, so nobody can make Caddy request certificates for random names.
+200 for run-<run_id>.<PREVIEW_DOMAIN> whose run exists and has a preview URL recorded, and for API_DOMAIN itself
+(Caddy prefers the preview wildcard's on-demand policy for any name it covers, so without this the api site gets
+no certificate); 404 for everything else, so nobody can make Caddy request certificates for random names.
 
 No user auth: this is for Caddy on the compose network only. Requests through the public api domain arrive via
 Caddy's reverse_proxy, which always sets X-Forwarded-For and keeps Host as the api domain, so a forwarded
@@ -71,6 +72,9 @@ async def preview_allowed(request: Request, domain: str = "") -> dict[str, bool]
     except ValueError:
         logger.error("PREVIEW_DOMAIN is not a valid domain name; refusing every preview certificate")
         raise HTTPException(503, "Previews are not set up correctly on the server.") from None
+    api_domain = os.environ.get("API_DOMAIN", "").strip().lower()
+    if api_domain and domain.strip().lower() == api_domain:
+        return {"allowed": True}
     run_id = _run_id_for(domain, ours)
     if run_id is None:
         raise HTTPException(404, _NOT_ALLOWED)

@@ -76,6 +76,14 @@ def test_requests_addressed_to_the_api_domain_are_refused(client, monkeypatch):
     assert ask(client, host, Host="api:8000").status_code == 200  # how Caddy itself calls it
 
 
+def test_the_api_domain_itself_gets_its_certificate(client, monkeypatch):
+    # api.<PREVIEW_DOMAIN> is covered by the preview wildcard, so Caddy asks for it too (live outage, 12 Oct).
+    monkeypatch.setenv("API_DOMAIN", f"api.{DOMAIN}")
+    assert ask(client, f"api.{DOMAIN}").status_code == 200
+    assert ask(client, f"API.{DOMAIN.upper()}").status_code == 200
+    assert ask(client, f"api.{DOMAIN}", **{"X-Forwarded-For": "203.0.113.7"}).status_code == 404
+
+
 def test_bad_preview_domain_setting_refuses_with_a_plain_message(client, monkeypatch):
     monkeypatch.setenv("PREVIEW_DOMAIN", "Not A Domain!")
     response = ask(client, f"run-{RUN_ID}.{DOMAIN}")
