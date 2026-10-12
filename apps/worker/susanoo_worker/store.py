@@ -137,6 +137,16 @@ async def finish(run_id: str, worker_id: str, status: str, cost_usd: float, erro
         return cur.rowcount > 0
 
 
+async def set_preview_url(run_id: str, worker_id: str, url: str) -> bool:
+    """Record where the finished run's app is live (preview.py). False means this worker no longer owns it."""
+    async with session() as conn:
+        cur = await conn.execute(
+            "update public.runs set preview_url = %s where id = %s and claimed_by = %s and status = 'running'",
+            (url, run_id, worker_id),
+        )
+        return cur.rowcount > 0
+
+
 async def pause(run_id: str, worker_id: str, checkpoint_id: str, cost_usd: float) -> bool:
     """Park the run until a human answers: 'awaiting_approval', claim released, answer slot cleared."""
     async with session() as conn:

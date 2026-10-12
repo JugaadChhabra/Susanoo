@@ -30,6 +30,7 @@ from collections.abc import Callable
 import psycopg
 from susanoo_worker import store
 from susanoo_worker.config import WorkerConfig, require_session_connection
+from susanoo_worker.preview import PreviewSandbox
 from susanoo_worker.run_driver import CANCELLED_MESSAGE, RunSession
 
 from susanoo.db import emit_event
@@ -52,9 +53,11 @@ class Worker:
         heads_factory: Callable[[], Heads] | None = None,
         *,
         worker_id: str | None = None,
+        preview_sandbox: PreviewSandbox | None = None,
     ) -> None:
         self.config = config or WorkerConfig.from_env()
         self.heads_factory = heads_factory or real_heads
+        self.preview_sandbox = preview_sandbox  # finished runs stay up at their preview URL through this (#32)
         self.worker_id = worker_id or f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
         self._stop = asyncio.Event()
         self._sessions: dict[str, RunSession] = {}
@@ -135,7 +138,13 @@ class Worker:
             await emit_event(run.id, "system", "error", MAX_ATTEMPTS_MESSAGE, {"attempts": run.attempts})
             await store.finish(run.id, self.worker_id, "failed", run.cost_usd, MAX_ATTEMPTS_MESSAGE)
             return True
-        session_ = RunSession(run, worker_id=self.worker_id, config=self.config, heads_factory=self.heads_factory)
+        session_ = RunSession(
+            run,
+            worker_id=self.worker_id,
+            config=self.config,
+            heads_factory=self.heads_factory,
+            preview_sandbox=self.preview_sandbox,
+        )
         self._sessions[run.id] = session_
         task = asyncio.create_task(session_.execute(), name=f"run-{run.id}")
         self._tasks[run.id] = task
@@ -182,9 +191,11 @@ class Worker:
 
 
 async def serve() -> None:
+    from susanoo.sandbox import docker as docker_sandbox
     from susanoo.sandbox.docker import reap_forever
 
-    worker = Worker()
+    # The same default sandbox starts previews and reaps them, so the reaper knows when each was started.
+    worker = Worker(preview_sandbox=docker_sandbox)
     worker.install_signal_handlers()
     reaper = asyncio.create_task(reap_forever(worker.config.reaper_interval_seconds))
     try:

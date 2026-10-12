@@ -2,7 +2,8 @@
 
 A run stops in exactly one of these ways, and each writes one status:
 
-  finished  the graph reached Done            -> 'done' or 'failed' (as the graph decided, e.g. a budget stop)
+  finished  the graph reached Done            -> 'done' or 'failed' (as the graph decided, e.g. a budget stop);
+                                                a 'done' run's final app stays up at its preview URL (preview.py)
   paused    the graph hit an interrupt        -> 'awaiting_approval' (not claimable until the API stores an answer)
   cancelled cancel_requested was set          -> 'cancelled'
   failed    a node raised (not budget)        -> 'failed' + plain-English error event
@@ -34,6 +35,7 @@ from langgraph.types import Command
 from susanoo_worker import store
 from susanoo_worker.config import WorkerConfig
 from susanoo_worker.feedback import with_feedback
+from susanoo_worker.preview import PreviewSandbox, keep_preview
 
 from susanoo.db import emit_event
 from susanoo.graph import Heads, build_graph, initial_state, run_config
@@ -91,11 +93,13 @@ class RunSession:
         worker_id: str,
         config: WorkerConfig,
         heads_factory: Callable[[], Heads],
+        preview_sandbox: PreviewSandbox | None = None,
     ) -> None:
         self.run = run
         self.worker_id = worker_id
         self.config = config
         self.heads_factory = heads_factory
+        self.preview_sandbox = preview_sandbox  # None: finished runs get no live preview (tests, local dev)
         self.lost = False
         self.cancel = False
         self.shutdown = False
@@ -223,7 +227,7 @@ class RunSession:
                     {"resumed_at": list(snapshot.next), "attempt": run.attempts},
                 )
             else:  # the graph already finished; only the status write was lost
-                return _finished(dict(snapshot.values))
+                return await self._conclude(dict(snapshot.values))
 
             async for chunk in graph.astream(payload, config, stream_mode="updates"):
                 for update in chunk.values():
@@ -240,7 +244,14 @@ class RunSession:
                 return Disposition("paused", checkpoint_id=_checkpoint_id(final), cost_usd=self._cost)
             if final.next:
                 raise RuntimeError("The graph stopped before reaching Done and is not waiting for an answer")
-            return _finished(dict(final.values))
+            return await self._conclude(dict(final.values))
+
+    async def _conclude(self, values: dict) -> Disposition:
+        """A 'done' run keeps its final app running at its preview URL (#32), while this worker still owns it."""
+        disposition = _finished(values)
+        if disposition.status == "done" and self.preview_sandbox is not None:
+            await keep_preview(self.run.id, self.worker_id, values, self.preview_sandbox)
+        return disposition
 
     async def _answer_or_park(self, graph: Any, snapshot: Any, config: dict) -> Command | Disposition:
         """The thread sits at an interrupt: apply the stored answer if it is for this pause, else park it again."""
