@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Postmark, Stamp, StampFace } from "@/components/stamp";
 
 const HEAD_ENDS: [number, number, number][] = [
@@ -43,7 +44,7 @@ export function SerpentStamp() {
             aria-label="An eight-headed serpent rising in front of a red sun and mountains"
             className="-mt-[60px] h-auto w-full"
           >
-            <circle cx="250" cy="130" r="110" fill="var(--vermilion)" />
+            <circle className="mk-serpent-sun" cx="250" cy="130" r="110" fill="var(--vermilion)" />
             <path d="M0 300 L80 220 L130 260 L200 190 L290 280 L340 240 L400 290 L400 360 L0 360 Z" fill="var(--paper)" />
             <path d="M200 190 L230 220 L210 225 L190 205 Z" fill="var(--ink)" opacity=".25" />
             <g fill="none" stroke="var(--paper)" strokeWidth="5" strokeLinecap="round" opacity=".9">
@@ -51,21 +52,18 @@ export function SerpentStamp() {
               <path d="M220 340 Q260 325 300 340 T380 340" />
             </g>
             <g fill="none" stroke="var(--ink)" strokeWidth="15" strokeLinecap="round">
-              {NECKS.map((d) => (
-                <path key={d} d={d} />
+              {NECKS.map((d, i) => (
+                <path key={d} d={d} pathLength={1} className="mk-serpent-neck" style={{ "--i": i } as CSSProperties} />
               ))}
               <path d="M110 352 Q200 320 300 352" strokeWidth="30" />
             </g>
-            <g fill="var(--ink)">
-              {HEAD_ENDS.map(([cx, cy, rot]) => (
-                <ellipse key={`${cx}-${cy}`} cx={cx} cy={cy} rx="17" ry="11" transform={`rotate(${rot} ${cx} ${cy})`} />
-              ))}
-            </g>
-            <g fill="var(--mustard)">
-              {HEAD_ENDS.map(([cx, cy]) => (
-                <circle key={`${cx}-${cy}`} cx={cx - 4} cy={cy - 6} r="3" />
-              ))}
-            </g>
+            {/* Each head and its eye sit in their own <g>, which carries the fade-in, so the ellipse keeps its rotate(). */}
+            {HEAD_ENDS.map(([cx, cy, rot], i) => (
+              <g key={`${cx}-${cy}`} className="mk-serpent-head" style={{ "--i": i } as CSSProperties}>
+                <ellipse cx={cx} cy={cy} rx="17" ry="11" fill="var(--ink)" transform={`rotate(${rot} ${cx} ${cy})`} />
+                <circle cx={cx - 4} cy={cy - 6} r="3" fill="var(--mustard)" />
+              </g>
+            ))}
           </svg>
           <div className="flex items-end justify-between">
             <span className="max-w-[14em] font-label text-[13px] tracking-[0.12em] uppercase">

@@ -216,6 +216,19 @@
 .mk-hero-badge { --slam-from: 1.6; --slam-under: 0.94; animation: mk-slam 380ms 640ms both; }
 .mk-hero-postmark { animation: mk-press 360ms 760ms both; }
 .mk-hero-shake { animation: mk-shake 180ms 760ms both; }
+/* Phase 2 serpent draw (motion spec §2 Hero): the sun rises behind the mountains as the stamp presses, each neck
+   strokes in from the body 60ms after the last (pathLength="1", so one dash covers the whole path), and each head with
+   its eye fades in as its neck arrives. From-only keyframes, so with no animation the full serpent is simply there. */
+@keyframes mk-sun-rise { from { translate: 0 40px; } }
+@keyframes mk-neck-draw { from { stroke-dashoffset: 1; } }
+@keyframes mk-head-in { from { opacity: 0; scale: 0.6; } }
+.mk-serpent-sun { animation: mk-sun-rise 600ms var(--ease-ink) 240ms both; }
+.mk-serpent-neck { stroke-dasharray: 1; animation: mk-neck-draw 240ms var(--ease-ink) calc(300ms + var(--i) * 60ms) both; }
+.mk-serpent-head {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mk-head-in 160ms var(--ease-ink) calc(520ms + var(--i) * 60ms) both; /* the last lands at 1.1s */
+}
 
 /* In-view reveals (motion spec §4). A .mk-anim inside a [data-reveal] waits, paused, until MotionRoot marks it in view.
    Hidden states only exist once JS has switched motion on: with JS off every reveal plays on load, and with reduced
