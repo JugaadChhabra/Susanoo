@@ -8,7 +8,7 @@
 - **Stack:** `/opt/susanoo/` holds `docker-compose.yml`, `Caddyfile` and `.env`; the workflow copies the first two on every deploy.
 - **Worker:** has the Docker socket (group `DOCKER_GID`), a named volume for run workdirs (`/data/runs`), and joins `susanoo_sandbox` with Caddy; generated-app containers join only that network.
 - **Live checks:** `/health` OK, `/demo/<id>` 200, signed-in routes 401 without a token.
-- **Previews (#31):** Caddy serves `run-<id>.<PREVIEW_DOMAIN>` with a certificate per host, obtained on first visit only after `http://api:8000/internal/preview-allowed` confirms the run exists with a `preview_url` recorded. It proxies to `susanoo-run-<id>:8000` on `susanoo_sandbox`. Needs `PREVIEW_DOMAIN` in `/opt/susanoo/.env`. Keeping a finished run's app up and writing its `preview_url` is #32.
+- **Previews (#31):** Caddy serves `run-<id>.<PREVIEW_DOMAIN>` with a certificate per host, obtained on first visit only after `http://api:8000/internal/preview-allowed` confirms the run exists with a `preview_url` recorded. It proxies to `susanoo-run-<id>:8000` on `susanoo_sandbox`. Needs `PREVIEW_DOMAIN` in `/opt/susanoo/.env`. When a run finishes `done`, the worker builds its repo as it ended and starts it through the sandbox (same caps, no mounts), then writes `preview_url` (#32; `apps/worker/susanoo_worker/preview.py`). No `ANTHROPIC_APP_API_KEY`, no preview. The reaper stops it after the idle timeout (15 min by default) and the agent page then says "This preview is asleep"; it checks `/health`, which Caddy serves with `Access-Control-Allow-Origin: *`.
 
 ## Hostnames
 
@@ -91,6 +91,10 @@ docker compose exec caddy wget -qSO- "http://api:8000/internal/preview-allowed?d
 5. Open `https://run-$ID.susanoo.jugaadchhabra.dev` in a browser: a directory listing over HTTPS with no warning. `docker compose logs caddy | grep -i obtain` shows the certificate for that one host.
 6. A made-up host (`https://run-nope.susanoo.jugaadchhabra.dev`) fails the TLS handshake: no certificate is issued.
 7. Clean up: `docker rm -f susanoo-run-$ID` and set `preview_url` back to `null`.
+
+### Check a finished run's preview (#32)
+
+Finish a run on the live site, then open its agent page: the preview shows inline with its address and an "Open in a new tab" link, and the address opens over HTTPS. About 15 minutes later (the idle timeout) `docker ps --filter label=susanoo.managed=true` no longer lists it, and a reload of the agent page says "This preview is asleep".
 
 ## Rollback
 
