@@ -5,7 +5,9 @@ writes on. The token only ever goes into an Authorization header; it is never lo
 """
 
 import functools
+import inspect
 import logging
+import textwrap
 import re
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
@@ -26,6 +28,7 @@ from susanoo.connectors.base import (
     ToolResult,
     dry_run_or,
 )
+from susanoo.connectors.github_tools import TOOLS as SHIPPED_TOOLS
 
 logger = logging.getLogger("susanoo.connectors.github")
 
@@ -38,7 +41,7 @@ _REPO_URL = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/", re.IGNORECASE)
 
 
 def normalise_repo(value: str) -> str:
-    """"acme/payments-api", "https://github.com/acme/payments-api(.git)" -> "acme/payments-api"."""
+    """ "acme/payments-api", "https://github.com/acme/payments-api(.git)" -> "acme/payments-api"."""
     repo = _REPO_URL.sub("", value.strip()).strip("/")
     repo = repo.removesuffix(".git")
     if not _REPO.match(repo) or repo.endswith("/.") or repo.endswith("/.."):
@@ -185,9 +188,7 @@ class GitHubConnector(Connector):
                 meta = await gh.get(f"/repos/{repo}/pulls/{number}")
                 if not meta.is_success:
                     return _failed(f"read pull request #{number}", meta)
-                diff = await gh.get(
-                    f"/repos/{repo}/pulls/{number}", headers={"Accept": "application/vnd.github.diff"}
-                )
+                diff = await gh.get(f"/repos/{repo}/pulls/{number}", headers={"Accept": "application/vnd.github.diff"})
                 if not diff.is_success:
                     return _failed(f"read the changes in pull request #{number}", diff)
             pr = meta.json()
@@ -282,12 +283,21 @@ class GitHubConnector(Connector):
             ),
         ]
 
+    def tool_sources(self) -> list[str]:
+        """The github_tools functions as source; they read GITHUB_TOKEN, GITHUB_REPO and GITHUB_WRITES_ENABLED."""
+        return list(_shipped_sources())
+
     def env(self, credential: Credential) -> dict[str, str]:
         return {
             "GITHUB_TOKEN": credential.secret.get_secret_value(),
             "GITHUB_REPO": _repo(credential),
             "GITHUB_WRITES_ENABLED": "true" if credential.writes_enabled else "false",
         }
+
+
+@functools.cache
+def _shipped_sources() -> tuple[str, ...]:
+    return tuple(textwrap.dedent(inspect.getsource(fn)).rstrip() + "\n" for fn in SHIPPED_TOOLS)
 
 
 def _repo(credential: Credential) -> str:

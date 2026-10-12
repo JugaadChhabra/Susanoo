@@ -4,6 +4,7 @@
 - `guide()`: numbered setup steps from guides/<id>.md, shown in the UI beside the credential fields.
 - `test_connection()`: checks a credential right after entry and answers in plain English.
 - `tools()`: the tool functions Agent Smith may wire into a generated agent.
+- `tool_sources()`: the same tools as credential-free source Agent Smith copies into the generated repo.
 - Write actions are dry-run ("would have posted 3 comments") unless the user switches writes on.
 
 Credential handling [PRD › Connectors and API budget › Credential handling]: secrets travel as `SecretStr`,
@@ -135,6 +136,14 @@ class Connector(ABC):
     @abstractmethod
     def env(self, credential: Credential) -> dict[str, str]:
         """Environment variables injected into the generated app's container at start, and nowhere else."""
+
+    def tool_sources(self) -> list[str]:
+        """Source of each tool in `tools()`, same names and order, for the generated repo's agent/tools.py.
+
+        Takes no credential. Each entry is one self-contained function: standard library only, imports inside
+        the body, credentials read at call time from the env vars `env()` sets, writes dry-run unless enabled.
+        """
+        return []
 
 
 @functools.cache
