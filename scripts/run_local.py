@@ -46,6 +46,7 @@ class PrintingSink(InMemorySink):
 def pick_answers(questions: list[dict], rules: list[tuple[str, str]]) -> dict[str, str]:
     answers: dict[str, str] = {}
     for q in questions:
+        print(f"     question: {q.get('text')} | options: {q.get('options')} | default: {q.get('default')}", flush=True)
         for keyword, spec in rules:
             if keyword.lower() in q.get("text", "").lower():
                 wanted, _, excluded = spec.partition("!")
@@ -58,7 +59,7 @@ def pick_answers(questions: list[dict], rules: list[tuple[str, str]]) -> dict[st
                 if match:
                     answers[q["id"]] = min(match, key=len)  # the plainest option that says it
                     print(f"     answer: {q['text']} -> {answers[q['id']]}", flush=True)
-                break
+                    break  # first rule that matches an option wins; otherwise try the next rule
     return answers
 
 
