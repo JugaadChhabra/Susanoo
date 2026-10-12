@@ -11,6 +11,9 @@ function paintedOpacity(locator: Locator): Promise<number> {
   });
 }
 
+/** The Telegram spec, as a reader sees it. */
+const EXAMPLE_SPEC_START = /^Build a code review app for our Python services\. Developers paste .* Severity: block, warn, or nit\.$/;
+
 /** The ::after layer's computed opacity. */
 function afterOpacity(locator: Locator): Promise<number> {
   return locator.evaluate((el) => Number(getComputedStyle(el, "::after").opacity));
@@ -65,6 +68,29 @@ for (const [name, options] of [
       await expect.poll(() => paintedOpacity(page.locator("#connectors li").last())).toBe(0.7);
       // The coming-soon cards are dimmed on purpose, so they sit at their own 80%.
       await expect.poll(() => paintedOpacity(page.locator("#use-cases li").last())).toBe(0.8);
+      // The serpent is whole at once: the sun in place, every neck fully drawn, every head and eye showing.
+      const serpent = page.getByRole("img", { name: /eight-headed serpent/ });
+      // With JS off the draw still plays on load, so wait for it to land.
+      const sun = serpent.locator(".mk-serpent-sun");
+      await expect.poll(() => sun.evaluate((el) => getComputedStyle(el).translate)).toMatch(/^(none|0px)$/);
+      const necks = serpent.locator(".mk-serpent-neck");
+      await expect(necks).toHaveCount(8);
+      await expect
+        .poll(() => necks.evaluateAll((els) => els.map((el) => getComputedStyle(el).strokeDashoffset)))
+        .toEqual(Array(8).fill("0px"));
+      const heads = serpent.locator(".mk-serpent-head");
+      await expect(heads).toHaveCount(8);
+      await expect
+        .poll(() => heads.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity)))
+        .toEqual(Array(8).fill("1"));
+      // The spec text is all there, in order, as real text, and the caret never shows.
+      const spec = page.getByRole("figure", { name: "You write a spec like this one" }).locator("blockquote");
+      await expect(spec).toHaveText(EXAMPLE_SPEC_START, { useInnerText: true });
+      await expect.poll(() => paintedOpacity(spec.locator(".mk-spec-line").last())).toBe(1);
+      await expect(spec.locator(".mk-spec-caret")).toBeHidden();
+      // The Proof numbers are their final values, with the labels unchanged.
+      const after = page.locator("#proof").getByLabel("after 100%");
+      await expect(after.locator("[data-count]")).toHaveText("100%");
       if (name === "reduced motion") {
         // Reduced motion means motion is never switched on, so nothing waits for the observer.
         await expect(page.locator("html")).not.toHaveAttribute("data-motion", "on");
@@ -388,4 +414,92 @@ test("header nav links draw an underline from the left on hover", async ({ page 
   expect(await link.evaluate((el) => getComputedStyle(el, "::after").transitionDuration)).toBe("0.16s");
   await link.hover();
   await expect.poll(underline).toBe("1");
+});
+
+test("with motion on, the serpent draws itself as the hero loads: sun rises, necks stroke in, heads follow", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const serpent = page.getByRole("img", { name: /eight-headed serpent/ });
+  const sun = serpent.locator(".mk-serpent-sun");
+  const necks = serpent.locator(".mk-serpent-neck");
+  const heads = serpent.locator(".mk-serpent-head");
+  await expect(sun).toHaveCSS("animation-name", "mk-sun-rise");
+  await expect(sun).toHaveCSS("animation-duration", "0.6s");
+  // Each neck is one dash of its own length, drawn 60ms after the one before; its head fades in as it arrives.
+  await expect(necks.first()).toHaveAttribute("pathLength", "1");
+  await expect(necks.first()).toHaveCSS("animation-name", "mk-neck-draw");
+  await expect(necks.nth(1)).toHaveCSS("animation-delay", "0.36s");
+  await expect(heads.nth(1)).toHaveCSS("animation-name", "mk-head-in");
+  await expect(heads.nth(1)).toHaveCSS("animation-delay", "0.58s");
+  // The heads' <g> carries the fade, so each ellipse keeps its own rotate().
+  await expect(heads.first().locator("ellipse")).toHaveAttribute("transform", /^rotate\(-60 /);
+  // It all lands: the sun in place, every neck drawn, every head showing.
+  await expect.poll(() => sun.evaluate((el) => getComputedStyle(el).translate)).toMatch(/^(none|0px)$/);
+  await expect.poll(() => necks.last().evaluate((el) => getComputedStyle(el).strokeDashoffset)).toBe("0px");
+  await expect.poll(() => paintedOpacity(heads.last())).toBe(1);
+});
+
+test("with motion on, the spec reveals line by line as real text, and the caret blinks then goes", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  const figure = page.getByRole("figure", { name: "You write a spec like this one" });
+  const spec = figure.locator("blockquote");
+  const lines = spec.locator(".mk-spec-line");
+  const caret = spec.locator(".mk-spec-caret");
+  // One span per sentence or rule, in order, none hidden from screen readers; together they are the spec.
+  await expect(lines).toHaveCount(8);
+  await expect(lines.first()).toHaveText("Build a code review app for our Python services.");
+  await expect(lines.nth(2)).toHaveText("Rules: never log PII;");
+  expect((await lines.allTextContents()).join("")).toMatch(EXAMPLE_SPEC_START);
+  await expect(spec.locator("[aria-hidden]")).toHaveCount(1);
+  await expect(caret).toHaveAttribute("aria-hidden", "true");
+  // Below the fold it waits, with the caret on its first frame.
+  await expect.poll(() => paintedOpacity(lines.last())).toBe(0);
+
+  await figure.scrollIntoViewIfNeeded();
+  // Opacity only, 110ms apart from 300ms.
+  await expect(lines.nth(1)).toHaveCSS("animation-name", "mk-fade");
+  await expect(lines.nth(1)).toHaveCSS("animation-delay", "0.41s");
+  await expect(caret).toHaveCSS("animation-timing-function", "steps(1)");
+  await expect(caret).toHaveCSS("animation-iteration-count", "3");
+  await expect(caret).toBeVisible();
+  await expect.poll(() => paintedOpacity(lines.last())).toBe(1);
+  // After its three blinks the caret is gone.
+  await expect(caret).toBeHidden({ timeout: 5_000 });
+  await expect(caret).toHaveCSS("visibility", "hidden");
+});
+
+test("with motion on, Proof's after numbers count up behind their unchanged labels", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  const stats = page.locator("#proof dl[data-reveal]");
+  const after = stats.getByLabel("after 100%");
+  const figure = after.locator("[data-count]");
+  // Record every value the counting figure shows once the stats come into view.
+  await figure.evaluate((el) => {
+    const seen: string[] = [];
+    (window as unknown as { seen: string[] }).seen = seen;
+    new MutationObserver(() => seen.push(el.textContent ?? "")).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  await stats.scrollIntoViewIfNeeded();
+  await expect(stats).toHaveAttribute("data-inview", "");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen.at(-1))).toBe("100%");
+  const seen = await page.evaluate(() => (window as unknown as { seen: string[] }).seen);
+  // It climbs from the before value, 88%, never past the real value.
+  expect(seen[0]).toBe("88%");
+  const numbers = seen.map((v) => Number.parseInt(v, 10));
+  expect(numbers).toEqual([...numbers].sort((a, b) => a - b));
+  expect(Math.max(...numbers)).toBe(100);
+  // Numbers that didn't change never count: the false alarms stay at 0%.
+  await expect(stats.getByLabel("after 0%").locator("[data-count]")).toHaveText("0%");
+  // The figure sits over an invisible copy of the final value, so its width never changes while it counts.
+  await expect(after.locator("[aria-hidden] > .invisible")).toHaveText("100%");
+  // The label and the screen-reader copy carry the real value the whole time.
+  await expect(after).toHaveAttribute("aria-label", "after 100%");
+  await expect(after.locator(".sr-only")).toHaveText("100%");
+  await expect(stats.getByLabel(/^after /)).toHaveCount(3);
 });
