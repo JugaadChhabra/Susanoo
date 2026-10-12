@@ -25,14 +25,14 @@ const NECKS = [
 /** The hero stamp: an eight-headed serpent rising in front of a red sun. Decorative, described for screen readers. */
 export function SerpentStamp() {
   return (
-    <div className="relative flex w-full justify-center">
-      <Stamp tilt={-2} className="w-full max-w-[460px] p-[22px]">
+    <div className="mk-hero-shake relative flex w-full justify-center">
+      <Stamp tilt={-2} className="mk-hero-stamp w-full max-w-[460px] p-[22px]">
         <StampFace tone="jade" className="relative flex flex-col gap-2.5">
           <div className="flex items-start justify-between">
             <span className="mk-display text-[30px] tracking-[0.06em] uppercase">Susanoo</span>
             <span
               aria-hidden
-              className="vert border-2 border-ink bg-vermilion px-1.5 py-2.5 font-mincho text-2xl font-extrabold text-paper"
+              className="vert mk-hero-badge border-2 border-ink bg-vermilion px-1.5 py-2.5 font-mincho text-2xl font-extrabold text-paper"
             >
               八岐大蛇
             </span>
@@ -80,7 +80,7 @@ export function SerpentStamp() {
           </div>
         </StampFace>
       </Stamp>
-      <Postmark className="absolute -bottom-20 left-0 sm:-left-8" />
+      <Postmark className="mk-hero-postmark absolute -bottom-20 left-0 sm:-left-8" />
     </div>
   );
 }

@@ -41,22 +41,22 @@ export function Hero() {
       <div className="flex min-w-0 flex-[1_1_520px] gap-8">
         <div
           aria-hidden
-          className="vert hidden self-start border-[3px] border-vermilion px-2 py-3.5 font-mincho text-[30px] leading-[1.1] font-extrabold text-vermilion sm:block"
+          className="vert mk-hero-brush hidden self-start border-[3px] border-vermilion px-2 py-3.5 font-mincho text-[30px] leading-[1.1] font-extrabold text-vermilion sm:block"
         >
           八岐退治
         </div>
         <div className="flex min-w-0 flex-col gap-7">
           <h1
             id="hero-heading"
-            className="mk-display text-[clamp(34px,4.4vw,60px)] leading-[1.02] [overflow-wrap:anywhere] sm:[overflow-wrap:normal]"
+            className="mk-display mk-hero-rise text-[clamp(34px,4.4vw,60px)] leading-[1.02] [overflow-wrap:anywhere] sm:[overflow-wrap:normal] [--delay:80ms]"
           >
             AI agents are a many-headed mess. <span className="text-vermilion">Susanoo tames them.</span>
           </h1>
-          <p className="max-w-[34em] text-[21px] leading-normal">
+          <p className="mk-hero-rise max-w-[34em] text-[21px] leading-normal [--delay:180ms]">
             Describe the agent you need in plain English. Susanoo builds it into a working app, attacks it with test cases,
             works out why it fails, fixes the part that broke and proves the fix with traces.
           </p>
-          <div className="flex flex-wrap gap-3.5">
+          <div className="mk-hero-rise flex flex-wrap gap-3.5 [--delay:260ms]">
             <Link href="/projects/new" className={PRIMARY}>
               Start building
             </Link>
