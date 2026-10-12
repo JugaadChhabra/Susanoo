@@ -26,6 +26,7 @@ Fixer must filter them out of whatever they read; this module only labels and wr
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -108,6 +109,102 @@ _WRAPPER_TAG = re.compile(
     r"|task|rules|seed_examples|requests|scenarios)\b)",
     re.I,
 )
+
+
+# --- planted secrets must not look like real provider keys -----------------------------------------------------
+# GitHub push protection (and similar scanners) blocks a repo that contains a realistic provider key, even a test
+# one. A planted secret only has to look like a secret to the reviewer, so any real provider format the model writes
+# is rewritten to a made-up one of the SAME length: line numbers, columns and the answer key stay valid.
+
+_NOT_WORD = r"(?<![A-Za-z0-9])"
+# (pattern, fake prefix or a function of the match). The fake prefixes are not provider formats.
+_REAL_KEY_FORMATS: tuple[tuple[re.Pattern[str], Callable[[re.Match[str]], str]], ...] = (
+    (re.compile(_NOT_WORD + r"(?:sk|rk|pk)_(live|test)_[A-Za-z0-9]{8,}"), lambda m: f"pay_{m.group(1)}_"),
+    (re.compile(_NOT_WORD + r"github_pat_[A-Za-z0-9_]{20,}"), lambda m: "svc_pat_"),
+    (re.compile(_NOT_WORD + r"gh[pousr]_[A-Za-z0-9]{20,}"), lambda m: "svc_token_"),
+    (re.compile(_NOT_WORD + r"(?:AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])"), lambda m: "acme_key_"),
+    (re.compile(_NOT_WORD + r"xox[abprs]-[A-Za-z0-9-]{10,}"), lambda m: "acme_chat_"),
+    (re.compile(_NOT_WORD + r"AIza[0-9A-Za-z_-]{35}"), lambda m: "acme_gkey_"),
+    (re.compile(_NOT_WORD + r"sk-ant-[A-Za-z0-9_-]{8,}"), lambda m: "acme_llm_"),
+    (re.compile(_NOT_WORD + r"sk-proj-[A-Za-z0-9_-]{8,}"), lambda m: "acme_ai_"),
+    (re.compile(_NOT_WORD + r"sk-[A-Za-z0-9]{20,}"), lambda m: "acme_ai_"),
+    (re.compile(_NOT_WORD + r"SK[0-9a-f]{32}(?![A-Za-z0-9])"), lambda m: "acme_sms_"),
+)
+# A PEM private key block keeps its line count: only the BEGIN/END markers are renamed (same length).
+_PEM_MARKER = re.compile(r"(-----(BEGIN|END) [A-Z ]*?)PRIVATE KEY(-----)")
+
+
+def _made_up_key(token: str, prefix: str) -> str:
+    """A same-length stand-in: the fake prefix plus a hash-derived suffix (deterministic per token)."""
+    size = len(token) - len(prefix)
+    digest, h = "", token
+    while len(digest) < size:
+        h = hashlib.sha256(h.encode()).hexdigest()
+        digest += h
+    return (prefix + digest[: max(size, 0)])[: len(token)]
+
+
+def defang_secrets(text: str) -> tuple[str, set[str]]:
+    """Rewrite real-provider-format keys in `text` to made-up ones. Returns (new text, the original tokens found).
+
+    Same token -> same stand-in, so the diff and the mocked file stay consistent. Same length, so line numbers and
+    the answer key stay valid. Idempotent: a stand-in matches none of the patterns.
+    """
+    found: set[str] = set()
+
+    def swap(prefix_of: Callable[[re.Match[str]], str]) -> Callable[[re.Match[str]], str]:
+        def sub(m: re.Match[str]) -> str:
+            found.add(m.group(0))
+            return _made_up_key(m.group(0), prefix_of(m))
+
+        return sub
+
+    for pattern, prefix_of in _REAL_KEY_FORMATS:
+        text = pattern.sub(swap(prefix_of), text)
+
+    def pem(m: re.Match[str]) -> str:
+        if m.group(2) == "BEGIN":
+            found.add(m.group(0) + f"#{m.start()}")
+        return f"{m.group(1)}ACME SECRET{m.group(3)}"
+
+    return _PEM_MARKER.sub(pem, text), found
+
+
+def _defang_world(world: Any) -> tuple[Any, set[str]]:
+    """`defang_secrets` over a raw world's file contents and notes; anything not shaped like a world is untouched."""
+    if not isinstance(world, dict):
+        return world, set()
+    found: set[str] = set()
+    out = dict(world)
+    files = world.get("files")
+    if isinstance(files, dict):
+        new_files = {}
+        for path, content in files.items():
+            if isinstance(content, str):
+                content, f = defang_secrets(content)
+                found |= f
+            new_files[path] = content
+        out["files"] = new_files
+    if isinstance(world.get("notes"), str):
+        out["notes"], f = defang_secrets(world["notes"])
+        found |= f
+    return out, found
+
+
+def defang_raw(raw: Any) -> tuple[Any, int]:
+    """`defang_secrets` over a raw scenario's title, diff and world. Returns (raw, distinct keys rewritten)."""
+    if not isinstance(raw, dict):
+        return raw, 0
+    found: set[str] = set()
+    out = dict(raw)
+    for key in ("title", "diff"):
+        if isinstance(raw.get(key), str):
+            out[key], f = defang_secrets(raw[key])
+            found |= f
+    if "world" in raw:
+        out["world"], f = _defang_world(raw["world"])
+        found |= f
+    return out, len(found)
 
 
 class CardDraftError(ValueError):
@@ -270,6 +367,7 @@ def parse_cards(data: Any) -> tuple[list[Scenario], int]:
     good: list[tuple[str, str, str, AnswerKey]] = []
     dropped = 0
     for raw in raw_cards:
+        raw, _rewritten = defang_raw(raw)  # a real-looking key in a card would block publishing the repo
         try:
             good.append(_check_card(raw))
         except CardDraftError:
@@ -450,6 +548,7 @@ def _classify(message: str) -> str:
 
 def _check_world(raw: Any, diff: str) -> World:
     """The world must name every file the diff touches, with the diff's added lines at the right line numbers."""
+    raw, _ = _defang_world(raw)  # same stand-ins as the diff (idempotent)
     try:
         world = World.model_validate(raw)
     except ValidationError as e:
@@ -487,7 +586,13 @@ def _title_problem(title: str, rule_ids: set[str]) -> str | None:
 
 
 def validate_scenario(
-    raw: Any, rule_ids: set[str], taken: set[str], *, world_required: bool, seed: bool = False
+    raw: Any,
+    rule_ids: set[str],
+    taken: set[str],
+    *,
+    world_required: bool,
+    seed: bool = False,
+    rewritten: list[int] | None = None,
 ) -> tuple[Scenario, World | None]:
     """Validate one raw scenario (a dict shaped like the prompt's output). Raises ScenarioDrop.
 
@@ -497,9 +602,15 @@ def validate_scenario(
 
     `seed=True` is for the hand-written seeds: a rule in `must_not_flag` that the plan lacks is vacuous, so it is
     removed rather than failing the seed, and a clean seed may keep a (trimmed) `must_not_flag` list.
+
+    Any real-provider-format key in the diff or world is first rewritten to a made-up one of the same length
+    (see `defang_secrets`); if `rewritten` is given, the number of keys rewritten is appended to it.
     """
     if not isinstance(raw, dict):
         raise ScenarioDrop("shape", "not an object")
+    raw, n_rewritten = defang_raw(raw)
+    if rewritten is not None and n_rewritten:
+        rewritten.append(n_rewritten)
     trimmed: list[str] | None = None
     if seed:
         trimmed = [r for r in raw.get("must_not_flag") or [] if r in rule_ids]
@@ -787,6 +898,12 @@ async def _run(state: SusanooState) -> dict:
 
     acceptance = [s for s in state.get("scenarios", []) if s.split == "acceptance"]
     taken = {s.id for s in acceptance}
+    rewritten: list[int] = []  # real-looking keys replaced with made-up ones, per scenario
+    for i, card in enumerate(acceptance):
+        new_diff, found = defang_secrets(card.diff)
+        if found:
+            acceptance[i] = card.model_copy(update={"diff": new_diff})
+            rewritten.append(len(found))
 
     # seeds: the same checks as generated ones (a seed about a rule this plan lacks cannot be scored fairly)
     raw_seeds, unreadable = load_seeds(repo)
@@ -796,7 +913,9 @@ async def _run(state: SusanooState) -> dict:
     good_seeds: list[Scenario] = []
     for seed in raw_seeds:
         try:
-            checked, _ = validate_scenario(_seed_to_raw(seed), rule_ids, taken, world_required=False, seed=True)
+            checked, _ = validate_scenario(
+                _seed_to_raw(seed), rule_ids, taken, world_required=False, seed=True, rewritten=rewritten
+            )
         except ScenarioDrop as e:
             seed_drops[e.category] += 1
             log.warning("dropped seed %s: %s (%s)", seed.id, e.category, e.detail)
@@ -828,7 +947,7 @@ async def _run(state: SusanooState) -> dict:
         accepted_in_batch = 0
         for raw in items:
             try:
-                sc, world = validate_scenario(raw, rule_ids, taken, world_required=True)
+                sc, world = validate_scenario(raw, rule_ids, taken, world_required=True, rewritten=rewritten)
                 if accepted_in_batch >= len(batch):  # more than were asked for
                     raise ScenarioDrop("extra", f"{sc.id}: more scenarios than the {len(batch)} requested")
             except ScenarioDrop as e:
@@ -870,13 +989,23 @@ async def _run(state: SusanooState) -> dict:
             )
         else:
             parts.append(f"Skipped {n_seed_drops} of {n_seeds} starter examples ({_reasons(seed_drops)}).")
+    n_rewritten = sum(rewritten)
+    if n_rewritten:
+        parts.append(
+            f"Replaced {n_rewritten} real-looking key format{'' if n_rewritten == 1 else 's'} with "
+            f"{'a made-up one' if n_rewritten == 1 else 'made-up ones'} so the repo can be published."
+        )
     if parts:
         await emit(
             state,
             HEAD,
             "progress",
             " ".join(parts),
-            {"dropped_generated": n_dropped, "dropped_seeds": sum(seed_drops.values())},
+            {
+                "dropped_generated": n_dropped,
+                "dropped_seeds": sum(seed_drops.values()),
+                "keys_rewritten": n_rewritten,
+            },
         )
 
     pool = good_seeds + generated

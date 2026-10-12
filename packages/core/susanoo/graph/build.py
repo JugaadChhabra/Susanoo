@@ -12,6 +12,8 @@ resume.resume_run, and build the config with config.run_config(run_id).
 
 from __future__ import annotations
 
+import asyncio
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +28,7 @@ from susanoo.graph import stubs
 from susanoo.graph.pause import ALREADY_ANNOUNCED
 from susanoo.graph.state import GraphState
 from susanoo.guards import budget
+from susanoo.integrations import github, tracing
 from susanoo.schemas import Patch
 
 Head = Callable[[GraphState], Awaitable[dict]]
@@ -154,6 +157,53 @@ def _fixer_node(head: Head) -> Head:
     return node
 
 
+_GITHUB_HTTPS = "https://github.com/"
+_PUSH_TIMEOUT_S = 180.0
+
+
+async def _origin_url(repo: str) -> str | None:
+    """The repo's `origin` URL, or None when there is no repo, no origin or git fails."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-c", "core.fsmonitor=false", "remote", "get-url", "origin",
+            cwd=repo, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )  # fmt: skip
+        out, _ = await proc.communicate()
+    except OSError:
+        return None
+    return out.decode().strip() or None if proc.returncode == 0 else None
+
+
+async def _publish_at_end(state: GraphState) -> None:
+    """Push the generated repo's HEAD to its GitHub `origin`, so GitHub shows the agent, scenarios and fixes.
+
+    Skipped silently with no `repo_path`, no github.com `origin` or no token. A failed push emits ONE plain-English
+    progress event and never raises: the run still ends normally. The token never leaves `github.push_repo`.
+    """
+    repo = state.get("repo_path")
+    token = next((v.strip() for name in github.TOKEN_ENVS if (v := os.environ.get(name, "")).strip()), "")
+    if not repo or not token:
+        return
+    url = await _origin_url(str(repo))
+    if not url or not url.startswith(_GITHUB_HTTPS):
+        return
+    try:
+        await asyncio.wait_for(github.push_repo(repo, url, token), _PUSH_TIMEOUT_S)
+    except Exception as exc:  # never fail the run's ending over a publish
+        reason = tracing.scrub_text(str(exc).replace(token, "***")).strip() or type(exc).__name__
+        await emit(state, "system", "progress", f"Couldn't publish the latest version to GitHub: {reason}")
+
+
+def _done_node(head: Head) -> Head:
+    """Publish the finished repo to GitHub (best effort), then run the Done head."""
+
+    async def node(state: GraphState) -> dict:
+        await _publish_at_end(state)
+        return await head(state)
+
+    return node
+
+
 def _next(dst: str) -> Callable[[GraphState], str]:
     return lambda _state: dst
 
@@ -254,7 +304,7 @@ def build_graph(heads: Heads | None = None, checkpointer: BaseCheckpointSaver | 
     }
     for name, head in guarded_nodes.items():
         g.add_node(name, _guarded(name, head, graph_ref))
-    g.add_node(r.DONE, h.done)
+    g.add_node(r.DONE, _done_node(h.done))
 
     def edge(src: str, route: Callable[[GraphState], str], targets: list[str]) -> None:
         g.add_conditional_edges(src, _or_done(route), sorted({*targets, r.DONE}))

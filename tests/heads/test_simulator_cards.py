@@ -319,3 +319,19 @@ async def test_drafted_card_with_repeated_issue_is_dropped(fake):
     fake(json.dumps({"cards": [card(i) for i in range(1, 7)] + [dup]}))
     cards = await simulator.draft_cards(STATE)
     assert len(cards) == 6 and all(len(c.answer_key.expected) == 1 for c in cards)
+
+
+async def test_drafted_cards_never_keep_a_real_provider_key_format(fake):
+    token = "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc"
+    diff = (
+        "--- a/app/f1.py\n+++ b/app/f1.py\n@@ -10,3 +10,4 @@\n"
+        f' def f():\n     x = 1\n+    API_KEY = "{token}"\n     return x\n'
+    )
+    cards_raw = seven_cards()
+    cards_raw[0] = card(1, diff=diff)
+    fake(json.dumps({"cards": cards_raw}))
+    cards = await simulator.draft_cards(STATE)
+    assert token not in cards[0].diff
+    assert cards[0].diff.count("\n") == diff.count("\n") and len(cards[0].diff) == len(diff)
+    assert cards[0].answer_key.expected[0].line_start == 12
+    assert "pay_test_" in cards[0].diff

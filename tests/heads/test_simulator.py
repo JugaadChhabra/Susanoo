@@ -20,7 +20,7 @@ import pytest
 from susanoo.emit import InMemorySink, use_sink
 from susanoo.guards import budget
 from susanoo.heads import simulator
-from susanoo.integrations import llm
+from susanoo.integrations import llm, tracing
 from susanoo.schemas import AnswerKey, ExpectedIssue, Plan, Rule, Scenario
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -680,3 +680,104 @@ async def test_extra_scenarios_beyond_the_batch_size_are_dropped(repo, fake, sin
     assert len(new) == 24 and "sim-99" not in {s.id for s in new}
     msg = next(m for m in messages(sink, "progress") if m.startswith("Dropped"))
     assert "Dropped 2 of 24" in msg and "2 beyond the number asked for" in msg
+
+
+# --- planted secrets never use real provider key formats ---------------------------------------------------------
+
+FAKE_KEYS = {
+    "stripe": "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc",
+    "github": "gh" + "p_" + "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789",
+    "aws": "AK" + "IA" + "IOSFODNN7EXAMPLE",
+    "slack": "xo" + "xb-" + "1234567890-abcdefghij",
+    "google": "AI" + "za" + "SyA-1234567890abcdefghijklmnopqrstu",
+    "anthropic": "sk-" + "ant-" + "api03-abcdefghijklmnop",
+    "twilio": "S" + "K" + "0123456789abcdef0123456789abcdef",
+}
+_MADE_UP = re.compile(r"(?:pay|svc|acme)_[a-z_]*[0-9a-f]{6,}")
+
+
+def looks_like_a_key(text: str) -> bool:
+    """The reviewer's plain check: a long prefixed token that is not prose (here, the made-up prefixes)."""
+    return _MADE_UP.search(text) is not None
+
+
+def secret_diff(path: str, token: str) -> str:
+    header = f"--- a/{path}\n+++ b/{path}\n@@ -10,3 +10,4 @@\n"
+    return header + f' def f():\n     x = 1\n+    API_KEY = "{token}"\n     return x\n'
+
+
+def secret_world(path: str, token: str) -> dict:
+    lines = FILLER + ["def f():", "    x = 1", f'    API_KEY = "{token}"', "    return x"]
+    return {"files": {path: "\n".join(lines) + "\n"}, "notes": f"Holds {token}."}
+
+
+@pytest.mark.parametrize("name", sorted(FAKE_KEYS))
+def test_defang_replaces_a_real_key_format_with_a_same_length_made_up_one(name):
+    token = FAKE_KEYS[name]
+    out, found = simulator.defang_secrets(f'KEY = "{token}"\n')
+    assert found == {token}
+    new = out.split('"')[1]
+    assert len(new) == len(token) and new != token
+    assert looks_like_a_key(new)
+    assert simulator.defang_secrets(out) == (out, set())  # idempotent: the stand-in matches nothing
+    assert simulator.defang_secrets(f'KEY = "{token}"\n')[0] == out  # deterministic
+    assert not tracing.looks_secret_shaped(out)
+
+
+def test_defang_renames_a_pem_block_without_changing_its_line_count():
+    pem = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEabc\ndef==\n-----END RSA " + "PRIVATE KEY-----\n"
+    out, found = simulator.defang_secrets(pem)
+    assert len(found) == 1 and "PRIVATE KEY" not in out
+    assert out.count("\n") == pem.count("\n") and len(out) == len(pem)
+
+
+def test_defang_leaves_made_up_and_ordinary_text_alone():
+    text = 'API_KEY = "pay_live_9f8e7d6c5b4a39281706f5e4d3c2b1a0"\nask_test_flag = 1  # task_test_helpers\n'
+    assert simulator.defang_secrets(text) == (text, set())
+
+
+@pytest.mark.parametrize("name", ["stripe", "github", "aws"])
+def test_validate_scenario_rewrites_diff_and_world_consistently(name):
+    token = FAKE_KEYS[name]
+    path = "app/pay.py"
+    raw = {
+        "id": "sim-17",
+        "kind": "planted",
+        "title": "A developer hard-codes a key. Expected: blocked.",
+        "diff": secret_diff(path, token),
+        "expected": [{"file": path, "line_start": 12, "line_end": 12, "rule_id": "no-secrets", "severity": "block"}],
+        "must_not_flag": [],
+        "world": secret_world(path, token),
+    }
+    counts: list[int] = []
+    sc, world = simulator.validate_scenario(raw, RULE_IDS, set(), world_required=True, rewritten=counts)
+    assert counts == [1]
+    assert world is not None
+    assert token not in sc.diff and token not in world.files[path] and token not in world.notes
+    # the same stand-in in the diff and the world file, on the same (unchanged) line
+    line = world.files[path].splitlines()[11]
+    assert line in sc.diff and simulator.added_lines(sc.diff)[path][12] == line
+    assert looks_like_a_key(line)
+    assert sc.answer_key.expected[0].line_start == 12 == sc.answer_key.expected[0].line_end
+    assert len(sc.diff) == len(raw["diff"])
+
+
+async def test_run_rewrites_generated_scenarios_and_reports_it(repo, fake, sink):
+    token = FAKE_KEYS["stripe"]
+
+    def plant(items: list[dict]) -> list[dict]:
+        path = simulator_path(items[0])
+        items[0]["diff"] = secret_diff(path, token)
+        items[0]["world"] = secret_world(path, token)
+        return items
+
+    def simulator_path(item: dict) -> str:
+        return next(iter(item["world"]["files"]))
+
+    fake(mutate=plant)
+    out = await simulator.run(make_state(repo))
+    assert any("Replaced 1 real-looking key format with a made-up one so the repo can be published." == m
+               for m in messages(sink, "progress"))  # fmt: skip
+    assert all(token not in s.diff for s in out["scenarios"])
+    for path in (repo / "scenarios").rglob("*.json"):
+        assert token not in path.read_text(encoding="utf-8")
