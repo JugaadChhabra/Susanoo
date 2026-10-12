@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCw } from "lucide-react";
-import { createProject, listConnectors } from "@/lib/api";
+import { createProject, listConnectors, startRun, updateProjectRules } from "@/lib/api";
 import { connectionLabel, connectionStatusLabel } from "@/lib/connectors";
 import { EXAMPLE_SPECS, parseRules, rulesProblem, rulesToText, type ExampleSpec } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
@@ -22,6 +22,9 @@ export function NewProjectForm() {
   const [connectors, setConnectors] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set once the project is saved, so a failed run start doesn't create a second copy on retry.
+  const [saved, setSaved] = useState<{ id: string; spec: string; rules: string[] } | null>(null);
+  const savedId = saved?.id ?? null;
 
   function pickExample(next: ExampleSpec) {
     const changed = spec !== example.spec || rules !== rulesToText(example.rules);
@@ -46,11 +49,28 @@ export function NewProjectForm() {
     }
     setSending(true);
     setError(null);
+    const trimmed = spec.trim();
+    let projectId: string;
     try {
-      await createProject({ spec: spec.trim(), rules: parsed });
-      router.push("/projects");
+      if (!saved || saved.spec !== trimmed) {
+        // A changed spec is a different product, so it becomes its own project.
+        projectId = (await createProject({ spec: trimmed, rules: parsed })).id;
+      } else {
+        projectId = saved.id;
+        if (saved.rules.join("\n") !== parsed.join("\n")) await updateProjectRules(projectId, { rules: parsed });
+      }
+      setSaved({ id: projectId, spec: trimmed, rules: parsed });
     } catch (err) {
       setError(err instanceof Error ? err.message : "We couldn't create your project.");
+      setSending(false);
+      return;
+    }
+    try {
+      const run = await startRun(projectId);
+      router.push(`/runs/${encodeURIComponent(run.id)}/intake`);
+    } catch (err) {
+      const why = err instanceof Error ? err.message : "We couldn't start your run.";
+      setError(`Your project is saved, but the run didn't start. ${why}`);
       setSending(false);
     }
   }
@@ -99,7 +119,12 @@ export function NewProjectForm() {
 
       {error && (
         <p role="alert" className="text-sm text-red-600">
-          {error}
+          {error}{" "}
+          {savedId && (
+            <Link href="/projects" className="font-medium text-foreground underline underline-offset-2">
+              Go to your projects
+            </Link>
+          )}
         </p>
       )}
       <button
@@ -107,7 +132,7 @@ export function NewProjectForm() {
         disabled={sending}
         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-5 text-sm font-medium text-background hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 sm:w-auto"
       >
-        {sending && <Loader2 className="size-4 animate-spin" aria-hidden />} Start
+        {sending && <Loader2 className="size-4 animate-spin" aria-hidden />} {savedId ? "Try starting again" : "Start"}
       </button>
     </form>
   );

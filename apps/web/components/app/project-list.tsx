@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, Plus, RotateCw } from "lucide-react";
-import { listProjects, updateProjectRules } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { Loader2, Play, Plus, RotateCw } from "lucide-react";
+import { listProjects, startRun, updateProjectRules } from "@/lib/api";
 import { formatCost, formatScore, parseRules, rulesProblem, rulesToText, runStatusLabel } from "@/lib/projects";
 import { useAsync } from "@/lib/use-async";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,10 @@ function ProjectCard({ project, onSaved }: { project: ProjectSummary; onSaved: (
     <li className="min-w-0 rounded-xl border border-border p-4">
       <h2 className="font-semibold break-words">{project.name}</h2>
       <RulesEditor project={project} onSaved={onSaved} />
-      <h3 className="mt-4 text-sm font-medium">Runs</h3>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-medium">Runs</h3>
+        <StartRunButton projectId={project.id} />
+      </div>
       {project.runs.length === 0 ? (
         <p className="mt-1 text-sm text-muted-foreground">No runs yet.</p>
       ) : (
@@ -189,6 +193,38 @@ function RulesEditor({ project, onSaved }: { project: ProjectSummary; onSaved: (
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Start another run of this project, then go answer its questions. Quota refusals come back in plain English. */
+function StartRunButton({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function start() {
+    setStarting(true);
+    setError(null);
+    try {
+      const run = await startRun(projectId);
+      router.push(`/runs/${encodeURIComponent(run.id)}/intake`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "We couldn't start a run.");
+      setStarting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button type="button" onClick={start} disabled={starting} className={outlineButton}>
+        {starting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />} Start a new run
+      </button>
+      {error && (
+        <p role="alert" className="max-w-xs text-right text-sm text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
