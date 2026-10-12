@@ -1,21 +1,18 @@
 /**
  * Agent page rules ([PRD › Non-technical users], [PRD › Frontend (marketing site + app) and API]).
- * API data uses the generated shapes; only the "Try it" request is ours (the PRD names no route for it).
+ * API data uses the generated shapes; only the "Try it" request body is typed here.
  */
-import type { FeedbackIn, Finding, ProjectSummary, ReportCard, RunStatus } from "@/types/generated";
+import type { FeedbackIn, Finding, ProjectSummary, ReportCard, RunStatus, TryResult } from "@/types/generated";
+
+export type { TryResult };
 
 /** What the preview panel needs: the run's preview URL and its project's repo link. */
 export type AgentRunInfo = Pick<RunStatus, "preview_url"> & Pick<ProjectSummary, "repo_url">;
 
 export type Rating = "up" | "down";
 
-/** Body for `POST /runs/{id}/try`, our assumption (flagged for Muaaz); the API may not serve it yet. */
+/** Body for `POST /runs/{id}/try`. The API reviews diffs; a PR is answered with a plain-English 422 for now. */
 export type TryInput = { kind: "diff"; diff: string } | { kind: "pr"; pr: string };
-
-export interface TryResult {
-  summary: string;
-  findings: Finding[];
-}
 
 export const MAX_DIFF_CHARS = 20000;
 

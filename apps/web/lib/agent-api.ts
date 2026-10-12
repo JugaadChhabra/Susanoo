@@ -82,13 +82,14 @@ export async function submitFeedback(runId: string, feedback: FeedbackIn): Promi
 }
 
 /**
- * True when the API has no "try it" route yet, so the page can say so instead of showing an error. FastAPI
- * answers an unknown route with a bare "Not Found"; a missing run has its own plain-English 404.
+ * True only when the API has no "try it" route (an older deploy), so the page can say so instead of showing an
+ * error. FastAPI answers an unknown route with a bare "Not Found"; a missing run has its own plain-English 404, and
+ * an asleep or failing preview is a 503 whose message the page shows as is.
  */
 export const isTryUnavailable = (e: unknown) =>
   e instanceof ApiError && (e.status === 405 || (e.status === 404 && e.message === "Not Found"));
 
-/** The PRD has no "try it" route; `POST /runs/{id}/try` is our assumption, flagged for Muaaz. */
+/** `POST /runs/{id}/try`: the API forwards the diff to the run's live preview and returns what the agent found. */
 export async function tryAgent(runId: string, input: TryInput): Promise<TryResult> {
   if (isMockAgent(runId)) {
     await delay(800);
