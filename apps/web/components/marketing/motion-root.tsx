@@ -20,9 +20,13 @@ export function MotionRoot() {
             observer.unobserve(el);
           } else if (entry.boundingClientRect.top >= window.innerHeight) {
             // Before hydration nothing was paused, so rewind what already played out of sight to its first frame,
-            // including anything in its [data-reveal-scope] that waits on it.
+            // including anything in its [data-reveal-scope] that waits on it. Only reveals: anything else inside (the
+            // demo band's replay) keeps its own timeline.
             const scope = el.closest("[data-reveal-scope]") ?? el;
-            for (const animation of scope.getAnimations({ subtree: true })) animation.currentTime = 0;
+            for (const animation of scope.getAnimations({ subtree: true })) {
+              const target = (animation.effect as KeyframeEffect | null)?.target;
+              if (target?.matches(".mk-anim")) animation.currentTime = 0;
+            }
           }
         }
       },

@@ -324,15 +324,16 @@
 /* Pricing (motion spec §2). In view, the cards press in at --i × 110ms with the featured plan last, landing harder
    from scale 1.22; on its impact (55% of the press) the grid shakes and its badge slams 200ms later. Each card's
    features fade in after it lands, 40ms apart and capped at 8. The price is never animated on its own. */
+#pricing { --plan-step: 110ms; --press-impact: 0.55; /* where mk-press hits the paper */ }
 .mk-plan {
-  --at: calc(var(--i) * 110ms);
-  --impact: calc(var(--at) + var(--dur-press) * 0.55);
+  --at: calc(var(--i) * var(--plan-step));
+  --impact: calc(var(--at) + var(--dur-press) * var(--press-impact));
   animation: mk-press var(--dur-press) var(--at) both;
 }
 .mk-plan-featured { --press-from: 1.22; }
 .mk-plan-badge { --slam-from: 1.6; --slam-under: 0.94; animation: mk-slam 380ms calc(var(--impact) + 200ms) both; }
 .mk-plan-feature { animation: mk-fade 200ms var(--ease-ink) calc(var(--impact) + min(var(--i), 8) * 40ms) both; }
-.mk-plans-shake { animation: mk-shake 180ms calc(var(--last) * 110ms + var(--dur-press) * 0.55) both; }
+.mk-plans-shake { animation: mk-shake 180ms calc(var(--last) * var(--plan-step) + var(--dur-press) * var(--press-impact)) both; }
 
 /* DemoBand (motion spec §2). In view, the vermilion block settles in and its 12px ink offset shadow grows out from
    under it, on an ::after layer like the Telegram form's; "Open full screen" presses in at 400ms. The replay inside
@@ -342,7 +343,7 @@
 .mk-demo-shadow::after { animation: mk-offset-grow 400ms var(--ease-ink) 200ms both; }
 .mk-demo-open { animation: mk-press 300ms 400ms both; }
 
-/* Header (motion spec §2). Nav links draw an underline from the left on hover. */
+/* Header (motion spec §2). Nav links draw an underline from the left on hover, and on keyboard focus to match. */
 .mk-nav-link { position: relative; }
 .mk-nav-link::after {
   content: "";
@@ -355,6 +356,7 @@
   transition: scale var(--dur-hover) var(--ease-snap);
   pointer-events: none;
 }
+.mk-nav-link:focus-visible::after { scale: 1 1; }
 @media (hover: hover) {
   .mk-nav-link:hover::after { scale: 1 1; }
 }

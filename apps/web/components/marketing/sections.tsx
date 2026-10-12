@@ -379,6 +379,10 @@ export function Connectors() {
   );
 }
 
+/** The order the plans press in: the featured plan lands last, whatever its place in the grid. */
+const PLAN_ORDER = [...PLANS.filter((p) => !p.featured), ...PLANS.filter((p) => p.featured)];
+const LAST_FEATURED = PLAN_ORDER.findLastIndex((p) => p.featured);
+
 /** Free / Team / Enterprise, inline on the landing page. Prices stay blank or "Contact us" until the cfo.ai model sets them. [PRD › Business model (inputs for cfo.ai)] */
 export function Plans() {
   return (
@@ -391,17 +395,16 @@ export function Plans() {
         {/* The featured plan presses in last, so it takes the last slot in the stagger and the rest close up. */}
         <div data-reveal>
           <ul
-            className="mk-anim mk-plans-shake m-0 grid list-none gap-7 p-0 lg:grid-cols-3"
-            style={{ "--last": PLANS.length - 1 } as CSSProperties}
+            className={cn("m-0 grid list-none gap-7 p-0 lg:grid-cols-3", LAST_FEATURED >= 0 && "mk-anim mk-plans-shake")}
+            style={{ "--last": LAST_FEATURED } as CSSProperties}
           >
             {PLANS.map((plan) => {
               const { featured } = plan;
-              const order = featured ? PLANS.length - 1 : PLANS.filter((p) => !p.featured).indexOf(plan);
               return (
                 <li
                   key={plan.name}
                   className={cn("mk-anim mk-plan mk-lift", featured && "mk-plan-featured mk-lift-mustard")}
-                  style={{ "--i": order } as CSSProperties}
+                  style={{ "--i": PLAN_ORDER.indexOf(plan) } as CSSProperties}
                 >
                   <Stamp tone={featured ? "mustard" : "paper"} className="h-full">
                     <StampFace tone={featured ? "ink" : "light"} as="article" className="flex h-full flex-col gap-4 p-7">
