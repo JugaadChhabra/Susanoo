@@ -670,3 +670,12 @@ async def test_failed_card_drafting_reports_the_cost_in_the_error_event(fake, si
         await planner_mod.intake(state())
     error = [e for e in sink.events if e.type == "error"][0]
     assert error.payload["cost_usd"] == pytest.approx(0.2)  # intake call + card call
+
+
+def test_cards_only_unattended_keeps_questions_attended(monkeypatch):
+    monkeypatch.delenv("SUSANOO_UNATTENDED", raising=False)
+    monkeypatch.setenv("SUSANOO_UNATTENDED_CARDS", "1")
+    assert not planner_mod.unattended()
+    assert planner_mod.unattended_cards()
+    monkeypatch.delenv("SUSANOO_UNATTENDED_CARDS")
+    assert not planner_mod.unattended_cards()

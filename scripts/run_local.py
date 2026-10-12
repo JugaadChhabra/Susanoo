@@ -6,10 +6,16 @@ Uses the real heads (`real_heads()`), an in-memory checkpointer and an in-memory
 prints each event as it happens. Needs ANTHROPIC_API_KEY (and GITHUB_ORG/GITHUB_ORG_TOKEN for the Builder to
 publish the repo; without them it stays local). NEATLOGS_API_KEY makes the traces real.
 
-Pauses are answered without a human:
+Pauses are answered without a human by default:
 - intake runs unattended (SUSANOO_UNATTENDED=1): suggested defaults, and drafted cards are NOT marked as
   approved by a user;
 - a test-layer HumanGate is always REJECTED: this script never approves a test change on anyone's behalf.
+
+`--answer "keyword=option text"` (repeatable) gives a person's intake answers instead: for each question
+whose text contains `keyword` (case-insensitive), the option containing `option text` is chosen
+(`option text!word,word` also excludes options containing any of those words); other questions keep their
+defaults. Cards then stay unattended (kept, not marked approved). `--gate-file PATH` makes a test-layer gate
+wait for a person: the script writes PATH.question.json and waits for PATH containing {"approved": true|false}.
 """
 
 from __future__ import annotations
@@ -37,19 +43,59 @@ class PrintingSink(InMemorySink):
         return event
 
 
-def auto_answer(payload: dict) -> object:
+def pick_answers(questions: list[dict], rules: list[tuple[str, str]]) -> dict[str, str]:
+    answers: dict[str, str] = {}
+    for q in questions:
+        for keyword, spec in rules:
+            if keyword.lower() in q.get("text", "").lower():
+                wanted, _, excluded = spec.partition("!")
+                avoid = [x.strip().lower() for x in excluded.split(",") if x.strip()]
+                match = [
+                    o
+                    for o in q.get("options", [])
+                    if wanted.lower() in o.lower() and not any(x in o.lower() for x in avoid)
+                ]
+                if match:
+                    answers[q["id"]] = min(match, key=len)  # the plainest option that says it
+                    print(f"     answer: {q['text']} -> {answers[q['id']]}", flush=True)
+                break
+    return answers
+
+
+async def wait_for_gate(payload: dict, gate_file: Path) -> dict:
+    gate_file.with_suffix(".question.json").write_text(json.dumps(payload, indent=2, default=str))
+    print(
+        f'     WAITING for a person\'s decision on a test change: write {{"approved": true|false}} to {gate_file}',
+        flush=True,
+    )
+    while not gate_file.exists():
+        await asyncio.sleep(5)
+    decision = json.loads(gate_file.read_text())
+    gate_file.unlink()
+    return {"approved": decision.get("approved") is True}
+
+
+async def auto_answer(payload: dict, rules: list[tuple[str, str]], gate_file: Path | None) -> object:
     kind = payload.get("kind")
     if kind == "questions":
-        return {"answers": {}}  # every suggested default
+        return {"answers": pick_answers(payload.get("questions", []), rules)}  # unmatched -> defaults
     if kind == "scenarios":
         return {"approved_ids": [], "rejected_ids": []}  # nobody is here to approve cards
     if kind == "gate":
+        if gate_file is not None:
+            return await wait_for_gate(payload, gate_file)
         return {"approved": False}  # never approve a test change on a human's behalf
     raise ValueError(f"Unknown pause: {payload!r}")
 
 
-async def run(spec_path: Path, run_id: str, out: Path | None) -> int:
-    os.environ.setdefault("SUSANOO_UNATTENDED", "1")
+async def run(
+    spec_path: Path, run_id: str, out: Path | None, rules: list[tuple[str, str]], gate_file: Path | None
+) -> int:
+    if rules:
+        os.environ["SUSANOO_UNATTENDED_CARDS"] = "1"  # a person answered; nobody reviews the cards
+        os.environ.pop("SUSANOO_UNATTENDED", None)
+    else:
+        os.environ.setdefault("SUSANOO_UNATTENDED", "1")
     tracing.setup()
     sink = PrintingSink()
     graph = build_graph(real_heads(), checkpointer=memory_checkpointer())
@@ -63,7 +109,7 @@ async def run(spec_path: Path, run_id: str, out: Path | None) -> int:
             while result.get("__interrupt__"):
                 payload = result["__interrupt__"][0].value
                 print(f"     (pause: {payload.get('kind')}; answering without a human)", flush=True)
-                result = await resume_run(graph, run_id, auto_answer(payload), config=config)
+                result = await resume_run(graph, run_id, await auto_answer(payload, rules, gate_file), config=config)
         except Exception as exc:  # report, keep the evidence, exit non-zero
             error = f"{type(exc).__name__}: {tracing.scrub_text(str(exc))}"
             print(f"\nRUN FAILED: {error}", flush=True)
@@ -119,8 +165,11 @@ def main() -> None:
     ap.add_argument("spec", type=Path)
     ap.add_argument("--run-id", default="local-1")
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--answer", action="append", default=[], help='"keyword=option text" (repeatable)')
+    ap.add_argument("--gate-file", type=Path)
     args = ap.parse_args()
-    sys.exit(asyncio.run(run(args.spec, args.run_id, args.out)))
+    rules = [tuple(a.split("=", 1)) for a in args.answer]
+    sys.exit(asyncio.run(run(args.spec, args.run_id, args.out, rules, args.gate_file)))
 
 
 if __name__ == "__main__":

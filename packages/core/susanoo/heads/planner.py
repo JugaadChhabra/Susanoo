@@ -48,6 +48,8 @@ from susanoo.schemas import Plan, Scenario
 
 HEAD = "planner"
 UNATTENDED_ENV = "SUSANOO_UNATTENDED"
+# Questions answered by a person, but nobody is there to approve the cards: they are kept, marked not approved.
+UNATTENDED_CARDS_ENV = "SUSANOO_UNATTENDED_CARDS"
 MAX_QUESTIONS = 5
 
 _PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
@@ -71,6 +73,11 @@ class PlanValidationError(ValueError):
 def unattended() -> bool:
     """True when the run must not wait for a human (defaults are used and logged)."""
     return os.environ.get(UNATTENDED_ENV, "").strip().lower() in ("1", "true", "yes")
+
+
+def unattended_cards() -> bool:
+    """True when nobody will review the example scenarios (fully unattended, or cards-only unattended)."""
+    return unattended() or os.environ.get(UNATTENDED_CARDS_ENV, "").strip().lower() in ("1", "true", "yes")
 
 
 def load_prompt(name: str) -> str:
@@ -311,7 +318,7 @@ def apply_review(cards: list[Scenario], reply: Any) -> tuple[list[Scenario], lis
 async def scenario_approval(state: GraphState) -> dict:
     """Pause so the user can approve, edit or reject each example scenario. [PRD › Intake › Scenario approval]"""
     cards = list(state.get("scenarios", []))
-    if unattended():
+    if unattended_cards():
         await emit(state, HEAD, "started", "Running without anyone watching, so I will keep the example scenarios…")
         kept = [c.model_copy(update={"split": "acceptance", "approved_by_user": False}) for c in cards]
         rejected: list[str] = []
