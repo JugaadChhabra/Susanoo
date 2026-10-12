@@ -10,6 +10,18 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  /* Stamp design system: colour and font utilities (bg-paper, text-ink, font-stamp, ...). */
+  --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-vermilion: var(--vermilion);
+  --color-jade: var(--jade);
+  --color-mustard: var(--mustard);
+  --font-stamp: var(--font-dela), "Arial Black", sans-serif;
+  --font-mincho: var(--font-shippori), "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-body: var(--font-plex-condensed), "Arial Narrow", sans-serif;
+  --font-label: var(--font-plex-mono), ui-monospace, Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +61,17 @@
 }
 
 :root {
+  /* Stamp palette. Source: the landing-page mockup (design/stamp-ui). */
+  --paper: #F4EBD8;
+  --canvas: #EDE3CF;
+  --ink: #1B1A17;
+  --vermilion: #C2321B;
+  --jade: #7DBAAA;
+  --mustard: #EBC23A;
+  --paper-light: #FBF6EA;
+  --paper-dim: #E4D9C2;
+  --ink-muted: #4A453A;
+  --ink-on-dark: #D9CFBB;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -140,20 +163,45 @@
   .react-flow__edge.animated path { animation: none !important; }
 }
 
-/* Marketing site palette: storm-sea tones. [PRD › Frontend (marketing site + app) and API › Surface 1: Marketing site] */
+/* Marketing site: the stamp look. The --mk-* names are kept as aliases so every marketing page follows the palette.
+   [PRD › Frontend (marketing site + app) and API › Surface 1: Marketing site] */
 .mk {
-  --mk-mist: #eef1f4;
-  --mk-ink: #14202b;
-  --mk-storm: #2f4a63;
-  --mk-tide: #0e7c86;
-  --mk-tide-soft: #7fd3d9;
-  --mk-rule: #c9d2db;
-  --mk-amber: #8a5a12;
-  background: var(--mk-mist);
-  color: var(--mk-ink);
+  --mk-mist: var(--canvas);
+  --mk-ink: var(--ink);
+  --mk-storm: var(--ink-muted);
+  --mk-tide: var(--vermilion);
+  --mk-tide-soft: var(--mustard);
+  --mk-rule: rgb(27 26 23 / 0.35);
+  --mk-amber: var(--ink-muted);
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.5;
 }
 .mk-display {
-  font-family: var(--font-display), var(--font-geist-sans), sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-family: var(--font-stamp);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Perforated stamp edge: a radial mask punches half-circles along every side. --r is the hole radius. */
+.perf {
+  --r: 7px;
+  -webkit-mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)),
+    linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+  mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)),
+    linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+}
+.perf-sm {
+  --r: 5px;
+}
+/* Faint halftone dots, as on the paper behind the stamps. */
+.dots {
+  background-image: radial-gradient(rgb(27 26 23 / 0.1) 1px, transparent 1.3px);
+  background-size: 5px 5px;
+}
+.vert {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
 }

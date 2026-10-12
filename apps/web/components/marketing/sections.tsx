@@ -3,10 +3,16 @@ import { cn } from "@/lib/utils";
 import { DemoReplay } from "@/components/app/demo-replay";
 import { CONNECTORS, REPO_URL, TRUST_POINTS, USE_CASES } from "@/lib/marketing";
 import { PROOF_RUN, proofStats, traceUrl } from "@/lib/proof";
+import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
+import { SerpentStamp } from "./serpent-stamp";
 import { FOCUS_RING } from "./site-chrome";
 
-const PRIMARY = `inline-flex h-12 items-center justify-center rounded-full bg-[var(--mk-ink)] px-6 font-medium text-white hover:bg-[var(--mk-storm)] ${FOCUS_RING}`;
-const SECONDARY = `inline-flex h-12 items-center justify-center rounded-full border border-[var(--mk-ink)] px-6 font-medium text-[var(--mk-ink)] hover:bg-white ${FOCUS_RING}`;
+const PRIMARY = `inline-flex items-center justify-center rounded-[2px] bg-vermilion px-7 py-4 text-lg font-semibold text-paper hover:bg-ink ${FOCUS_RING}`;
+const SECONDARY = `inline-flex items-center justify-center rounded-[2px] border-2 border-ink px-[26px] py-3.5 text-lg font-semibold text-ink hover:bg-paper ${FOCUS_RING}`;
+
+/** Page gutters shared by every section. */
+const GUTTER = "mx-auto w-full max-w-[1280px] px-[clamp(20px,4vw,48px)]";
+const EYEBROW = "font-label text-sm tracking-[0.14em] uppercase";
 
 /** The spec from the hero use case, word for word. [PRD › Hero use case: the code review agent] */
 const EXAMPLE_SPEC =
@@ -16,11 +22,11 @@ function StatusTag({ live, label }: { live: boolean; label: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-        live ? "bg-[var(--mk-tide)] text-white" : "border border-[var(--mk-amber)] text-[var(--mk-amber)]",
+        "inline-flex items-center gap-1.5 self-start px-2 py-0.5 font-label text-xs tracking-[0.12em] uppercase",
+        live ? "bg-vermilion text-paper" : "border border-ink text-ink",
       )}
     >
-      {live && <span aria-hidden className="size-1.5 rounded-full bg-white" />}
+      {live && <span aria-hidden className="size-1.5 rounded-full bg-paper" />}
       {label}
     </span>
   );
@@ -28,44 +34,105 @@ function StatusTag({ live, label }: { live: boolean; label: string }) {
 
 export function Hero() {
   return (
-    <section aria-labelledby="hero-heading" className="mx-auto grid w-full max-w-6xl gap-12 px-4 pt-16 pb-20 sm:px-6 sm:pt-24 lg:grid-cols-[1.15fr_1fr] lg:gap-16 lg:pb-28">
-      <div>
-        <h1 id="hero-heading" className="mk-display text-[2.6rem] leading-[1.02] sm:text-6xl lg:text-7xl">
-          AI agents are a many-headed mess. Susanoo tames them.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-[var(--mk-storm)]">
-          Describe the agent you need in plain English. Susanoo builds it into a working app, attacks it with test cases,
-          works out why it fails, fixes the part that broke and proves the fix with traces.
-        </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link href="/projects/new" className={PRIMARY}>
-            Start building
-          </Link>
-          <Link href="/demo" className={SECONDARY}>
-            Watch the demo
-          </Link>
+    <section
+      aria-labelledby="hero-heading"
+      className={`${GUTTER} flex flex-wrap items-center gap-16 pt-16 pb-20 sm:pt-[88px] sm:pb-24`}
+    >
+      <div className="flex min-w-0 flex-[1_1_520px] gap-8">
+        <div
+          aria-hidden
+          className="vert hidden self-start border-[3px] border-vermilion px-2 py-3.5 font-mincho text-[30px] leading-[1.1] font-extrabold text-vermilion sm:block"
+        >
+          八岐退治
+        </div>
+        <div className="flex min-w-0 flex-col gap-7">
+          <p className={EYEBROW}>No. 001 · Issued for neatHack 2026</p>
+          <h1
+            id="hero-heading"
+            className="mk-display text-[clamp(34px,4.4vw,60px)] leading-[1.02] [overflow-wrap:anywhere] sm:[overflow-wrap:normal]"
+          >
+            AI agents are a many-headed mess. <span className="text-vermilion">Susanoo tames them.</span>
+          </h1>
+          <p className="max-w-[34em] text-[21px] leading-normal">
+            Describe the agent you need in plain English. Susanoo builds it into a working app, attacks it with test cases,
+            works out why it fails, fixes the part that broke and proves the fix with traces.
+          </p>
+          <div className="flex flex-wrap gap-3.5">
+            <Link href="/projects/new" className={PRIMARY}>
+              Start building
+            </Link>
+            <Link href="/demo" className={SECONDARY}>
+              Watch the demo
+            </Link>
+          </div>
         </div>
       </div>
-
-      <figure className="self-end rounded-2xl border border-[var(--mk-rule)] bg-white p-6 shadow-[0_24px_60px_-30px_rgb(20_32_43/0.35)] sm:p-8">
-        <figcaption className="text-sm text-[var(--mk-storm)]">You write a spec like this one</figcaption>
-        <blockquote className="mt-4 text-[1.05rem] leading-relaxed text-[var(--mk-ink)]">{EXAMPLE_SPEC}</blockquote>
-        <p className="mt-6 border-t border-[var(--mk-rule)] pt-4 text-sm leading-relaxed text-[var(--mk-storm)]">
-          You get a code reviewer with its own web page and repo, tested against diffs with planted bugs, and a report of
-          what it caught before and after each fix.
-        </p>
-      </figure>
+      <div className="min-w-0 flex-[1_1_420px]">
+        <SerpentStamp />
+      </div>
     </section>
   );
 }
 
-function SectionIntro({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+/** The example spec and what comes back, set as a telegram on a dark band. */
+export function Telegram() {
   return (
-    <div className="max-w-2xl">
-      <h2 id={id} className="mk-display text-3xl leading-tight sm:text-5xl">
+    <section aria-labelledby="spec-heading" className="bg-ink px-[clamp(20px,4vw,48px)] py-20 text-paper">
+      <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-12">
+        <div className="flex flex-[1_1_340px] flex-col gap-4">
+          <p aria-hidden className="font-mincho text-[22px] font-extrabold text-mustard">
+            電報 · Telegram
+          </p>
+          <h2 id="spec-heading" className="mk-display text-[clamp(30px,3.4vw,42px)] leading-[1.08]">
+            You write a spec like this one
+          </h2>
+          <p className="text-[19px] text-ink-on-dark">
+            You get a code reviewer with its own web page and repo, tested against diffs with planted bugs, and a report of
+            what it caught before and after each fix.
+          </p>
+        </div>
+        <figure
+          aria-labelledby="spec-heading"
+          className="m-0 min-w-0 flex-[1_1_560px] border-2 border-paper bg-paper text-ink shadow-[10px_10px_0_var(--vermilion)]"
+        >
+          <div className="flex items-center justify-between gap-3 bg-vermilion px-5 py-2.5 text-paper">
+            <span aria-hidden className="mk-display text-lg tracking-[0.1em]">
+              SPEC FORM 01
+            </span>
+            <span aria-hidden className="font-label text-[13px]">
+              TO: SUSANOO · FROM: YOUR TEAM
+            </span>
+          </div>
+          <blockquote
+            className="m-0 px-6 py-[22px] font-label text-base leading-8"
+            style={{ backgroundImage: "repeating-linear-gradient(transparent 0 31px, rgb(27 26 23 / 0.18) 31px 32px)" }}
+          >
+            {EXAMPLE_SPEC}
+          </blockquote>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function SectionIntro({
+  id,
+  title,
+  eyebrow,
+  children,
+}: {
+  id: string;
+  title: string;
+  eyebrow?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex max-w-[700px] flex-col gap-3">
+      {eyebrow && <p className={EYEBROW}>{eyebrow}</p>}
+      <h2 id={id} className="mk-display text-[clamp(32px,4vw,52px)] leading-[1.04]">
         {title}
       </h2>
-      <p className="mt-4 text-lg leading-relaxed text-[var(--mk-storm)]">{children}</p>
+      {children && <p className="text-[19px] leading-relaxed">{children}</p>}
     </div>
   );
 }
@@ -74,74 +141,83 @@ export function Proof() {
   const stats = proofStats(PROOF_RUN.before, PROOF_RUN.after);
   const template = process.env.NEXT_PUBLIC_NEATLOGS_TRACE_URL_TEMPLATE;
   return (
-    <section id="proof" aria-labelledby="proof-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <SectionIntro id="proof-heading" title="Before and after a fix, from a real run">
-          In a test round, the code reviewer Susanoo built let an access token typed into code slip through. Susanoo
-          traced the miss to the agent&apos;s instructions, changed three lines and kept the change only after every test
-          was rerun. These are the scores either side of that fix.
-        </SectionIntro>
-        <dl className="mt-12 grid gap-6 sm:grid-cols-3">
+    <section
+      id="proof"
+      aria-labelledby="proof-heading"
+      className="border-y-[3px] border-ink bg-jade px-[clamp(20px,4vw,48px)] py-20 sm:py-24"
+    >
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-11">
+        <div className="relative">
+          <SectionIntro id="proof-heading" title="Before and after a fix, from a real run" eyebrow="From a real run">
+            In a test round, the code reviewer Susanoo built let an access token typed into code slip through. Susanoo
+            traced the miss to the agent&apos;s instructions, changed three lines and kept the change only after every test
+            was rerun. These are the scores either side of that fix.
+          </SectionIntro>
+          <HankoSeal char="検証済" label="VERIFIED" rotate={10} className="absolute top-0 right-2 hidden lg:inline-flex" />
+        </div>
+        <dl className="grid gap-8 sm:grid-cols-3">
           {stats.map((s) => (
-            <div key={s.label} className="rounded-2xl border border-[var(--mk-rule)] bg-white p-6">
-              <dt className="text-sm font-medium text-[var(--mk-storm)]">{s.label}</dt>
-              <dd className="mt-3 flex items-baseline gap-3">
-                <span className="text-xl text-[var(--mk-storm)] line-through decoration-1" aria-label={`before ${s.before}`}>
-                  {s.before}
-                </span>
-                <span aria-hidden className="text-[var(--mk-storm)]">
-                  →
-                </span>
-                <span className="mk-display text-4xl text-[var(--mk-ink)]" aria-label={`after ${s.after}`}>
-                  {s.after}
-                </span>
-              </dd>
-              <dd className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{s.note}</dd>
-            </div>
+            <Stamp key={s.label} className="p-4">
+              <StampFace className="flex h-full flex-col gap-2.5 p-6">
+                <dt className="font-label text-[13px] tracking-[0.14em] uppercase">{s.label}</dt>
+                <dd className="m-0 flex flex-wrap items-baseline gap-3">
+                  <span className="font-label text-xl line-through decoration-1" aria-label={`before ${s.before}`}>
+                    {s.before}
+                  </span>
+                  <span aria-hidden>→</span>
+                  <span className="mk-display text-5xl text-vermilion" aria-label={`after ${s.after}`}>
+                    {s.after}
+                  </span>
+                </dd>
+                <dd className="m-0 text-base leading-snug font-medium">{s.note}</dd>
+              </StampFace>
+            </Stamp>
           ))}
         </dl>
-        <p className="mt-6 max-w-3xl text-sm leading-relaxed text-[var(--mk-storm)]">
+        <p className="max-w-3xl text-base leading-relaxed">
           Both rounds score the same 28 tests. No new false alarms, and the hidden-test score held steady rather than
           rising: the one hidden test it still misses stays hidden from the heads that fix it, so they can&apos;t tune
           the agent to it. The whole run cost ${PROOF_RUN.totalCostUsd.toFixed(2)} in model calls.
         </p>
-        <ul className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          {PROOF_RUN.traces.map((t) => {
-            const href = traceUrl(template, t.traceId);
-            return (
-              <li key={t.traceId} className="text-sm">
-                {href ? (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`inline-flex min-h-11 items-center rounded-full border border-[var(--mk-ink)] px-4 font-medium text-[var(--mk-ink)] hover:bg-white ${FOCUS_RING}`}
-                  >
-                    {t.label}: open the neatlogs trace
-                    <span className="sr-only"> (opens neatlogs; needs a team sign-in)</span>
-                  </a>
-                ) : (
-                  <span className="text-[var(--mk-storm)]">
-                    {t.label}: neatlogs trace <code className="break-all font-mono text-xs">{t.traceId}</code>
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        <p className="mt-3 max-w-3xl text-xs leading-relaxed text-[var(--mk-storm)]">
-          neatlogs traces are private to the Susanoo team&apos;s workspace, so the links ask for a sign-in. Screenshots of
-          both traces are in{" "}
-          <a
-            href={`${REPO_URL}/blob/main/EVIDENCE.md`}
-            target="_blank"
-            rel="noreferrer"
-            className={`underline underline-offset-2 hover:text-[var(--mk-ink)] ${FOCUS_RING}`}
-          >
-            the repo&apos;s evidence file
-          </a>
-          .
-        </p>
+        <div>
+          <ul className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {PROOF_RUN.traces.map((t) => {
+              const href = traceUrl(template, t.traceId);
+              return (
+                <li key={t.traceId} className="text-sm">
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`inline-flex min-h-11 items-center rounded-[2px] border-2 border-ink bg-paper px-4 font-semibold text-ink hover:bg-ink hover:text-paper ${FOCUS_RING}`}
+                    >
+                      {t.label}: open the neatlogs trace
+                      <span className="sr-only"> (opens neatlogs; needs a team sign-in)</span>
+                    </a>
+                  ) : (
+                    <span>
+                      {t.label}: neatlogs trace <code className="font-label text-xs break-all">{t.traceId}</code>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed">
+            neatlogs traces are private to the Susanoo team&apos;s workspace, so the links ask for a sign-in. Screenshots of
+            both traces are in{" "}
+            <a
+              href={`${REPO_URL}/blob/main/EVIDENCE.md`}
+              target="_blank"
+              rel="noreferrer"
+              className={`underline underline-offset-2 hover:text-vermilion ${FOCUS_RING}`}
+            >
+              the repo&apos;s evidence file
+            </a>
+            .
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -151,87 +227,40 @@ export function UseCases() {
   const live = USE_CASES.filter((u) => u.live);
   const later = USE_CASES.filter((u) => !u.live);
   return (
-    <section id="use-cases" aria-labelledby="use-cases-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <SectionIntro id="use-cases-heading" title="Start with code review">
-          Any team can turn a manual workflow into an agent they can trust. We started where the answers are easiest to
-          check: reviewing code against your team&apos;s rules.
-        </SectionIntro>
-        <div className="mt-12 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <div className="grid gap-6">
-            {live.map((u) => (
-              <article key={u.title} className="rounded-2xl bg-[var(--mk-ink)] p-8 text-white">
-                <StatusTag live label="Live now" />
-                <h3 className="mk-display mt-6 text-3xl">{u.title}</h3>
-                <p className="mt-3 max-w-md leading-relaxed text-slate-300">{u.body}</p>
+    <section id="use-cases" aria-labelledby="use-cases-heading" className={`${GUTTER} flex flex-col gap-10 py-20 sm:py-[104px]`}>
+      <SectionIntro id="use-cases-heading" title="Start with code review" eyebrow="First issue">
+        Any team can turn a manual workflow into an agent they can trust. We started where the answers are easiest to
+        check: reviewing code against your team&apos;s rules.
+      </SectionIntro>
+      <div className="flex flex-wrap gap-7">
+        <div className="grid flex-[2_1_460px] gap-7">
+          {live.map((u) => (
+            <Stamp key={u.title}>
+              <StampFace tone="vermilion" as="article" className="flex h-full flex-col gap-4 p-8">
+                <div className="flex items-start justify-between">
+                  <StatusTag live label="Live now" />
+                  <span aria-hidden className="font-mincho text-[30px] leading-none font-extrabold">
+                    査読
+                  </span>
+                </div>
+                <h3 className="mk-display text-[40px] leading-tight">{u.title}</h3>
+                <p className="max-w-[30em] text-lg">{u.body}</p>
                 <Link
                   href="/projects/new"
-                  className="mt-8 inline-flex h-11 items-center rounded-full bg-white px-5 text-sm font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mk-tide-soft)]"
+                  className="mt-auto inline-flex w-fit items-center rounded-[2px] bg-paper px-6 py-3.5 font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard"
                 >
                   Start building
                 </Link>
-              </article>
-            ))}
-          </div>
-          <ul className="divide-y divide-[var(--mk-rule)] rounded-2xl border border-[var(--mk-rule)] bg-white">
-            {later.map((u) => (
-              <li key={u.title} className="p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="mk-display text-xl">{u.title}</h3>
-                  <StatusTag live={false} label="Coming soon" />
-                </div>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{u.body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function Trust() {
-  return (
-    <section id="trust" aria-labelledby="trust-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
-      <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1fr_1.4fr]">
-        <SectionIntro id="trust-heading" title="Built so it can't fool you">
-          An agent that fixes itself could easily learn to pass its own tests. These rules stop that.
-        </SectionIntro>
-        <dl className="grid gap-x-10 gap-y-10 sm:grid-cols-2">
-          {TRUST_POINTS.map((t) => (
-            <div key={t.title} className="border-t-2 border-[var(--mk-tide)] pt-4">
-              <dt className="mk-display text-xl">{t.title}</dt>
-              <dd className="mt-2 leading-relaxed text-[var(--mk-storm)]">{t.body}</dd>
-            </div>
+              </StampFace>
+            </Stamp>
           ))}
-        </dl>
-      </div>
-    </section>
-  );
-}
-
-export function Connectors() {
-  return (
-    <section id="connectors" aria-labelledby="connectors-heading" className="border-t border-[var(--mk-rule)] py-20 sm:py-28">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <SectionIntro id="connectors-heading" title="Plug into the tools you already use">
-          Connect an account in a few guided steps. Susanoo checks the connection straight away and never shows your key
-          again.
-        </SectionIntro>
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {CONNECTORS.map((c) => (
-            <li
-              key={c.name}
-              className={cn(
-                "rounded-2xl border p-6",
-                c.live ? "border-[var(--mk-ink)] bg-white" : "border-dashed border-[var(--mk-rule)]",
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className={cn("mk-display text-xl", !c.live && "text-[var(--mk-storm)]")}>{c.name}</h3>
-                <StatusTag live={c.live} label={c.live ? "Available" : "On the roadmap"} />
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--mk-storm)]">{c.body}</p>
+        </div>
+        <ul className="m-0 flex flex-[1_1_300px] list-none flex-col gap-4 p-0">
+          {later.map((u) => (
+            <li key={u.title} className="flex flex-col gap-1 border-2 border-dashed border-ink p-5 opacity-80">
+              <StatusTag live={false} label="Coming soon" />
+              <h3 className="mk-display mt-1 text-2xl">{u.title}</h3>
+              <p className="text-base">{u.body}</p>
             </li>
           ))}
         </ul>
@@ -240,15 +269,85 @@ export function Connectors() {
   );
 }
 
+/** One seal per trust point, in the order of TRUST_POINTS. */
+const SEALS: { char: string; shape: "square" | "round" | "solid" | "double"; rotate: number }[] = [
+  { char: "隠", shape: "square", rotate: -4 },
+  { char: "承", shape: "round", rotate: 3 },
+  { char: "封", shape: "solid", rotate: -2 },
+  { char: "待", shape: "double", rotate: 5 },
+];
+
+export function Trust() {
+  return (
+    <section
+      id="trust"
+      aria-labelledby="trust-heading"
+      className="border-y-[3px] border-ink bg-paper px-[clamp(20px,4vw,48px)] py-20 sm:py-24"
+    >
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-11">
+        <SectionIntro id="trust-heading" title="Built so it can't fool you" eyebrow="Four seals">
+          An agent that fixes itself could easily learn to pass its own tests. These rules stop that.
+        </SectionIntro>
+        <dl className="grid gap-9" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))" }}>
+          {TRUST_POINTS.map((t, i) => {
+            const seal = SEALS[i % SEALS.length];
+            return (
+              <div key={t.title} className="flex flex-col gap-3.5">
+                <HankoSeal char={seal.char} shape={seal.shape} rotate={seal.rotate} />
+                <dt className="mk-display text-[22px] leading-tight">{t.title}</dt>
+                <dd className="m-0 text-base">{t.body}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+export function Connectors() {
+  return (
+    <section id="connectors" aria-labelledby="connectors-heading" className={`${GUTTER} flex flex-col gap-9 py-20 sm:py-[104px]`}>
+      <SectionIntro id="connectors-heading" title="Plug into the tools you already use" eyebrow="Routes">
+        Connect an account in a few guided steps. Susanoo checks the connection straight away and never shows your key
+        again.
+      </SectionIntro>
+      <ul
+        className="m-0 grid list-none gap-5 p-0"
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))" }}
+      >
+        {CONNECTORS.map((c) => (
+          <li key={c.name} className={cn(!c.live && "opacity-70")}>
+            <Stamp size="sm" tone={c.live ? "paper" : "dim"} className="h-full p-3">
+              <StampFace className="flex h-full min-h-[150px] flex-col gap-2 bg-transparent p-4">
+                <span
+                  className={cn(
+                    "self-start px-2 py-0.5 font-label text-xs tracking-[0.12em] uppercase",
+                    c.live ? "bg-vermilion text-paper" : "text-ink",
+                  )}
+                >
+                  {c.live ? "Available" : "On the roadmap"}
+                </span>
+                <h3 className="mk-display text-2xl">{c.name}</h3>
+                <p className="text-[15px] leading-snug">{c.body}</p>
+              </StampFace>
+            </Stamp>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Plans() {
   return (
-    <section id="pricing" aria-labelledby="pricing-heading" className="border-t border-[var(--mk-rule)] py-16">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 sm:px-6 md:flex-row md:items-center md:justify-between">
+    <section id="pricing" aria-labelledby="pricing-heading" className="border-t-[3px] border-ink py-16">
+      <div className={`${GUTTER} flex flex-col gap-6 md:flex-row md:items-center md:justify-between`}>
         <div>
-          <h2 id="pricing-heading" className="mk-display text-2xl sm:text-3xl">
+          <h2 id="pricing-heading" className="mk-display text-[clamp(26px,3vw,36px)]">
             Free, Team and Enterprise plans
           </h2>
-          <p className="mt-2 text-[var(--mk-storm)]">Try it free. Larger teams get private repos, custom rules, SSO and support.</p>
+          <p className="mt-2 text-lg">Try it free. Larger teams get private repos, custom rules, SSO and support.</p>
         </div>
         <Link href="/pricing" className={SECONDARY}>
           Compare plans
@@ -260,26 +359,26 @@ export function Plans() {
 
 export function DemoBand() {
   return (
-    <section id="demo" aria-labelledby="demo-heading" className="bg-[var(--mk-storm)] py-20 text-white">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-xl">
-            <h2 id="demo-heading" className="mk-display text-3xl sm:text-4xl">
+    <section id="demo" aria-labelledby="demo-heading" className="px-[clamp(20px,4vw,48px)] pt-8 pb-24 sm:pb-[104px]">
+      <div className="mx-auto max-w-[1280px] border-[3px] border-ink bg-vermilion p-[clamp(24px,4vw,56px)] text-paper shadow-[12px_12px_0_var(--ink)]">
+        <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+          <div className="flex max-w-[620px] flex-col gap-2.5">
+            <h2 id="demo-heading" className="mk-display text-[clamp(30px,3.4vw,46px)] leading-[1.05]">
               Watch a whole run, start to finish
             </h2>
-            <p className="mt-3 leading-relaxed text-slate-200">
+            <p className="text-[19px] leading-relaxed">
               A replay of a saved run: the heads build a reviewer, catch it missing a bug, fix it and prove the fix. No
               sign-in needed.
             </p>
           </div>
           <Link
             href="/demo"
-            className="inline-flex h-12 w-fit items-center rounded-full bg-white px-6 font-medium text-[var(--mk-ink)] hover:bg-[var(--mk-mist)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="inline-flex w-fit items-center rounded-[2px] bg-paper px-8 py-[18px] text-[19px] font-semibold text-ink hover:bg-mustard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
           >
             Open full screen
           </Link>
         </div>
-        <div className="mt-10">
+        <div className="mt-10 border-2 border-ink bg-ink p-2 sm:p-3">
           <DemoReplay />
         </div>
       </div>

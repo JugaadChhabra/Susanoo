@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { HowItWorks } from "@/components/marketing/how-it-works";
-import { Connectors, DemoBand, Hero, Plans, Proof, Trust, UseCases } from "@/components/marketing/sections";
+import { Connectors, DemoBand, Hero, Plans, Proof, Telegram, Trust, UseCases } from "@/components/marketing/sections";
 import { MarketingShell } from "@/components/marketing/site-chrome";
 import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/marketing";
 
@@ -15,6 +15,7 @@ export default function Page() {
   return (
     <MarketingShell>
       <Hero />
+      <Telegram />
       <HowItWorks />
       <Proof />
       <UseCases />
