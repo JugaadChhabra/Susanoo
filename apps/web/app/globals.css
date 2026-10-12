@@ -279,11 +279,14 @@
 .mk-proof-arrow { --settle-from: -8px 0; animation: mk-settle 200ms var(--ease-ink) calc(180ms + var(--i) * 90ms) both; }
 .mk-proof-after { --slam-from: 1.5; --slam-under: 0.94; animation: mk-slam 380ms calc(250ms + var(--i) * 90ms) both; }
 .mk-proof-seal { animation: mk-slam var(--dur-slam) 650ms both; }
-.mk-proof-seal::after {
+/* The ink ring behind a slammed seal (Proof, Trust), bleeding out at --impact. border-radius: inherit copies the seal's
+   own shape class onto the ring. */
+.mk-ring::after {
   content: "";
   position: absolute;
   inset: -6px;
   border: 4px solid var(--vermilion);
+  border-radius: inherit;
   opacity: 0;
   pointer-events: none;
   animation: mk-bleed var(--dur-bleed) var(--ease-ink) var(--impact) forwards;
@@ -298,18 +301,11 @@
 .mk-usecase-later { animation: mk-settle var(--dur-reveal) var(--ease-ink) calc(200ms + var(--i) * 80ms) both; }
 
 /* Trust (motion spec §2). In view on the dl, each seal slams at --i × 140ms onto its own inline tilt (the keyframe's
-   rotate composes with it), and its dt and dd rise 120ms after it. On impact one ink ring bleeds out; border-radius:
-   inherit gives it the seal's own shape class, rounded-full on the round seal and rounded-md on the rest. */
-.mk-trust-seal { --slam-at: calc(var(--i) * 140ms); animation: mk-slam var(--dur-slam) var(--slam-at) both; }
-.mk-trust-seal::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border: 4px solid var(--vermilion);
-  border-radius: inherit;
-  opacity: 0;
-  pointer-events: none;
-  animation: mk-bleed var(--dur-bleed) var(--ease-ink) calc(var(--slam-at) + var(--dur-slam) * 0.6) forwards;
+   rotate composes with it), and its title and description rise 120ms after it. On impact one .mk-ring bleeds out, round
+   on the round seal and rounded-md on the rest. */
+.mk-trust-seal {
+  --impact: calc(var(--i) * 140ms + var(--dur-slam) * 0.6);
+  animation: mk-slam var(--dur-slam) calc(var(--i) * 140ms) both;
 }
 .mk-trust-rise { animation: mk-rise var(--dur-reveal) var(--ease-ink) calc(var(--i) * 140ms + 120ms) both; }
 /* Hovering a column picks the seal up and straightens it: the holder turns back by the seal's --tilt and grows. */

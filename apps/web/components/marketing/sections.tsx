@@ -151,7 +151,7 @@ export function Proof() {
             was rerun. These are the scores either side of that fix.
           </SectionIntro>
           <HankoSeal char="検証済" label="VERIFIED" rotate={10}
-            className="mk-anim mk-proof-seal absolute top-0 right-2 hidden lg:inline-flex"
+            className="mk-anim mk-ring mk-proof-seal absolute top-0 right-2 hidden lg:inline-flex"
           />
         </div>
         <dl data-reveal className="grid gap-8 sm:grid-cols-3">
@@ -316,16 +316,19 @@ export function Trust() {
                 className="mk-trust-col flex flex-col gap-3.5"
                 style={{ "--i": i, "--tilt": `${seal.rotate}deg` } as CSSProperties}
               >
-                {/* The holder takes the hover, so the slam's held end state never fights it. */}
-                <span className="mk-trust-hold flex w-fit">
-                  <HankoSeal
-                    char={seal.char}
-                    shape={seal.shape}
-                    rotate={seal.rotate}
-                    className="mk-anim mk-trust-seal relative"
-                  />
-                </span>
-                <dt className="mk-anim mk-trust-rise mk-display text-[22px] leading-tight">{t.title}</dt>
+                {/* The seal sits in the dt so the dl holds only dt and dd. Its holder takes the hover, so the slam's
+                    held end state never fights it. */}
+                <dt className="flex flex-col gap-3.5">
+                  <span className="mk-trust-hold flex w-fit">
+                    <HankoSeal
+                      char={seal.char}
+                      shape={seal.shape}
+                      rotate={seal.rotate}
+                      className="mk-anim mk-ring mk-trust-seal relative"
+                    />
+                  </span>
+                  <span className="mk-anim mk-trust-rise mk-display text-[22px] leading-tight">{t.title}</span>
+                </dt>
                 <dd className="mk-anim mk-trust-rise m-0 text-base">{t.body}</dd>
               </div>
             );

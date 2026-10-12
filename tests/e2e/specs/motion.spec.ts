@@ -190,6 +190,10 @@ test("with motion on, the Trust seals slam in order on their own tilt, ring once
   await expect(seals).toHaveCount(4);
 
   // Below the fold the seals and their text wait, unrevealed; the rings are never drawn at rest.
+  // Each column is one dt/dd pair, the seal inside the dt.
+  for (const tags of await columns.evaluateAll((els) => els.map((el) => [...el.children].map((c) => c.tagName)))) {
+    expect(tags).toEqual(["DT", "DD"]);
+  }
   await expect(dl).not.toHaveAttribute("data-inview");
   await expect.poll(() => paintedOpacity(seals.last())).toBe(0);
   await expect.poll(() => paintedOpacity(dl.locator("dd").last())).toBe(0);
@@ -202,8 +206,8 @@ test("with motion on, the Trust seals slam in order on their own tilt, ring once
     await expect(seals.nth(i)).toHaveCSS("animation-name", "mk-slam");
     await expect(seals.nth(i)).toHaveCSS("animation-delay", delay);
   }
-  await expect(columns.nth(2).locator("dt")).toHaveCSS("animation-name", "mk-rise");
-  await expect(columns.nth(2).locator("dt")).toHaveCSS("animation-delay", "0.4s");
+  await expect(columns.nth(2).locator("dt .mk-trust-rise")).toHaveCSS("animation-name", "mk-rise");
+  await expect(columns.nth(2).locator("dt .mk-trust-rise")).toHaveCSS("animation-delay", "0.4s");
   await expect(columns.nth(2).locator("dd")).toHaveCSS("animation-delay", "0.4s");
   await expect.poll(() => seals.first().evaluate((el) => getComputedStyle(el, "::after").animationName)).toBe("mk-bleed");
   // The ring takes the seal's shape: round on the round seal, rounded corners on the rest.
