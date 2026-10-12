@@ -102,6 +102,23 @@ next_ticket() {
   done
 }
 
+# Tracker issues ("## Parent" in a slice's body) close themselves once every ticket blocking them is done,
+# so nobody has to close them by hand.
+close_finished_parents() {
+  local n="$1" body p count
+  body="$(retry gh issue view "$n" -R "$REPO" --json body --jq .body)" || return 0
+  for p in $(awk '/^## /{inp=($0=="## Parent")} inp' <<<"$body" | grep -oE '#[0-9]+' | tr -d '#' | sort -u); do
+    [ "$(retry gh api "repos/$REPO/issues/$p" --jq .state)" = open ] || continue
+    count="$(open_blockers "$p")" || continue
+    [ "$count" = 0 ] || continue
+    if retry gh issue close "$p" -R "$REPO" --comment "All of its tickets are merged (last one: #$n). Closed automatically by the ticket runner." >/dev/null; then
+      log "Tracker #$p closed: all its tickets are done."
+    else
+      FOLLOW_UP+=("#$p: all its tickets are merged; close it by hand")
+    fi
+  done
+}
+
 # Push main; if the remote moved (a teammate pushed meanwhile), rebase onto it, re-check and try again.
 push_main() {
   local i
@@ -230,6 +247,7 @@ while :; do
   git branch -q -D "$branch"
 
   merged=$((merged + 1)); DONE+="$n "
+  close_finished_parents "$n"
   [ "$MAX_TICKETS" -gt 0 ] && [ "$merged" -ge "$MAX_TICKETS" ] && { log "Reached MAX_TICKETS=$MAX_TICKETS."; break; }
 done
 

@@ -170,7 +170,7 @@ Content and section order come from **[PRD › Frontend (marketing site + app) a
 
 ### P6 — Platform gaps found after going live (Mon 18:00 onwards, post-freeze)
 
-Found on Mon 12 Oct once the backend was live on EC2 and Muaaz's loop was wired in. Each gap is a feature the PRD describes and the UI already shows, but which doesn't work end to end yet. They are post-freeze work, taken on by Jugaad's explicit decision; if time runs out, document whatever's unfinished as a limitation in `README.md` rather than shipping it half-done. Tickets: **#26** (connections reach the run), **#4** (live previews, rewritten), **#27** (Try it).
+Found on Mon 12 Oct once the backend was live on EC2 and Muaaz's loop was wired in. Each gap is a feature the PRD describes and the UI already shows, but which doesn't work end to end yet. They are post-freeze work, taken on by Jugaad's explicit decision; if time runs out, document whatever's unfinished as a limitation in `README.md` rather than shipping it half-done. Trackers: **#26** (connections reach the run: slices #28 → #29 → #30), **#4** (live previews: #31 → #32), **#27** (Try it: #33, #34 after #30 and #33). The runner works the slices and closes each tracker when its last slice merges.
 
 #### Problem Statement
 
