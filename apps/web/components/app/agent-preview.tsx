@@ -50,45 +50,46 @@ export function AgentPreview({ runId }: { runId: string }) {
 function PreviewFrame({ url }: { url: string }) {
   const health = useAsync(() => probePreview(url), url);
   const [loaded, setLoaded] = useState(false);
+  const asleep = health.status === "ready" && health.data === "asleep";
 
-  if (health.status === "loading") {
-    return <div className="h-64 animate-pulse rounded-xl bg-muted" aria-busy="true" aria-label="Checking whether your agent is awake" />;
-  }
-  if (health.status === "ready" && health.data === "asleep") {
-    return (
-      <div role="status" className="rounded-xl border border-dashed border-border p-4">
-        <p className="flex items-center gap-2 font-medium">
-          <Moon className="size-4" aria-hidden /> {PREVIEW_ASLEEP}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Previews go to sleep after a while with no visitors. Your agent, its report card and its code are all still here.
-        </p>
-        <p className="mt-2 text-sm break-all text-muted-foreground">Its address was {url}</p>
-        <button type="button" onClick={health.retry} className={`mt-3 ${linkClass}`}>
-          <RotateCw className="size-4" aria-hidden /> Check again
-        </button>
-      </div>
-    );
-  }
   return (
     <div className="space-y-3">
-      <div className="relative">
-        {!loaded && <div className="absolute inset-0 animate-pulse rounded-xl bg-muted" aria-hidden />}
-        <iframe
-          src={url}
-          title="Live preview of your agent"
-          sandbox="allow-scripts allow-forms"
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-          className="relative h-80 w-full rounded-xl border border-border bg-background sm:h-96"
-        />
-      </div>
+      {health.status === "loading" && (
+        <div className="h-64 animate-pulse rounded-xl bg-muted" aria-busy="true" aria-label="Checking whether your agent is awake" />
+      )}
+      {asleep && (
+        <div role="status" className="rounded-xl border border-dashed border-border p-4">
+          <p className="flex items-center gap-2 font-medium">
+            <Moon className="size-4" aria-hidden /> {PREVIEW_ASLEEP}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Previews go to sleep a while after they start, to keep the server healthy. Your agent, its report card and its code are all
+            still here.
+          </p>
+          <button type="button" onClick={health.retry} className={`mt-3 ${linkClass}`}>
+            <RotateCw className="size-4" aria-hidden /> Check again
+          </button>
+        </div>
+      )}
+      {health.status !== "loading" && !asleep && (
+        <div className="relative">
+          {!loaded && <div className="absolute inset-0 animate-pulse rounded-xl bg-muted" aria-hidden />}
+          <iframe
+            src={url}
+            title="Live preview of your agent"
+            sandbox="allow-scripts allow-forms"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            className="relative h-80 w-full rounded-xl border border-border bg-background sm:h-96"
+          />
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <a href={url} target="_blank" rel="noopener noreferrer" className={linkClass}>
           <ExternalLink className="size-4" aria-hidden /> Open in a new tab
         </a>
-        <span className="text-sm break-all text-muted-foreground">{url}</span>
+        <span className="min-w-0 text-sm break-all text-muted-foreground">{url}</span>
       </div>
     </div>
   );
