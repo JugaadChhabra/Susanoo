@@ -20,7 +20,7 @@
 
 | Item | Enter | Source |
 |---|---|---|
-| EC2 (api, worker, Caddy, generated apps) | TODO(Jugaad): instance price | AWS bill |
+| EC2 (api, worker, Caddy, generated apps) | $68 / month: t3.large $0.0832/hr x 730 h = $60.74, 40 GB gp3 ~$3.20, Elastic IP ~$3.65 | AWS on-demand list price, us-east-1 (the shared hackathon account bill includes other teams' resources, so it isn't used) |
 | Supabase | $0 (free) or $25 (Pro) | Supabase plan |
 | Vercel | $0 (Hobby) or $20 (Pro) | Vercel plan |
 | Domain + Cloudflare | ~$1/month | registrar |
@@ -51,7 +51,7 @@ Unit economics at these prices: a Team customer using all 20 runs costs ~$31 (20
 
 Free-tier runs are pure cost (~$3 per active free user per month): model it explicitly, it drives burn.
 
-## 5. Steps in cfo.ai (Muaaz)
+## 5. Steps in cfo.ai (Jugaad)
 
 1. Sign up at cfo.ai (PRD: cancel the subscription right after).
 2. Create a company "Susanoo"; enter the pricing in section 3 as products.
