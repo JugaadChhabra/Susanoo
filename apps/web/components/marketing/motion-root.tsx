@@ -18,8 +18,8 @@ export function MotionRoot() {
           if (entry.isIntersecting) {
             el.dataset.inview = "";
             observer.unobserve(el);
-          } else {
-            // Before hydration nothing was paused, so rewind what already started off screen to its first frame.
+          } else if (entry.boundingClientRect.top >= window.innerHeight) {
+            // Before hydration nothing was paused, so rewind what already played out of sight to its first frame.
             for (const animation of el.getAnimations({ subtree: true })) animation.currentTime = 0;
           }
         }
