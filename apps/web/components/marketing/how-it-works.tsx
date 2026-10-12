@@ -62,9 +62,6 @@ export function HowItWorks() {
     >
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div className="flex max-w-[640px] flex-col gap-3">
-          <p aria-hidden className="font-label text-sm tracking-[0.14em] uppercase">
-            Sheet of eight
-          </p>
           <h2 id="how-heading" className="mk-display text-[clamp(32px,4vw,52px)] leading-[1.04]">
             Eight heads, one job each
           </h2>

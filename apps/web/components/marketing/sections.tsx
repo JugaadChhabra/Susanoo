@@ -12,7 +12,6 @@ const SECONDARY = `inline-flex items-center justify-center rounded-[2px] border-
 
 /** Page gutters shared by every section. */
 const GUTTER = "mx-auto w-full max-w-[1280px] px-[clamp(20px,4vw,48px)]";
-const EYEBROW = "font-label text-sm tracking-[0.14em] uppercase";
 
 /** The spec from the hero use case, word for word. [PRD › Hero use case: the code review agent] */
 const EXAMPLE_SPEC =
@@ -46,7 +45,6 @@ export function Hero() {
           八岐退治
         </div>
         <div className="flex min-w-0 flex-col gap-7">
-          <p className={EYEBROW}>No. 001 · Issued for neatHack 2026</p>
           <h1
             id="hero-heading"
             className="mk-display text-[clamp(34px,4.4vw,60px)] leading-[1.02] [overflow-wrap:anywhere] sm:[overflow-wrap:normal]"
@@ -80,9 +78,6 @@ export function Telegram() {
     <section aria-labelledby="spec-heading" className="bg-ink px-[clamp(20px,4vw,48px)] py-20 text-paper">
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-12">
         <div className="flex flex-[1_1_340px] flex-col gap-4">
-          <p aria-hidden className="font-mincho text-[22px] font-extrabold text-mustard">
-            電報 · Telegram
-          </p>
           <h2 id="spec-heading" className="mk-display text-[clamp(30px,3.4vw,42px)] leading-[1.08]">
             You write a spec like this one
           </h2>
@@ -118,17 +113,14 @@ export function Telegram() {
 function SectionIntro({
   id,
   title,
-  eyebrow,
   children,
 }: {
   id: string;
   title: string;
-  eyebrow?: string;
   children?: React.ReactNode;
 }) {
   return (
     <div className="flex max-w-[700px] flex-col gap-3">
-      {eyebrow && <p className={EYEBROW}>{eyebrow}</p>}
       <h2 id={id} className="mk-display text-[clamp(32px,4vw,52px)] leading-[1.04]">
         {title}
       </h2>
@@ -148,7 +140,7 @@ export function Proof() {
     >
       <div className="mx-auto flex max-w-[1280px] flex-col gap-11">
         <div className="relative">
-          <SectionIntro id="proof-heading" title="Before and after a fix, from a real run" eyebrow="From a real run">
+          <SectionIntro id="proof-heading" title="Before and after a fix, from a real run">
             In a test round, the code reviewer Susanoo built let an access token typed into code slip through. Susanoo
             traced the miss to the agent&apos;s instructions, changed three lines and kept the change only after every test
             was rerun. These are the scores either side of that fix.
@@ -228,7 +220,7 @@ export function UseCases() {
   const later = USE_CASES.filter((u) => !u.live);
   return (
     <section id="use-cases" aria-labelledby="use-cases-heading" className={`${GUTTER} flex flex-col gap-10 py-20 sm:py-[104px]`}>
-      <SectionIntro id="use-cases-heading" title="Start with code review" eyebrow="First issue">
+      <SectionIntro id="use-cases-heading" title="Start with code review">
         Any team can turn a manual workflow into an agent they can trust. We started where the answers are easiest to
         check: reviewing code against your team&apos;s rules.
       </SectionIntro>
@@ -285,7 +277,7 @@ export function Trust() {
       className="border-y-[3px] border-ink bg-paper px-[clamp(20px,4vw,48px)] py-20 sm:py-24"
     >
       <div className="mx-auto flex max-w-[1280px] flex-col gap-11">
-        <SectionIntro id="trust-heading" title="Built so it can't fool you" eyebrow="Four seals">
+        <SectionIntro id="trust-heading" title="Built so it can't fool you">
           An agent that fixes itself could easily learn to pass its own tests. These rules stop that.
         </SectionIntro>
         <dl className="grid gap-9" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))" }}>
@@ -308,7 +300,7 @@ export function Trust() {
 export function Connectors() {
   return (
     <section id="connectors" aria-labelledby="connectors-heading" className={`${GUTTER} flex flex-col gap-9 py-20 sm:py-[104px]`}>
-      <SectionIntro id="connectors-heading" title="Plug into the tools you already use" eyebrow="Routes">
+      <SectionIntro id="connectors-heading" title="Plug into the tools you already use">
         Connect an account in a few guided steps. Susanoo checks the connection straight away and never shows your key
         again.
       </SectionIntro>
