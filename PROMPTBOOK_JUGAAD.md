@@ -1,6 +1,6 @@
 # PROMPTBOOK — Jugaad (Frontend, platform backend, testing, infra)
 
-One prompt per ticket. The tickets are GitHub issues #1–#21 on `JugaadChhabra/Susanoo`, broken out of `IMPLEMENTATION_JUGAAD.md`, which follows `PRD.md`, the single source of truth. Claude reads `CLAUDE.md` automatically; the prompts point it at the right skill and section.
+One prompt per ticket. The tickets are GitHub issues #1–#27 on `JugaadChhabra/Susanoo`, broken out of `IMPLEMENTATION_JUGAAD.md`, which follows `PRD.md`, the single source of truth. Claude reads `CLAUDE.md` automatically; the prompts point it at the right skill and section.
 
 **How to use**
 - **Automatically:** `scripts/run-tickets.sh` picks the next unblocked `ready-for-agent` issue, starts a fresh Claude Code session, and runs `/mattpocock-skills:implement` with that issue's prompt from this file. The prompt is found by its heading, `### #<issue> — <title>`, so keep that heading format and keep exactly one fenced block under each heading.
@@ -68,12 +68,15 @@ Don't edit anything in packages/core/susanoo/schemas/ (frozen; see the contract-
 Acceptance: make types is deterministic; CI fails on a stale generated.ts; contract tests pass.
 ```
 
-### #4 — Generated apps run as sibling containers behind Caddy
+### #4 — Live previews: run-<id> opens the finished agent over HTTPS
+*Rewritten Mon 12 Oct (post-freeze); spec in IMPLEMENTATION_JUGAAD.md › P6.*
 ```
-Use the deploy-check skill and [PRD › Deployment] / [PRD › Deployment › Sandbox limits].
-Give the worker container access to the Docker API so it can start sibling containers, and make Caddy route run-<id>.<PREVIEW_DOMAIN> to a container by label. Prove it with a hello-world container started from the worker. Containers get CPU and memory caps and no host mounts.
-Use the label convention Muaaz's sandbox/docker.py expects; if docs/integration-points.md still says TBD for it, propose one there and report TICKET_BLOCKED so I can agree it with Muaaz.
-List any EC2 steps I must do by hand in your final report.
+Read IMPLEMENTATION_JUGAAD.md › P6 (Live previews: user stories 12–20, implementation and testing decisions) and docs/integration-points.md row "Docker container labels for Caddy run-<id> routing"; use the deploy-check skill and prd-lookup for [PRD › Deployment] and [PRD › Deployment › Sandbox limits].
+Caddy: serve run-*.<PREVIEW_DOMAIN> with on-demand TLS gated by an internal ask endpoint, routing by host name to susanoo-run-<id>:8000 on the susanoo_sandbox network (start from the Caddy sketch in P6; check it with `caddy validate` and add that to CI using Caddy's Docker image). Keep api.<API_DOMAIN> exactly as it is.
+API: the ask endpoint answers 200 only for run-<id>.<PREVIEW_DOMAIN> when that run exists and has a recorded preview; 404 for anything else; it must not be reachable through the public api domain.
+Worker: when a run finishes, keep the final app running via the existing sandbox start (caps and no mounts unchanged) and set runs.preview_url; the reaper still stops idle previews. This touches Muaaz's worker/sandbox: make the smallest change and list it in the final report.
+Agent page: show a plain-English "This preview is asleep" when the preview doesn't answer.
+Mark the label convention agreed in docs/integration-points.md. List the manual live check (open a finished run's preview over HTTPS) and any server steps in the final report.
 ```
 
 ## Data, auth, projects
@@ -238,6 +241,32 @@ List in the final report how to try it locally end to end (make dev + local work
 Read docs/integration-points.md row "Connector tool code in generated repos" and [PRD › Connectors and API budget › Connector contract] (prd-lookup). Add a credential-free way to ship connector tool code into generated repos, e.g. tool_sources() -> list[str]: self-contained functions, imports inside the body, credentials read only from the env vars env() sets, GitHub writes dry-run unless GITHUB_WRITES_ENABLED is on. env() and tools() must keep working with a placeholder credential.
 Tests: each source compiles on its own with no susanoo import, contains no secret-shaped strings, and passes Agent Smith's secret scan (call its checker; don't edit heads/).
 Don't edit Muaaz's heads. End the final report with exactly what Agent Smith needs to call, so I can pass it to Muaaz.
+```
+
+## Gaps after going live (post-freeze, spec in IMPLEMENTATION_JUGAAD.md › P6)
+
+Order: #26 → #4 → #27. #4's prompt is above under Foundation.
+
+### #26 — Picked connections reach the run and its agent's container
+```
+Read IMPLEMENTATION_JUGAAD.md › P6 (Connections reach the run: user stories 1–11, implementation and testing decisions) and docs/integration-points.md rows "Connector tools() interface" and "Connector tool code in generated repos"; prd-lookup for [PRD › Connectors and API budget › Credential handling] and [PRD › Connectors and API budget › Connector contract].
+1. Migration: projects store the user's picked connection ids (default empty, existing owner-only RLS). NewProject and the rules update accept them; another user's connection id → 422 in plain English. make types.
+2. Web: the new-project form sends the picked connections (it currently drops them); the projects list shows a project's connections.
+3. Run start puts the project's connector names in the run's state under "connectors" (Agent Smith and the Runner already read it). Update the integration-points row and say in the final report that SusanooState doesn't list the key yet.
+4. One platform function in packages/core/susanoo/connectors/ resolves (user id, connection ids) into the connectors' env vars from Vault via the existing service-role read and each connector's env(); skip revoked connections; map write settings to the write flag (GITHUB_WRITES_ENABLED).
+5. The Runner's Level 2 env takes values from that function instead of the worker's environment: the smallest change in Muaaz's runner.py, flagged in the final report. Runs with no connections behave exactly as now.
+Never let a value reach an event, trace, log line, repo file or API response; add values to the run's redaction list before the container starts.
+Tests at the highest seam: API (projects save/return ids, other users' ids refused, a new run's state has the names), Postgres+Vault (resolution returns names with values, skips revoked, refuses other users), Runner with the fake sandbox (container env has the values, no value in any event or log).
+```
+
+### #27 — Try it on the agent page
+```
+Read IMPLEMENTATION_JUGAAD.md › P6 (Try it: user stories 21–27, implementation and testing decisions) and apps/web/lib/agent-api.ts (tryAgent, isTryUnavailable) for the body the page already sends; use the api-endpoint skill and prd-lookup for [PRD › Non-technical users].
+Add POST /runs/{run_id}/try as a small platform router (don't edit Muaaz's agent.py): auth required, owner-only (404 otherwise), body {"kind":"diff","diff":…} or {"kind":"pr","pr":"owner/repo#123"}, response {summary, findings} with the frozen Finding model.
+Forward to the run's public preview URL over HTTPS (never join the sandbox network), calling the generated app's existing review endpoint (read templates/app-template/backend/routes/), 60 s timeout; preview down or failing → 503 with a plain-English message.
+A PR is fetched as a diff with the run's GitHub connection from #26; without one → 422 "Connect GitHub to try a PR". Diff over 20,000 characters → 422. No quota cost.
+Check the agent page shows real results now and that its "not on yet" fallback only appears when the route really is missing.
+Tests with an httpx mock transport for the preview: diff → findings, PR without GitHub → 422, preview down → 503, another user → 404, oversized diff → 422.
 ```
 
 ## Not ticketed: after freeze (Mon 13:00–18:00, with Muaaz)

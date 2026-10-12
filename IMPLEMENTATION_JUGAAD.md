@@ -168,6 +168,119 @@ Content and section order come from **[PRD › Frontend (marketing site + app) a
 - **Video** (≤ 3 minutes): you record the product walkthrough (marketing site → sign up → spec → intake → live run view); Muaaz narrates the loop. It must explicitly cover the architecture, implementation, runtime, reasoning and result for neatlogs, Entire and cfo.ai.
 - **Submit early in the 19:00 window:** quote the official neatlogs post on X with team, project name, public repo and demo link.
 
+### P6 — Platform gaps found after going live (Mon 18:00 onwards, post-freeze)
+
+Found on Mon 12 Oct once the backend was live on EC2 and Muaaz's loop was wired in. Each gap is a feature the PRD describes and the UI already shows, but which doesn't work end to end yet. They are post-freeze work, taken on by Jugaad's explicit decision; if time runs out, document whatever's unfinished as a limitation in `README.md` rather than shipping it half-done. Tickets: **#26** (connections reach the run), **#4** (live previews, rewritten), **#27** (Try it).
+
+#### Problem Statement
+
+A user who signs up on the live site, connects their GitHub repo and starts the hero spec gets an agent that:
+- **can't use the repo they connected.** The new-project screen lets them pick connections, but the choice is thrown away: it's never sent to the API, never stored, never reaches the run. The generated agent's GitHub tools exist (#25, plus Agent Smith copying them) but run with no `GITHUB_TOKEN` or `GITHUB_REPO`, because nothing reads the user's credential from Vault and gives it to the agent's container.
+- **can't be opened.** The agent page shows a "live preview" of `run-<id>.susanoo.jugaadchhabra.dev`, but nothing records a preview URL, the finished app isn't kept running for people to visit, and Caddy has no route or certificate for `run-*` hosts.
+- **can't be tried from its own page.** "Try it" (paste a diff or pick a PR) calls an endpoint that doesn't exist, so it says reviewing from the page isn't on yet.
+
+So the product promise on the marketing site ("connect GitHub", "you get a code reviewer with its own web page") stops short of what a judge can actually do.
+
+#### Solution
+
+1. **Connections reach the run (#26).** The connections a user picks for a project are saved with the project. When a run starts, their connector names go into the run's state (Agent Smith already reads them), and when the worker starts the generated app's container, it reads each picked connection's secret from Vault and passes it in as the env vars that connector declares. The secret never touches logs, traces, events, the repo or the API's responses.
+2. **Live previews (#4).** When a run finishes, the worker keeps the final version of the generated app running in its capped container and records its preview URL on the run. Caddy serves `run-<id>.susanoo.jugaadchhabra.dev` over HTTPS, getting a certificate on demand only for runs the API confirms exist, and proxies to that run's container on the sandbox network. Idle previews are stopped by the existing reaper; the agent page says so plainly.
+3. **Try it (#27).** The agent page's "Try it" sends a pasted diff (or a PR from the connected repo) to the API, which forwards it to that run's live preview and returns the agent's summary and findings. Thumbs up / down keeps feeding the existing feedback route.
+
+#### User Stories
+
+**Connections reach the run**
+1. As a user, I want the connections I tick on the new-project screen to be saved with my project, so that I don't have to pick them again for every run.
+2. As a user, I want to see which connections a project uses on the projects list, so that I know what my agent can reach.
+3. As a user, I want to change a project's connections later, so that I can add GitHub after I've created the project.
+4. As a user, I want my generated agent to read pull requests from the repo I connected, so that it reviews my real code, not only pasted diffs.
+5. As a user, I want write actions (posting PR comments) to stay dry-run unless I switched writes on for that connection, so that the agent never posts to my repo by surprise.
+6. As a user, I want a clear message if a connection I picked was revoked or fails its test, so that I know why the agent can't reach it.
+7. As a user, I want only my own connections to ever be usable in my runs, so that nobody can borrow my GitHub token.
+8. As a security-minded user, I want my token never to appear in run events, traces, logs, the generated repo or any API response, so that connecting a repo is safe.
+9. As Muaaz (Agent Smith), I want the run's state to list the connector names the user picked, so that the agent gets the right tools.
+10. As Muaaz (Runner), I want Level 2 containers to receive the picked connections' env vars from one function, so that I don't have to know where secrets live.
+11. As an operator, I want a run with no picked connections to behave exactly as today, so that the hero spec on pasted diffs keeps working.
+
+**Live previews**
+12. As a user, I want to open my finished agent at its own web address, so that I can use it and share it.
+13. As a user, I want that address to work over HTTPS with no browser warning, so that it feels like a real product.
+14. As a user, I want the agent page to show the preview inline and as a link, so that I can try it without leaving Susanoo.
+15. As a user, I want a plain-English message when my preview has gone to sleep (idle-stopped), so that a blank frame doesn't look like a bug.
+16. As a judge, I want the preview link from the demo or the agent page to open a working app, so that I can see the generated product for myself.
+17. As an operator, I want certificates issued only for hosts belonging to real runs, so that nobody can make Caddy request certificates for random names.
+18. As an operator, I want previews to keep their CPU, memory and no-mounts limits and to stop after an idle timeout, so that the one EC2 instance stays healthy.
+19. As an operator, I want generated apps reachable only through Caddy on the sandbox network, never from the API or the database, so that a hostile generated app can't reach our internals.
+20. As Muaaz, I want the container naming and labels he proposed to be the ones Caddy routes by, so that the sandbox code doesn't change.
+
+**Try it**
+21. As a user, I want to paste a diff on the agent page and see what my agent finds, so that I can judge it myself.
+22. As a user with GitHub connected, I want to pick a PR from my repo and have the agent review it, so that I can try it on real work.
+23. As a user, I want findings shown in plain English with their severity and line, so that I don't need to read JSON.
+24. As a user, I want a clear message when the preview is asleep or the agent fails, so that I know whether to retry.
+25. As a user, I want my thumbs down on a result to become a new test scenario (existing feedback route), so that the next round fixes it.
+26. As an operator, I want Try it to need sign-in, count against nothing but the generated app's own key cap, and be limited in size (20,000 characters of diff), so that it can't be abused.
+27. As a user, I want only my own runs to be tryable by me, so that other people can't use my agent through Susanoo.
+
+#### Implementation Decisions
+
+**Connections reach the run (#26)**
+- **Where a run's connectors live:** on the **project**, as the list of the user's connection ids. A new migration adds the column (default empty), with RLS unchanged (projects are already owner-only). The platform's new-project body and the project-rules update gain an optional connection-ids field; ids that aren't the caller's are refused with a plain-English 422. This is a platform model change, not a frozen-contract change.
+- **Run start:** creating a run copies the project's connector **names** (e.g. `github`) into the run's initial state under the `connectors` key, which Agent Smith and the Runner already read. This resolves the "Open" note in `docs/integration-points.md` (row "Connector tools() interface"); update that row. Tell Muaaz, since `SusanooState` doesn't list the key (it's read as optional today).
+- **Secret resolution (the one new seam):** a platform function in `packages/core/susanoo/connectors/`, owned by Jugaad, resolves `(user id, connection ids)` into `{env var name: value}` by reading each connection's secret through the existing service-role Vault read and the connector's own `env()` mapping. It skips revoked connections and emits nothing containing a value. Write-enable settings map to the connector's write flag (e.g. `GITHUB_WRITES_ENABLED`).
+- **Injection:** the Runner's Level 2 env builder takes its values from that function instead of the worker's own environment (the smallest change in Muaaz's Runner; flag it in the final report). The app's own Anthropic key still comes from the platform key or the user's BYOK, as #16 decided.
+- **Redaction:** values are added to the tracing redaction list for the run before the container starts.
+
+**Live previews (#4)**
+- **Naming (Muaaz's proposal, accepted):** container `susanoo-run-<run_id>` on the `susanoo_sandbox` network, port 8000, labels as in `docs/integration-points.md`. Caddy derives the upstream from the host name, so there's no per-run config. Decision-rich sketch (to be validated with `caddy validate`):
+  ```
+  *.susanoo.jugaadchhabra.dev {
+      tls { on_demand }
+      @run header_regexp host Host ^run-([a-z0-9-]{1,40})\.
+      handle @run { reverse_proxy susanoo-run-{re.host.1}:8000 }
+      handle { respond "Not found" 404 }
+  }
+  # global: on_demand_tls { ask http://api:8000/internal/preview-allowed }
+  ```
+- **On-demand certificates instead of a wildcard:** no Cloudflare DNS plugin or API token needed. Caddy asks the API before each new certificate; the ask endpoint is reachable only on the compose network (Caddy and API are already there; it's not routed publicly) and answers 200 only for a host of the form `run-<id>.<PREVIEW_DOMAIN>` whose run exists and has a preview recorded.
+- **Keeping the final app running:** when a run finishes, the worker starts (or keeps) the generated app at its final kept version via the existing sandbox start, and writes the run's preview URL. The existing idle reaper stops it later; the agent page shows "This preview is asleep" when the URL doesn't answer. Restarting a sleeping preview is out of scope.
+- **Ownership:** Caddy, compose, the ask endpoint and the preview-URL write are Jugaad's (host). Keeping the container alive after the run touches Muaaz's worker/sandbox: do the smallest change and flag it.
+
+**Try it (#27)**
+- **Route:** `POST /runs/{run_id}/try`, auth required, owner-only (404 otherwise, same as the other run routes). Body: `{"kind": "diff", "diff": "…"}` or `{"kind": "pr", "pr": "owner/repo#123"}` (what the frontend already sends). Response: `{summary, findings}` using the frozen `Finding` model.
+- **Path to the agent:** the API forwards to the run's **public preview URL** over HTTPS (so the API never joins the sandbox network), calling the generated app's existing review endpoint. Timeout 60 s; a sleeping or failing preview returns 503 with a plain-English message the page already knows how to show.
+- **PRs:** a PR reference is resolved by the API using the run's GitHub connection (from #26) to fetch the diff, then sent as a diff. Without a GitHub connection, a PR returns 422 "Connect GitHub to try a PR".
+- **Limits:** diff ≤ 20,000 characters (the frontend's existing cap); no quota cost, because the generated app pays from its own capped key.
+- **Ownership:** the agent router is Muaaz's. Build the route as a separate small router in the platform list to avoid editing his file, and tell him.
+
+#### Testing Decisions
+
+- **Good tests here** go through the highest seam available and check behaviour a user or operator would notice: what an API call returns, what a container is started with, what Caddy accepts. Never assert on internal helper calls.
+- **#26:**
+  - API tests (prior art: `tests/api/test_projects.py`, `tests/api/test_connectors.py`): projects save and return connection ids; another user's connection id is refused; a new run's state carries the connector names.
+  - Secret-resolution tests against Postgres with Vault (prior art: the Postgres-backed tests in `tests/api/test_ai_mount.py` and `tests/api/test_connectors.py`): returns the connector's env names with values; skips revoked connections; refuses other users' connections.
+  - Runner Level 2 (prior art: `tests/heads/test_runner.py`, with the fake sandbox): the container is started with the resolved env, and no value appears in any emitted event or log line.
+- **#4:**
+  - `caddy validate` on the Caddyfile in CI (Caddy's Docker image).
+  - API tests for the ask endpoint: 200 for an existing run with a preview, 404 for unknown run ids, malformed hosts and other domains.
+  - A test that the worker records a preview URL when a run finishes (fake sandbox).
+  - A manual live check, listed in the final report: open a finished run's preview over HTTPS.
+- **#27:** API tests (prior art: `tests/api/test_feedback.py`, `tests/api/test_agent.py`) with the preview faked by an httpx mock transport: diff returns findings; PR without GitHub returns 422; preview down returns 503; other users get 404; diff over 20,000 characters returns 422.
+
+#### Out of Scope
+
+- Restarting a sleeping preview on demand (it's reported as asleep instead).
+- Connectors other than GitHub and Anthropic.
+- Letting generated agents post real PR comments by default (writes stay dry-run unless the user enabled them).
+- Custom domains for previews.
+- Changing the frozen contracts in `packages/core/susanoo/schemas/`.
+
+#### Further Notes
+
+- These are post-freeze. Order: **#26 → #4 → #27** (#27 is blocked by #4, and its PR path uses #26).
+- If any of them can't land before submission, add it to the README's limitations with one honest sentence, and keep the agent page's existing fallback messages.
+- Each ticket's final report must say what in Muaaz's code it touched, so he can review it.
+
 ---
 
 ## 5. Interfaces with Muaaz (agree these early)
