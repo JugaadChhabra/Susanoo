@@ -1,30 +1,30 @@
 """Daily run quota and global cap. [PRD › Connectors and API budget › Anthropic budget]
 
-Muaaz's POST /projects/{id}/runs isn't built yet, so these tests mount a stand-in start-run route that
-depends on `enforce_run_quota` exactly as his will, and records a run each time it gets through.
+These go through the real POST /projects/{id}/runs as main.create_app() mounts it. Its run store is an in-memory
+fake that enqueues a 'queued' run and counts it straight away, the way the runs table does: a queued run uses up
+one of the day's runs. The SQL itself is covered in test_ai_mount.py and test_runs.py (throwaway Postgres).
 """
 
 import json
 import time
-import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import jwt
 import pytest
-from fastapi import APIRouter
+from conftest_ai import FakeRunStore
 from fastapi.testclient import TestClient
 
 from susanoo.schemas import RunEvent
 from susanoo_api import main, quota
-from susanoo_api.deps import CurrentUserDep
 from susanoo_api.models import RunQuota
-from susanoo_api.routers import demo
+from susanoo_api.routers import demo, runs
 
 SECRET = "test-jwt-secret-that-is-long-enough-for-hs256"
 ALICE = "11111111-1111-4111-8111-111111111111"
 BOB = "22222222-2222-4222-8222-222222222222"
 PROJECT = "33333333-3333-4333-8333-333333333333"
+BOB_PROJECT = "44444444-4444-4444-8444-444444444444"
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "run_events.json"
 EVENTS = [RunEvent(**e) for e in json.loads(FIXTURE.read_text())]
@@ -51,13 +51,35 @@ class FakeQuotaStore:
         return quota.Usage(self.runs.get(user_id, 0), self.spend_usd)
 
 
+class CountingRunStore(FakeRunStore):
+    """Enqueues runs like the real store; each queued run counts in the quota store from the moment it exists."""
+
+    def __init__(self, quota_store: FakeQuotaStore) -> None:
+        super().__init__()
+        self.quota_store = quota_store
+
+    async def create_run(self, user_id: str, project_id: str, cost_cap_usd: float):
+        row = await super().create_run(user_id, project_id, cost_cap_usd)
+        if isinstance(row, runs.RunRow):
+            self.quota_store.runs[user_id] = self.quota_store.runs.get(user_id, 0) + 1
+        return row
+
+
 @pytest.fixture
 def store() -> FakeQuotaStore:
     return FakeQuotaStore()
 
 
 @pytest.fixture
-def client(monkeypatch, store) -> TestClient:
+def run_store(store) -> CountingRunStore:
+    run_store = CountingRunStore(store)
+    run_store.projects[PROJECT] = ALICE
+    run_store.projects[BOB_PROJECT] = BOB
+    return run_store
+
+
+@pytest.fixture
+def client(monkeypatch, store, run_store) -> TestClient:
     monkeypatch.setenv("SUPABASE_JWT_SECRET", SECRET)
     monkeypatch.delenv("RUNS_PER_USER_PER_DAY", raising=False)
     monkeypatch.setenv("GLOBAL_DAILY_CAP_USD", "50")
@@ -68,25 +90,26 @@ def client(monkeypatch, store) -> TestClient:
     monkeypatch.setattr(demo, "load_events", fake_load)
     monkeypatch.setenv("DEMO_RUN_IDS", EVENTS[0].run_id)
 
+    monkeypatch.delenv("RUN_COST_CAP_USD", raising=False)
     app = main.create_app()
-    start_run = APIRouter()
-
-    @start_run.post("/projects/{project_id}/runs", status_code=201)
-    async def start(project_id: str, user: CurrentUserDep, _: quota.RunQuotaDep) -> dict[str, str]:
-        store.runs[user.id] = store.runs.get(user.id, 0) + 1
-        return {"id": str(uuid.uuid4())}
-
-    app.include_router(start_run)
     app.dependency_overrides[quota.quota_store] = lambda: store
+    app.dependency_overrides[runs.run_store] = lambda: run_store
     return TestClient(app)
 
 
 def start(client: TestClient, user: str = ALICE):
-    return client.post(f"/projects/{PROJECT}/runs", headers=bearer(user))
+    return client.post(f"/projects/{PROJECT if user == ALICE else BOB_PROJECT}/runs", headers=bearer(user))
 
 
 def test_starting_a_run_needs_auth(client):
     assert client.post(f"/projects/{PROJECT}/runs").status_code == 401
+
+
+def test_a_started_run_is_queued_and_counts_at_once(client, store):
+    response = start(client)
+    assert response.status_code == 201 and response.json()["status"] == "queued"
+    body = RunQuota.model_validate(client.get("/me/quota", headers=bearer(ALICE)).json())
+    assert (body.runs_used_today, body.runs_left_today) == (1, 2)
 
 
 def test_fourth_run_of_the_day_is_refused_with_a_plain_english_429(client, store):

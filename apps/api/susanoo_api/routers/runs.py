@@ -122,16 +122,8 @@ _OWNED = (
 
 
 # The same counts as quota.PostgresQuotaStore.usage_since, but on the caller's own connection so they run inside
-# create_run's transaction (tests/api/test_runs.py asserts the two agree, so they cannot drift apart silently).
-_USAGE_SQL = """
-    select
-        (select count(*) from public.runs r join public.projects p on p.id = r.project_id
-         where p.user_id = %(user)s and r.created_at >= %(since)s) as runs_today,
-        (select coalesce(sum(case when status in ('running', 'awaiting_approval')
-                                  then greatest(cost_usd, cost_cap_usd) else cost_usd end), 0)
-         from public.runs
-         where created_at >= %(since)s or status in ('running', 'awaiting_approval')) as spend_usd
-"""
+# create_run's transaction. One query, shared, so the two can't drift apart.
+_USAGE_SQL = quota.USAGE_SQL
 _LOCK_SQL = "select pg_advisory_xact_lock(hashtextextended(%s, 0))"
 
 

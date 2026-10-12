@@ -7,8 +7,8 @@ depends on this, so demo mode stays available. Every run counts: Susanoo's own h
 platform key (BYOK only covers the generated agent's calls, [PRD › Connectors and API budget]).
 
 Counts come from the runs table itself (runs created since midnight UTC), so there is no counter to reset.
-The check runs before the start-run route inserts its row, so two requests racing in the same instant can
-both pass; the per-run cost cap and the Anthropic Console spend limit bound what that can cost.
+A queued run counts the moment it is inserted. The start-run route checks again inside the transaction that
+inserts the run (runs.PostgresRunStore.create_run), so two requests racing in the same instant can't both pass.
 """
 
 import logging
@@ -38,22 +38,24 @@ class QuotaStore(Protocol):
     async def usage_since(self, user_id: str, since: datetime) -> Usage: ...
 
 
+# Every run created today counts towards the user's quota, whatever its status (queued and cancelled ones too).
+# Runs not yet finished (queued, running, paused) count at their cost cap against the global cap, whenever they
+# started: that much may still be spent. runs.PostgresRunStore re-runs this inside its insert transaction.
+USAGE_SQL = """
+    select
+        (select count(*) from public.runs r join public.projects p on p.id = r.project_id
+         where p.user_id = %(user)s and r.created_at >= %(since)s) as runs_today,
+        (select coalesce(sum(case when status in ('queued', 'running', 'awaiting_approval')
+                                  then greatest(cost_usd, cost_cap_usd) else cost_usd end), 0)
+         from public.runs
+         where created_at >= %(since)s or status in ('queued', 'running', 'awaiting_approval')) as spend_usd
+"""
+
+
 class PostgresQuotaStore:
     async def usage_since(self, user_id: str, since: datetime) -> Usage:
-        """Runs still in flight count at their cost cap, whenever they started: that much may still be spent."""
         async with session() as conn:
-            cur = await conn.execute(
-                """
-                select
-                    (select count(*) from public.runs r join public.projects p on p.id = r.project_id
-                     where p.user_id = %(user)s and r.created_at >= %(since)s) as runs_today,
-                    (select coalesce(sum(case when status in ('running', 'awaiting_approval')
-                                              then greatest(cost_usd, cost_cap_usd) else cost_usd end), 0)
-                     from public.runs
-                     where created_at >= %(since)s or status in ('running', 'awaiting_approval')) as spend_usd
-                """,
-                {"user": user_id, "since": since},
-            )
+            cur = await conn.execute(USAGE_SQL, {"user": user_id, "since": since})
             row = await cur.fetchone()
             assert row is not None
             return Usage(int(row["runs_today"]), float(row["spend_usd"]))
@@ -127,4 +129,4 @@ async def enforce_run_quota(user: CurrentUserDep, store: QuotaStoreDep) -> RunQu
 
 
 RunQuotaDep = Annotated[RunQuota, Depends(enforce_run_quota)]
-"""For Muaaz's start-run route: `async def start_run(project_id: str, user: CurrentUserDep, _: RunQuotaDep)`."""
+"""The start-run route's dependency: `async def start_run(project_id: str, user: CurrentUserDep, _: RunQuotaDep)`."""
