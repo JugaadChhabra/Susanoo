@@ -216,6 +216,30 @@ Done when a new user can sign up on the live site, connect GitHub, run the hero 
 
 ---
 
+## Handoffs from Muaaz's overnight build
+
+### #23 — Mount the AI routers and match the platform to them
+```
+Read docs/integration-points.md rows "Mounting the AI-serving routers" and "Run queue schema + worker deployment" first; they are the spec. Use prd-lookup for [PRD › Frontend and API] and the public-safety rules in CLAUDE.md §5.
+Mount Muaaz's routers (runs, events, intake, approvals, feedback, agent) by filling AI_ROUTERS in apps/api/susanoo_api/routers/__init__.py. Don't rewrite his router logic; if one needs a change, make the smallest fix and say so in the final report.
+Then the platform side: the real POST /projects/{id}/runs replaces the stand-in in tests/api/test_quota.py; add queued and cancelled to RunSummary.status (migration 006); count queued runs in quota usage; export the routers' response models to generated.ts (make types) so the CI staleness check passes; answers and approvals require pause_token, a stale one returns 409 with a plain-English message.
+Tests: auth required on every new route, RLS isolation between two users, quota counts queued runs, 409 on a stale pause_token.
+```
+
+### #24 — Signed-in app on the real API instead of fixtures
+```
+Use prd-lookup for [PRD › Frontend and API] and the screens it lists. Switch the signed-in app from fixtures to the real API mounted in #23: create run, the live run view on GET /runs/{id}/events (resume from the last seq after a dropped connection), intake questions and scenario approval, the test-change approval card, and the agent page's real cards. Answers and approvals send the pause_token; on 409 show "this step has moved on" in plain English and reload the step.
+Keep fixtures only for tests and for development without an API. Only types from generated.ts. Keep every screen's loading, empty and error states and phone width (IMPLEMENTATION_JUGAAD.md §7). The e2e smoke test must still pass against demo mode.
+List in the final report how to try it locally end to end (make dev + local worker + hosted Supabase).
+```
+
+### #25 — Connector tool code that generated agents can use
+```
+Read docs/integration-points.md row "Connector tool code in generated repos" and [PRD › Connectors and API budget › Connector contract] (prd-lookup). Add a credential-free way to ship connector tool code into generated repos, e.g. tool_sources() -> list[str]: self-contained functions, imports inside the body, credentials read only from the env vars env() sets, GitHub writes dry-run unless GITHUB_WRITES_ENABLED is on. env() and tools() must keep working with a placeholder credential.
+Tests: each source compiles on its own with no susanoo import, contains no secret-shaped strings, and passes Agent Smith's secret scan (call its checker; don't edit heads/).
+Don't edit Muaaz's heads. End the final report with exactly what Agent Smith needs to call, so I can pass it to Muaaz.
+```
+
 ## Not ticketed: after freeze (Mon 13:00–18:00, with Muaaz)
 
 ▶ **README and evidence**
