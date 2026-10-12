@@ -216,6 +216,40 @@
 .mk-hero-postmark { animation: mk-press 360ms 760ms both; }
 .mk-hero-shake { animation: mk-shake 180ms 760ms both; }
 
+/* Hover and press (motion spec §3). Buttons lift onto a hard offset shadow and sink into the paper when pressed.
+   --lift-shadow is ink by default; .mk-btn-vermilion is for paper and outline buttons that sit on paper.
+   The colour swaps (hover:bg-*) share the same 160ms timing. Movement and shadow only when motion is allowed. */
+.mk-btn {
+  --lift-shadow: var(--ink);
+  box-shadow: 0 0 0 var(--lift-shadow);
+  transition-property: translate, box-shadow, background-color, color, border-color;
+  transition-duration: var(--dur-hover);
+  transition-timing-function: var(--ease-snap);
+}
+.mk-btn-vermilion { --lift-shadow: var(--vermilion); }
+
+/* Stamp cards: the wrapper carries a drop-shadow, which follows the perforated edge that the .perf mask cuts on the
+   Stamp inside it (a shadow on the Stamp itself would be masked away). The Stamp lifts and tilts. */
+.mk-lift {
+  filter: drop-shadow(0 0 0 var(--ink));
+  transition: filter var(--dur-hover) var(--ease-snap);
+}
+.mk-lift > .perf { transition: translate var(--dur-hover) var(--ease-snap), rotate var(--dur-hover) var(--ease-snap); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mk-btn:focus-visible { translate: -2px -2px; box-shadow: 4px 4px 0 var(--lift-shadow); }
+  .mk-lift:has(:focus-visible) { filter: drop-shadow(6px 6px 0 var(--ink)); }
+  .mk-lift:has(:focus-visible) > .perf { translate: -3px -4px; rotate: -0.6deg; }
+  @media (hover: hover) {
+    .mk-btn:hover { translate: -2px -2px; box-shadow: 4px 4px 0 var(--lift-shadow); }
+    .mk-lift:hover { filter: drop-shadow(6px 6px 0 var(--ink)); }
+    .mk-lift:hover > .perf { translate: -3px -4px; rotate: -0.6deg; }
+  }
+  .mk-btn:active { translate: 2px 2px; box-shadow: 0 0 0 var(--lift-shadow); transition-duration: var(--dur-tap); }
+  .mk-lift:active { filter: drop-shadow(0 0 0 var(--ink)); transition-duration: var(--dur-tap); }
+  .mk-lift:active > .perf { translate: 1px 1px; rotate: 0deg; transition-duration: var(--dur-tap); }
+}
+
 /* Reduced motion: nothing moves, and from-only keyframes mean everything already sits in its final state. */
 @media (prefers-reduced-motion: reduce) {
   .mk, .mk *, .mk *::before, .mk *::after {
