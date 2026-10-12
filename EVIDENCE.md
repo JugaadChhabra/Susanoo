@@ -35,8 +35,8 @@ Third hero run, **hero-7** (18:20 IST, published: https://github.com/susanoo-app
 - The generated hero-2 app boots in the sandbox (05:00 IST): built from its repo with `sandbox.docker`, started with 512 MB / 1 CPU, read-only root, all capabilities dropped, no mounts and no published ports; `/health` answered `{"status":"ok"}`.
 - Checkpoints on generated repo (patch rolled back): TODO: no rollback happened in hero-2 yet.
 - Entire's own view of the hero-7 generated repo (`entire checkpoint list` / `explain` / `tokens`): two checkpoints, the Builder session on `c76bbe6` and the Fixer session on the kept fix `60edf30` (intent, diagnosis, failing scenario, the user's rules, and the one file it changed, `agent/prompt.md`): `docs/evidence/entire-hero7-checkpoints.txt`. The checkpoints themselves live in the generated repo's Entire refs (not pushed: session pushing is off).
-- entire-graph output of this repo:
-- Checkpoints from building Susanoo itself:
+- entire-graph output of this repo (v0.4.0, Mon 12 Oct 21:20 IST): `docs/evidence/entire-graph-susanoo.txt` (graph of 252 files, 11 languages: about 2,650 functions, 6,300 call edges; plus ranked search results for the Diagnostician and the held-out guard).
+- Checkpoints from building Susanoo itself: Entire was enabled on this repo late (Mon 12 Oct 21:14 IST, `49a7e2c`), not from the first commit. `--import-history` imported 186 turns from the two Claude Code sessions still on disk, so `entire checkpoint list` shows them as `[imported]`; the earlier build sessions (Sat–Mon morning) have none. Checkpoints live in local `refs/entire/*`; session pushing is off, and a scan of every checkpoint blob found no credentials (only fake test literals).
 
 ## 4. We used cfo.ai
 - Business plan (pricing, costs, revenue, runway): `docs/business-plan/`

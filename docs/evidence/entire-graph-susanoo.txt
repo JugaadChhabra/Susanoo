@@ -1,0 +1,26 @@
+# entire-graph (v0.4.0) output for the Susanoo repo, Mon 12 Oct 2026, commit a102489
+
+## entire graph snapshot: size of the graph
+{'other': 373, 'function': 2649, 'section': 1169, 'code_fence': 240, 'document': 9, 'workflow': 3, 'job': 6, 'target': 13, 'stage': 5, 'setting': 114, 'class': 226, 'method': 342, 'variable': 42, 'selector': 7, 'type': 38, 'interface': 62, 'field': 308, 'resource': 3, 'index': 16, 'tool': 8, 'table': 16, 'trigger': 2, 'policy': 16, 'element': 6, 'DEFINES': 5285, 'CONTAINS': 949, 'HANDLES_TOOL': 8, 'HANDLES_ROUTE': 188, 'CALLS': 6302, 'CONSTRUCTS': 529, 'IMPORTS': 2203, 'DATA_FLOWS': 1436, 'EXTENDS': 129, 'INHERITS': 129, 'ASYNC_CALLS': 540, 'READS_FIELD': 47, 'ACCESSES': 4, 'LISTENS_ON': 3, 'WRITES_FIELD': 6, 'HTTP_CALLS': 18, 'OVERRIDES': 14, 'USES_TYPE': 515, 'RETURNS_TYPE': 255, 'PARAM_TYPE': 273, 'TESTS': 5, 'RESOURCE_DEPENDS_ON': 3, 'CONFIGURES': 977, 'SIMILAR_TO': 89, 'FILE_CHANGES_WITH': 170, 'channel': 3, 'config': 402, 'import': 293, 'route': 95, 'symbol': 391}
+
+## entire graph search: where does the Diagnostician pick a failure layer?
+VERIFY: python -m pytest tests/heads/test_verifier.py -k test_P2_after_a_rollback_the_diagnostician_still_sees_the_failures
+1. packages/core/susanoo/graph/stubs.py:302-329 diagnostician s=25.4 [focus:306]
+
+2. packages/core/susanoo/connectors/github.py:327-332 _failed s=22.8 [focus:327]
+
+3. apps/worker/susanoo_worker/run_driver.py:179-185 RunSession._failed s=20.5 [focus:179]
+
+4. packages/core/susanoo/heads/diagnostician.py:273-281 select_failures s=20.3 [focus:273]
+
+
+## entire graph search: where is the held-out set kept away from the Fixer?
+VERIFY: python -m pytest tests/heads/test_simulator.py -k test_split_scenarios_mixes_kinds_and_small_groups
+1. packages/core/susanoo/heads/simulator.py:819-833 write_scenarios s=31.5 [focus:819]
+
+2. apps/worker/susanoo_worker/feedback.py:104-117 _write_into_repo s=28.4 [focus:107]
+
+
+3. packages/core/susanoo/heads/fixer.py:509-513 _HeldoutText.__call__ s=28.3 [focus:512]
+
+4. packages/core/susanoo/heads/simulator.py:673-700 split_scenarios s=31.0 [focus:678]

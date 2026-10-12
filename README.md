@@ -10,6 +10,12 @@ the fix with traces. Built for neatHack 2026 by Muaaz Shaikh and Jugaad Chhabra.
 - Plans: [`IMPLEMENTATION_MUAAZ.md`](IMPLEMENTATION_MUAAZ.md), [`IMPLEMENTATION_JUGAAD.md`](IMPLEMENTATION_JUGAAD.md)
 - Evidence for judges: [`EVIDENCE.md`](EVIDENCE.md)
 
+## How we use Entire
+- **Inside Susanoo:** every Fixer patch on a generated repo is a commit with an Entire checkpoint (the failure, the diagnosis, the rationale). Example: hero-7's kept fix `60edf30`, checkpoint `01M4RB1D8JPSNQYGPBW8V7DCMT`, in [susanoo-apps/python-code-review-hero7](https://github.com/susanoo-apps/python-code-review-hero7); Entire's own view of it is in [`docs/evidence/entire-hero7-checkpoints.txt`](docs/evidence/entire-hero7-checkpoints.txt).
+- **On this repo:** Entire was switched on late, on Mon 12 Oct at 21:14 IST, not from the first commit. It records the Claude Code work from then on, and `--import-history` brought in the 186 turns of the two Claude Code sessions that were still on disk. Earlier build sessions have no checkpoints. Checkpoints are local (`refs/entire/*`) and session pushing is off.
+- **entire-graph of Susanoo:** [`docs/evidence/entire-graph-susanoo.txt`](docs/evidence/entire-graph-susanoo.txt) (graph size, plus `entire graph search` results for "where the Diagnostician picks a layer" and "how the held-out set is kept from the Fixer").
+- `.githooks/*.pre-entire` are our identity and attribution guards; Entire's git hooks call them, so both run on every commit and push. The hooks do nothing if the `entire` binary isn't installed.
+
 ## Getting started (team)
 ```bash
 git clone https://github.com/JugaadChhabra/Susanoo && cd Susanoo
