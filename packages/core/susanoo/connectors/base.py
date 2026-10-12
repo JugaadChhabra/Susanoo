@@ -15,7 +15,7 @@ import functools
 import logging
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -192,9 +192,29 @@ def parse_guide(markdown: str) -> ConnectorGuide:
     return ConnectorGuide(steps=steps, notes=notes)
 
 
+# Secret values read from Vault in this process (e.g. for a run's container), hidden by exact match as well as
+# by shape: a token with an unusual format still never reaches a log line or a trace. Process-wide on purpose,
+# so a value stays hidden after its run ends. Short values are ignored: they would blank out ordinary words.
+_MIN_REDACTED_LEN = 8
+_known_secrets: tuple[str, ...] = ()  # longest first, so overlapping values go whole; rebuilt only on change
+
+
+def redact_secret_values(values: Iterable[str]) -> None:
+    """Hide these exact values from every later `redact()` (log lines) and trace scrub, in this process."""
+    global _known_secrets
+    added = {v for v in values if len(v) >= _MIN_REDACTED_LEN} - set(_known_secrets)
+    if added:
+        _known_secrets = tuple(sorted({*_known_secrets, *added}, key=len, reverse=True))
+
+
+def known_secret_values() -> tuple[str, ...]:
+    """The values `redact_secret_values()` registered, longest first."""
+    return _known_secrets
+
+
 def redact(text: str, secrets: list[str] | None = None) -> str:
     """Replace known secrets and anything shaped like a token with [redacted]."""
-    for secret in secrets or []:
+    for secret in [*(secrets or []), *_known_secrets]:
         if secret:
             text = text.replace(secret, REDACTED)
     return _TOKEN_PATTERNS.sub(REDACTED, text)

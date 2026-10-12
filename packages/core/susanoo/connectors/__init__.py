@@ -10,7 +10,9 @@ from susanoo.connectors.base import (
     TestResult,
     ToolResult,
     install_log_redaction,
+    known_secret_values,
     redact,
+    redact_secret_values,
     redact_value,
 )
 from susanoo.connectors.anthropic import AnthropicConnector
@@ -32,7 +34,9 @@ __all__ = [
     "TestResult",
     "ToolResult",
     "install_log_redaction",
+    "known_secret_values",
     "redact",
+    "redact_secret_values",
     "redact_value",
     "registry",
 ]

@@ -34,6 +34,8 @@ import neatlogs
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span, Status, StatusCode
 
+from susanoo.connectors.base import known_secret_values
+
 log = logging.getLogger(__name__)
 
 REDACTED = "[REDACTED]"
@@ -83,6 +85,8 @@ _MAX_DEPTH = 8
 
 def scrub_text(text: str) -> str:
     """Replace anything in `text` that looks like a credential with [REDACTED]."""
+    for value in known_secret_values():  # exact values read from Vault for a run's container
+        text = text.replace(value, REDACTED)
     for pattern in _SECRET_VALUE_PATTERNS:
         text = pattern.sub(REDACTED, text)
     text = _URL_PASSWORD.sub(rf"\g<1>{REDACTED}\g<3>", text)
