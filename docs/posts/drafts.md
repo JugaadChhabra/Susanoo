@@ -4,7 +4,7 @@ These are drafts for Muaaz to edit and post himself. Nothing here has been publi
 
 Rules followed: numbers and ids come only from `EVIDENCE.md`, `docs/evidence/hero-2-run.json` and `docs/evidence/worker-crash-resume.txt`. Where a link or screenshot does not exist yet it says TODO(Muaaz). Check each sponsor's actual X handle before tagging (the kit says so; the handles below are the ones in `docs/build-in-public.md`, unverified).
 
-Honesty note that applies to posts 3 and 4: in hero-2 the held-out F1 did **not** rise (0.909 before and after). What improved was the practice-set precision and the acceptance pass rate. The run was unattended: intake took the suggested defaults, no person approved the example scenarios, and the one test change was rejected by the script. Do not word any post as "held-out F1 went up".
+Honesty note that applies to posts 3 and 4: the headline framing is the same as the landing page's proof section (`apps/web/lib/proof.ts`, commit `b2a2188`): the round before the kept fix (round 1) against the round after it (round 2), which scored the same 28 scenarios, plus the run's total cost. In hero-2 the held-out F1 did **not** rise (0.91 before and after: "the hidden checks didn't change"). What moved was recall on the practice set (88% to 100%) and the acceptance pass rate (90% to 100%). Do not compare round 0 with round 2 as if it were the agent improving: round 0 scored 32 scenarios, round 2 scored 28 (four were set aside at the test gate), so the precision 0.71 to 1.00 jump is mostly that change in the scenario set. The run was unattended: intake took the suggested defaults, no person approved the example scenarios, and the one test change was rejected by the script. Do not word any post as "held-out F1 went up" or as "you approved".
 
 ---
 
@@ -52,7 +52,7 @@ Honesty note that applies to posts 3 and 4: in hero-2 the held-out F1 did **not*
 
 **Post text**
 
-> Our "before". Susanoo built a Python code reviewer from a plain-English spec, wrote 32 test scenarios (15 to practise on, 7 held back it never sees, 10 acceptance checks), and ran them all.
+> Our round-0 baseline. Susanoo built a Python code reviewer from a plain-English spec, wrote 32 test scenarios (15 to practise on, 7 held back it never sees, 10 acceptance checks), and ran them all.
 > 6 of 32 failed. Recall 1.00, precision 0.71, hidden-check F1 0.91, acceptance 0.90. Cost of the whole setup plus this first scoring pass: $0.82.
 > Every scenario run has its own @neatlogs trace. Next: can it work out why it failed? #neatHack
 > [screenshot of the before table / a trace: TODO(Muaaz)]
@@ -71,16 +71,16 @@ Honesty note that applies to posts 3 and 4: in hero-2 the held-out F1 did **not*
 
 **Post text**
 
-> We pointed Susanoo at its own code reviewer and let it fix itself. Result of one unattended run:
+> We pointed Susanoo at its own code reviewer and let it fix itself. One unattended run, no person approving anything:
 > - Round 1: it diagnosed 4 failures as a problem with the tests, not the agent. Changing a test needs a human, so the script said no. Susanoo marked those 4 as disputed and moved on.
 > - Round 2: it found the reviewer had missed a live access token typed into code, most likely because its prompt exempted anything that looked like a fake test fixture (Susanoo's own words: "this is a guess"). It wrote a 3-line prompt fix. Verified: target fixed, no regressions, kept. The fix has an @EntireHQ checkpoint with the reasoning.
-> Practice-set precision 0.71 -> 1.00, acceptance pass rate 0.90 -> 1.00. Hidden-check F1 stayed at 0.91; it did not go up this time, and one hidden check still fails. Susanoo stopped because it could not find a cause it could fix. Cost: $1.75. #neatHack
+> The round before the fix vs the round after it (same 28 scenarios): problems caught 88% -> 100%. Hidden-check F1 0.91 -> 0.91: the hidden checks didn't change, and one still fails. Susanoo stopped because it could not find a cause it could fix. Whole run: $1.75. #neatHack
 > [before/after table + Diagnostician trace: TODO(Muaaz)]
 
 **Relies on**
 - `EVIDENCE.md` section 1 ("hero-2 (before)" and "(after)" rows, and the "What changed" notes) and section 3 (patch-1, commit `ae319a2`, Entire checkpoint `01M4PKQ6VKBEM41T77PB8CJE95`).
-- `docs/evidence/hero-2-run.json`: `metrics` (iteration 0 to 2: precision 0.714 to 1.0, acceptance 0.9 to 1.0, `heldout_f1` 0.909 throughout), `patches[0]` (3 lines, verdict kept), `failure_ledger` (diag-i0-1 test layer; diag-i1-1 prompt_policy, scenario sim-04), events seq 28 (test change rejected, 4 disputed), seq 38 (verifier checks all true), seq 44 (`stop_reason` no_diagnosis), `cost_usd` 1.750983.
-- Check before posting: the "Practice-set precision" comparison uses the training-set precision column (`EVIDENCE.md` §1 explains recall and precision are on the training set). Recall also moved 1.00 -> 0.875 -> 1.00 along the way; leaving it out is fine, but do not claim recall "improved".
+- `docs/evidence/hero-2-run.json`: `metrics` (iteration 1 to 2, the rounds either side of the kept fix: recall 0.875 to 1.0, acceptance 0.9 to 1.0, `heldout_f1` 0.909 in both; iteration 0 is a different 32-scenario set), `patches[0]` (3 lines, verdict kept), `failure_ledger` (diag-i0-1 test layer; diag-i1-1 prompt_policy, scenario sim-04), events seq 28 (test change rejected, 4 disputed), seq 38 (verifier checks all true), seq 44 (`stop_reason` no_diagnosis), `cost_usd` 1.750983.
+- Check before posting: recall is the practice-set (training) recall (`EVIDENCE.md` §1). 88% = 0.875 (iteration 1), 100% = 1.0 (iteration 2). Recall was also 1.00 at iteration 0, but on a different set of 32 scenarios, so do not call the 88% -> 100% a gain over the baseline; it is the change across the kept fix on the same 28 scenarios. "Whole run: $1.75" is `cost_usd` 1.750983 for the entire run, including work after the last score; do not use the per-round `cost_usd` values in `metrics` (1.16, 1.52) as the run cost.
 - TODO(Muaaz): neatlogs links for the before and after traces and a Diagnostician screenshot (`EVIDENCE.md` §1 and §2 still have these as TODO). The Entire checkpoint id is real, but a public link to it does not exist yet. The generated repo is local only (GitHub publish got a 403), so there is no repo link to give.
 
 ### 4b. Optional second post: it survives a crash
