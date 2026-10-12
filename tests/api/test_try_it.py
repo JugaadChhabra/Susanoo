@@ -89,14 +89,6 @@ def test_a_blank_diff_is_a_422(client, store, preview):
     assert response.status_code == 422 and not preview["seen"]
 
 
-def test_a_pr_is_a_422_until_prs_are_supported(client, store, preview):
-    response = client.post(
-        f"/runs/{live_run(store)}/try", headers=bearer(ALICE), json={"kind": "pr", "pr": "owner/repo#12"}
-    )
-    assert response.status_code == 422 and "diff" in response.json()["error"]["message"]
-    assert not preview["seen"]
-
-
 def test_a_preview_that_does_not_answer_is_a_503(client, store, preview):
     def down(request):
         raise httpx.ConnectError("refused", request=request)
@@ -159,3 +151,141 @@ def test_a_preview_url_that_is_not_the_runs_own_address_is_never_called(client, 
 def test_an_unknown_kind_is_a_422(client, store, preview):
     response = post(client, live_run(store), kind="patch")
     assert response.status_code == 422 and not preview["seen"]
+
+
+# ---------------------------------------------------------------- a pull request from the connected repo
+
+TOKEN = "github_pat_" + "11ABCDEFG0" * 6  # built at runtime so it never looks like a real token in git
+
+
+@pytest.fixture
+def github(monkeypatch):
+    """The fake GitHub and the run's resolved connections (the #30 Vault resolution, faked per run)."""
+    seen: list[httpx.Request] = []
+    state: dict = {
+        "env": {"GITHUB_TOKEN": TOKEN, "GITHUB_REPO": "acme/payments-api", "GITHUB_WRITES_ENABLED": "false"},
+        "reply": lambda _: httpx.Response(200, text=DIFF),
+        "seen": seen,
+        "asked": [],
+    }
+
+    async def run_connection_env(run_id: str) -> dict[str, str]:
+        state["asked"].append(run_id)
+        if isinstance(state["env"], Exception):
+            raise state["env"]
+        return dict(state["env"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return state["reply"](request)
+
+    monkeypatch.setattr(try_it, "run_connection_env", run_connection_env)
+    monkeypatch.setattr(try_it, "_github_transport", httpx.MockTransport(handler))
+    return state
+
+
+def post_pr(client, run, pr="acme/payments-api#12", user=ALICE):
+    return client.post(f"/runs/{run}/try", headers=bearer(user), json={"kind": "pr", "pr": pr})
+
+
+@pytest.mark.parametrize(
+    "pr", ["acme/payments-api#12", "https://github.com/acme/payments-api/pull/12", "Acme/Payments-API#12"]
+)
+def test_a_pr_from_the_connected_repo_comes_back_with_findings(client, store, preview, github, caplog, pr):
+    run = live_run(store)
+    caplog.set_level("DEBUG")
+    response = post_pr(client, run, pr=pr)
+    assert response.status_code == 200
+    body = TryResult.model_validate(response.json())
+    assert [f.model_dump() for f in body.findings] == [FINDING]
+    assert github["asked"] == [run]
+    (fetch,) = github["seen"]
+    assert str(fetch.url) == "https://api.github.com/repos/acme/payments-api/pulls/12"
+    assert fetch.headers["Authorization"] == f"Bearer {TOKEN}"
+    assert fetch.headers["Accept"] == "application/vnd.github.diff"
+    (review,) = preview["seen"]  # the same path as a pasted diff
+    assert httpx.Response(200, content=review.content).json() == {"diff": DIFF.strip()}
+    assert TOKEN not in response.text and TOKEN not in review.content.decode() and TOKEN not in caplog.text
+
+
+def test_a_pr_without_a_github_connection_is_a_422(client, store, preview, github):
+    github["env"] = {"SLACK_BOT_TOKEN": "xoxb-1"}
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "Connect GitHub to try a PR."
+    assert not github["seen"] and not preview["seen"]
+
+
+def test_a_pr_when_a_connection_is_not_yours_is_a_422(client, store, preview, github):
+    from susanoo.connectors.runtime_env import ConnectionNotYours
+
+    github["env"] = ConnectionNotYours("A connection picked for this run belongs to someone else, so none were used.")
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 422 and "Connect GitHub" in response.json()["error"]["message"]
+    assert not github["seen"] and not preview["seen"]
+
+
+def test_a_pr_from_another_repo_is_a_422_and_github_is_never_asked(client, store, preview, github):
+    response = post_pr(client, live_run(store), pr="someone/else#12")
+    assert response.status_code == 422
+    message = response.json()["error"]["message"]
+    assert message == "Your GitHub connection is for acme/payments-api, so it can only try pull requests from there."
+    assert not github["seen"] and not preview["seen"]
+
+
+def test_a_pr_that_does_not_exist_is_a_422(client, store, preview, github, caplog):
+    github["reply"] = lambda _: httpx.Response(404, json={"message": "Not Found"})
+    response = post_pr(client, live_run(store), pr="acme/payments-api#999")
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "We couldn't find pull request #999 in acme/payments-api."
+    assert not preview["seen"] and TOKEN not in caplog.text
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_a_rejected_token_is_a_422_that_names_no_token(client, store, preview, github, status):
+    github["reply"] = lambda _: httpx.Response(status, json={"message": f"Bad credentials {TOKEN}"})
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 422
+    assert "GitHub didn't let your connection read" in response.json()["error"]["message"]
+    assert TOKEN not in response.text and not preview["seen"]
+
+
+def test_github_being_unreachable_is_a_503(client, store, preview, github):
+    def down(request):
+        raise httpx.ConnectError(f"refused {TOKEN}", request=request)
+
+    github["reply"] = down
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 503 and "reach GitHub" in response.json()["error"]["message"]
+    assert TOKEN not in response.text and not preview["seen"]
+
+
+def test_a_pr_with_too_many_changes_is_a_422(client, store, preview, github):
+    github["reply"] = lambda _: httpx.Response(200, text="+" + "x" * 20_000)
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 422 and "pull request's changes are too long" in response.json()["error"]["message"]
+    assert not preview["seen"]
+
+
+def test_an_empty_pr_is_a_422_that_talks_about_the_pr(client, store, preview, github):
+    github["reply"] = lambda _: httpx.Response(200, text="")
+    response = post_pr(client, live_run(store))
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "That pull request has no code changes to review."
+    assert not preview["seen"]
+
+
+@pytest.mark.parametrize("pr", ["", "acme/payments-api", "acme/payments-api#x", "https://evil.dev/a/b/pull/1"])
+def test_a_pr_that_is_not_a_pr_reference_is_a_422(client, store, preview, github, pr):
+    response = post_pr(client, live_run(store), pr=pr)
+    assert response.status_code == 422 and not github["asked"] and not github["seen"]
+
+
+def test_a_pr_on_a_run_without_a_preview_never_reads_github(client, store, preview, github):
+    response = post_pr(client, store.add_run(ALICE, "running"))
+    assert response.status_code == 503 and not github["asked"] and not github["seen"]
+
+
+def test_a_pr_on_someone_elses_run_is_a_404_and_reads_nothing(client, store, preview, github):
+    response = post_pr(client, live_run(store, owner=BOB))
+    assert response.status_code == 404 and not github["asked"] and not github["seen"]
