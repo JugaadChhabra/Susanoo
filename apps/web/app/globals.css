@@ -241,6 +241,8 @@
   .mk-lift:has(:focus-visible) { filter: drop-shadow(6px 6px 0 var(--ink)); }
   .mk-lift:has(:focus-visible) > .perf { translate: -3px -4px; rotate: -0.6deg; }
   @media (hover: hover) {
+    /* A vermilion button that turns ink on hover would swallow an ink shadow, so its hover shadow is vermilion. */
+    .mk-btn-swap:hover { --lift-shadow: var(--vermilion); }
     .mk-btn:hover { translate: -2px -2px; box-shadow: 4px 4px 0 var(--lift-shadow); }
     .mk-lift:hover { filter: drop-shadow(6px 6px 0 var(--ink)); }
     .mk-lift:hover > .perf { translate: -3px -4px; rotate: -0.6deg; }

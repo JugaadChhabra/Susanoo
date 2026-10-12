@@ -8,7 +8,7 @@ import { HankoSeal, Stamp, StampFace } from "@/components/stamp";
 import { SerpentStamp } from "./serpent-stamp";
 import { FOCUS_RING } from "./site-chrome";
 
-const PRIMARY = `mk-btn inline-flex items-center justify-center rounded-[2px] bg-vermilion px-7 py-4 text-lg font-semibold text-paper hover:bg-ink ${FOCUS_RING}`;
+const PRIMARY = `mk-btn mk-btn-swap inline-flex items-center justify-center rounded-[2px] bg-vermilion px-7 py-4 text-lg font-semibold text-paper hover:bg-ink ${FOCUS_RING}`;
 const SECONDARY = `mk-btn mk-btn-vermilion inline-flex items-center justify-center rounded-[2px] border-2 border-ink px-[26px] py-3.5 text-lg font-semibold text-ink hover:bg-paper ${FOCUS_RING}`;
 
 /** Page gutters shared by every section. */
