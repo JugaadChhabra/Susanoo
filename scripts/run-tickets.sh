@@ -16,14 +16,17 @@
 #   scripts/run-tickets.sh 5 6             # only these issues, in this order
 #   DRY_RUN=1 scripts/run-tickets.sh       # print the frontier and each prompt; change nothing
 #   MAX_TICKETS=3 scripts/run-tickets.sh   # stop after 3 merged tickets
+#   PROMPTBOOK=PROMPTBOOK_MOTION.md LABEL=motion scripts/run-tickets.sh   # another promptbook, only issues with this label
 #
-# Env: PERMISSION_MODE (default bypassPermissions — the session runs unattended),
+# Env: PROMPTBOOK (default PROMPTBOOK_JUGAAD.md), LABEL (optional extra label filter; default none),
+#      PERMISSION_MODE (default bypassPermissions — the session runs unattended),
 #      CLAUDE_MODEL (optional), LOG_DIR (default .git/ticket-runs, never tracked).
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 REPO="JugaadChhabra/Susanoo"
-PROMPTBOOK="PROMPTBOOK_JUGAAD.md"
+PROMPTBOOK="${PROMPTBOOK:-PROMPTBOOK_JUGAAD.md}"
+LABEL="${LABEL:-}"
 PERMISSION_MODE="${PERMISSION_MODE:-bypassPermissions}"
 LOG_DIR="${LOG_DIR:-$(git rev-parse --git-dir)/ticket-runs}"
 MAX_TICKETS="${MAX_TICKETS:-0}"
@@ -91,7 +94,9 @@ open_blockers() {
 next_ticket() {
   local n list state count
   NEXT=""
-  list="$(retry gh issue list -R "$REPO" --state open --label ready-for-agent --limit 100 \
+  local labels=(--label ready-for-agent)
+  [ -n "$LABEL" ] && labels+=(--label "$LABEL")
+  list="$(retry gh issue list -R "$REPO" --state open "${labels[@]}" --limit 100 \
             --json number --jq '.[].number')" || die "can't list issues from GitHub (network?)"
   for n in $(sort -n <<<"$list"); do
     [[ "$SKIPPED$DONE" == *" $n "* ]] && continue
