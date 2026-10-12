@@ -28,15 +28,15 @@
 
 ## 3. Pricing (proposal: Muaaz and Jugaad decide; the PRD leaves prices blank until cost per run is measured)
 
-Targets ~85% gross margin on runs (cost ≈ $1.55 per run incl. sandbox).
+Variable cost ≈ $1.55 per run (model $1.50 + sandbox $0.05). Team targets ~60% gross margin at full use and ~75% at average use.
 
 | Plan | Price | Includes | Overage |
 |---|---|---|---|
 | Free | $0 | 3 runs per month, demo templates | none |
-| Team | $49 / month | 30 runs per month, private repos, custom policies | $3 per extra run |
+| Team | $79 / month | 20 runs per month, private repos, custom policies | $4 per extra run |
 | Enterprise | from $1,500 / month | SSO, self-hosted runners, custom domains, support, volume runs | contract |
 
-Unit economics at these prices: a Team customer using all 30 runs costs ~$47 in model + sandbox spend, so heavy users sit near break-even and average users (≈12 runs) give ~62% margin; raise the Team price or lower included runs if cfo.ai shows thin margin.
+Unit economics at these prices: a Team customer using all 20 runs costs ~$31 (20 x $1.55), a 61% margin; an average customer (≈12 runs) costs ~$19, a 76% margin; an overage run sells at $4 against $1.55 cost, also 61%. Free users use ≤3 runs, so each active one costs up to ~$4.65 a month and is modelled as pure cost.
 
 ## 4. Scenarios to build in cfo.ai (base and growth)
 
