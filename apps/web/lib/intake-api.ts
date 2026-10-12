@@ -1,10 +1,10 @@
-import { apiFetch } from "@/lib/api";
-import type { Intake, ScenarioDecisionPayload } from "@/lib/intake";
+import { apiFetch, getRun, TERMINAL_RUN_STATUSES } from "@/lib/api";
+import type { AnswersIn, IntakeAccepted, IntakeOut, ScenariosIn } from "@/types/generated";
 
-/** In development, `/runs/fixture/intake` uses an in-memory mock until Muaaz's intake router lands. */
+/** In development, `/runs/fixture/intake` walks an in-memory mock, for working on the screen without an API. */
 export const isMockIntake = (runId: string) => runId === "fixture" && process.env.NODE_ENV !== "production";
 
-const MOCK_QUESTIONS: Intake["questions"] = [
+const MOCK_QUESTIONS: IntakeOut["questions"] = [
   {
     id: "q1",
     text: "Should a missing login check on an internal health-check endpoint be blocked or allowed?",
@@ -21,55 +21,68 @@ const MOCK_QUESTIONS: Intake["questions"] = [
   },
 ];
 
-const MOCK_SCENARIOS: Intake["scenarios"] = [
-  {
-    id: "s1",
-    description: "A developer adds a log line that prints a customer's email.",
-    expected: "Blocked under No PII in logs.",
-  },
-  {
-    id: "s2",
-    description: "A developer adds a new internal /health route with no login check.",
-    expected: "Allowed, because health checks are public by default.",
-  },
-  {
-    id: "s3",
-    description: "A developer renames a variable and fixes a typo in a comment.",
-    expected: "Nothing is flagged.",
-  },
+const MOCK_SCENARIOS: IntakeOut["scenarios"] = [
+  { id: "s1", title: "A developer adds a log line that prints a customer's email. It should be blocked under No PII in logs." },
+  { id: "s2", title: "A developer adds a new internal /health route with no login check. It should be allowed." },
+  { id: "s3", title: "A developer renames a variable and fixes a typo in a comment. Nothing should be flagged." },
 ];
 
-let mockAnswered = false;
+let mockStep: "questions" | "scenarios" | "done" = "questions";
 const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function getIntake(runId: string): Promise<Intake> {
-  if (isMockIntake(runId)) {
-    await delay();
-    return { questions: MOCK_QUESTIONS, scenarios: mockAnswered ? MOCK_SCENARIOS : [] };
+function mockIntake(): IntakeOut {
+  const base = { questions: [], scenarios: [], gate: null };
+  if (mockStep === "questions") {
+    return { ...base, waiting: true, kind: "questions", pause_token: "mock-1", message: "Please answer a few quick questions.", questions: MOCK_QUESTIONS };
   }
-  return apiFetch<Intake>(`/runs/${encodeURIComponent(runId)}/intake`, { cache: "no-store" });
+  if (mockStep === "scenarios") {
+    return { ...base, waiting: true, kind: "scenarios", pause_token: "mock-2", message: "Please review these examples.", scenarios: MOCK_SCENARIOS };
+  }
+  return { ...base, waiting: false, kind: null, pause_token: null, message: "Nothing is waiting for you right now." };
 }
 
-const post = (runId: string, path: string, body: unknown) =>
-  apiFetch<unknown>(`/runs/${encodeURIComponent(runId)}/intake/${path}`, {
+/** What the run is waiting on right now, with the pause_token an answer must send back. */
+export async function fetchIntake(runId: string): Promise<IntakeOut> {
+  if (isMockIntake(runId)) return mockIntake();
+  return apiFetch<IntakeOut>(`/runs/${encodeURIComponent(runId)}/intake`, { cache: "no-store" });
+}
+
+export interface IntakeState {
+  intake: IntakeOut;
+  /** The run is over, so nothing more will be asked. Only checked when nothing is waiting. */
+  runFinished: boolean;
+}
+
+export async function getIntake(runId: string): Promise<IntakeState> {
+  if (isMockIntake(runId)) {
+    await delay();
+    return { intake: mockIntake(), runFinished: false };
+  }
+  const [intake, run] = await Promise.all([fetchIntake(runId), getRun(runId)]);
+  return { intake, runFinished: !intake.waiting && TERMINAL_RUN_STATUSES.has(run.status) };
+}
+
+const post = <T>(runId: string, path: string, body: unknown) =>
+  apiFetch<T>(`/runs/${encodeURIComponent(runId)}/intake/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-export async function submitAnswers(runId: string, answers: Record<string, string>): Promise<void> {
+export async function submitAnswers(runId: string, body: AnswersIn): Promise<IntakeAccepted> {
   if (isMockIntake(runId)) {
     await delay();
-    mockAnswered = true;
-    return;
+    mockStep = "scenarios";
+    return { ok: true, message: "Got your answers." };
   }
-  await post(runId, "answers", { answers });
+  return post<IntakeAccepted>(runId, "answers", body);
 }
 
-export async function submitScenarios(runId: string, decisions: ScenarioDecisionPayload[]): Promise<void> {
+export async function submitScenarios(runId: string, body: ScenariosIn): Promise<IntakeAccepted> {
   if (isMockIntake(runId)) {
     await delay();
-    return;
+    mockStep = "done";
+    return { ok: true, message: "Got your review." };
   }
-  await post(runId, "scenarios", { decisions });
+  return post<IntakeAccepted>(runId, "scenarios", body);
 }

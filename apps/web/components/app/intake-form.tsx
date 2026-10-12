@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { capQuestions, initialAnswers, type IntakeQuestion } from "@/lib/intake";
+import { capQuestions, initialAnswers } from "@/lib/intake";
+import type { IntakeQuestionOut } from "@/types/generated";
 import { cn } from "@/lib/utils";
 
 /** Up to five questions, each with a suggested default and one line on why it matters. */
@@ -10,7 +11,7 @@ export function IntakeForm({
   questions,
   onSubmit,
 }: {
-  questions: IntakeQuestion[];
+  questions: IntakeQuestionOut[];
   onSubmit: (answers: Record<string, string>) => Promise<void>;
 }) {
   const shown = capQuestions(questions);

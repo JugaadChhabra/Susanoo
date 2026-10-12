@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "@/types/generated";
 import fixture from "./fixtures/run-events.json";
-import { deriveBudget, deriveLedger, deriveMetrics, derivePendingApproval } from "./scoreboard";
+import { deriveBudget, deriveLedger, deriveMetrics, derivePendingApproval, gateApproval } from "./scoreboard";
 
 const events = fixture as RunEvent[];
 const upTo = (seq: number) => events.filter((e) => e.seq <= seq);
@@ -72,5 +72,20 @@ describe("derivePendingApproval", () => {
   it("clears once the decision lands", () => {
     expect(derivePendingApproval(upTo(37))).toBeNull();
     expect(derivePendingApproval(events)).toBeNull();
+  });
+});
+
+describe("gateApproval", () => {
+  it("uses the gate's id and hypothesis with the newest approval event's words", () => {
+    const card = gateApproval({ approval_id: "dx-3", layer: "test", hypothesis: "The expected severity is wrong.", scenario_ids: ["s5"] }, upTo(36));
+    expect(card.patchId).toBe("dx-3");
+    expect(card.hypothesis).toBe("The expected severity is wrong.");
+    expect(card.summary).toBe(events.find((e) => e.seq === 36)?.message);
+  });
+  it("falls back to plain words when no event has arrived yet", () => {
+    const card = gateApproval({ approval_id: "d1", layer: "", hypothesis: "", scenario_ids: [] }, []);
+    expect(card.layer).toBe("test");
+    expect(card.hypothesis).toBeNull();
+    expect(card.summary).toMatch(/tests/);
   });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RunEvent } from "@/types/generated";
 import fixtureEvents from "@/lib/fixtures/run-events.json";
+import { getRun, TERMINAL_RUN_STATUSES } from "@/lib/api";
 import { fetchDemoEvents, mergeEvents, openRunStream, replayEvents, type StreamStatus } from "@/lib/sse";
 
 /** Where a run view gets its events. Everything downstream only sees the resulting array. */
@@ -57,8 +58,12 @@ export function useRunEvents(source: RunSource): RunEventsState {
         setStatus("closed");
       });
     } else {
-      stop = openRunStream(sourceKey.slice(5), { onEvent: push, onStatus: (s) => !cancelled && setStatus(s),
-        onGiveUp: () => !cancelled && setError("We lost the connection to this run and couldn't get it back. It may not exist, or you may need to sign in again."),
+      const runId = sourceKey.slice(5);
+      stop = openRunStream(runId, {
+        onEvent: push,
+        onStatus: (s) => !cancelled && setStatus(s),
+        onGiveUp: (message) => !cancelled && setError(message),
+        isRunOver: async () => TERMINAL_RUN_STATUSES.has((await getRun(runId)).status),
       }).close;
     }
     return () => {

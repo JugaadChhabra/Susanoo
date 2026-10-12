@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
-import { isValidEdit, type ScenarioCard as Card, type ScenarioDecision } from "@/lib/intake";
+import { isValidEdit, MAX_TITLE_CHARS, type ScenarioDecision } from "@/lib/intake";
 import { cn } from "@/lib/utils";
+import type { ScenarioCardOut } from "@/types/generated";
 
 const BTN =
   "inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
@@ -14,15 +15,14 @@ export function ScenarioCard({
   decision,
   onChange,
 }: {
-  card: Card;
+  card: ScenarioCardOut;
   decision: ScenarioDecision;
   onChange: (d: ScenarioDecision) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [description, setDescription] = useState(card.description);
-  const [expected, setExpected] = useState(card.expected);
+  const [title, setTitle] = useState(card.title);
 
-  const shown = decision.action === "edit" ? decision : card;
+  const shown = decision.action === "edit" ? decision.title : card.title;
   const status =
     decision.action === "approve" ? "Approved" : decision.action === "edit" ? "Edited and approved" : decision.action === "reject" ? "Rejected" : null;
 
@@ -36,19 +36,21 @@ export function ScenarioCard({
       {editing ? (
         <div className="space-y-3">
           <label className="block text-sm">
-            <span className="font-medium">What happens</span>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-border bg-background p-2" />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium">What should happen</span>
-            <textarea value={expected} onChange={(e) => setExpected(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-border bg-background p-2" />
+            <span className="font-medium">What happens, and what your agent should do</span>
+            <textarea
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              rows={3}
+              maxLength={MAX_TITLE_CHARS}
+              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
+            />
           </label>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={!isValidEdit(description, expected)}
+              disabled={!isValidEdit(title)}
               onClick={() => {
-                onChange({ action: "edit", description, expected });
+                onChange({ action: "edit", title });
                 setEditing(false);
               }}
               className={cn(BTN, "bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50")}
@@ -62,10 +64,7 @@ export function ScenarioCard({
         </div>
       ) : (
         <>
-          <p className="text-sm">{shown.description}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Expected:</span> {shown.expected}
-          </p>
+          <p className="text-sm break-words">{shown}</p>
           {status && (
             <p role="status" className="mt-2 text-xs font-medium text-muted-foreground">
               {status}
@@ -78,8 +77,7 @@ export function ScenarioCard({
             <button
               type="button"
               onClick={() => {
-                setDescription(shown.description);
-                setExpected(shown.expected);
+                setTitle(shown);
                 setEditing(true);
               }}
               className={BTN}

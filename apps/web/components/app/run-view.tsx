@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { Hand, RotateCw, WifiOff } from "lucide-react";
-import { decideApproval } from "@/lib/api";
-import { deriveBudget, deriveLedger, deriveMetrics, derivePendingApproval } from "@/lib/scoreboard";
+import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
+import { Bot, Hand, RotateCw, WifiOff } from "lucide-react";
+import { decideApproval, isStepMovedOn, STEP_MOVED_ON } from "@/lib/api";
+import { deriveBudget, deriveLedger, deriveMetrics, derivePendingApproval, gateApproval } from "@/lib/scoreboard";
 import { cn } from "@/lib/utils";
 import { deriveRunState, type RunStatus } from "@/lib/run-state";
 import { useRunEvents, type RunSource } from "@/lib/use-run-events";
+import { useRunPause } from "@/lib/use-run-pause";
 import { EventLog } from "./event-log";
 import { HeadsGraph } from "./heads-graph";
 import { Scoreboard } from "./scoreboard";
@@ -28,14 +30,36 @@ export function RunView({ source }: { source: RunSource }) {
   const metrics = useMemo(() => deriveMetrics(events), [events]);
   const budget = useMemo(() => deriveBudget(events), [events]);
   const ledger = useMemo(() => deriveLedger(events), [events]);
-  const approval = useMemo(() => derivePendingApproval(events), [events]);
+  const replayApproval = useMemo(() => derivePendingApproval(events), [events]);
   const liveRunId = source.kind === "live" ? source.runId : null;
+  const lastPause = useMemo(() => events.findLast((e) => e.type === "question_needed" || e.type === "approval_needed")?.seq ?? 0, [events]);
+  const { intake: pause, failing: pauseFailing, reload: reloadPause } = useRunPause(liveRunId, String(lastPause), snapshot.status === "paused");
+  // A notice belongs to the pause it was about; a new pause clears it.
+  const [notice, setNotice] = useState<{ pause: number; text: string } | null>(null);
+  const noticeText = notice?.pause === lastPause ? notice.text : null;
+  // The pause the user just answered: until the run moves on, say so instead of asking again.
+  const [decidedToken, setDecidedToken] = useState<string | null>(null);
+  const pauseToken = pause?.pause_token ?? null;
+  const decided = pauseToken !== null && pauseToken === decidedToken;
+  const gate = pause?.kind === "gate" && !decided ? pause.gate : null;
+  const approval = liveRunId ? (gate ? gateApproval(gate, events) : null) : replayApproval;
   const onDecide = useCallback(
-    async (patchId: string, decision: "approve" | "reject") => {
-      if (liveRunId) await decideApproval(liveRunId, patchId, decision);
+    async (approvalId: string, decision: "approve" | "reject") => {
+      if (!liveRunId || !pauseToken) return;
+      setNotice(null);
+      try {
+        await decideApproval(liveRunId, approvalId, { pause_token: pauseToken, approved: decision === "approve" });
+        setDecidedToken(pauseToken);
+      } catch (e) {
+        if (!isStepMovedOn(e)) throw e;
+        setNotice({ pause: lastPause, text: STEP_MOVED_ON });
+        reloadPause();
+        throw new Error(STEP_MOVED_ON); // the card says it; once it's gone, the notice below does
+      }
     },
-    [liveRunId],
+    [liveRunId, pauseToken, lastPause, reloadPause],
   );
+  const needsAnswers = liveRunId !== null && !decided && (pause?.kind === "questions" || pause?.kind === "scenarios");
   const pill = STATUS_PILL[snapshot.status];
   const reconnecting = status === "reconnecting";
 
@@ -53,6 +77,14 @@ export function RunView({ source }: { source: RunSource }) {
             <RotateCw className="size-3" aria-hidden /> Test round {snapshot.iteration}
           </span>
         )}
+        {liveRunId && (
+          <Link
+            href={`/runs/${encodeURIComponent(liveRunId)}/agent`}
+            className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white focus-visible:outline-2 focus-visible:outline-slate-300"
+          >
+            <Bot className="size-3.5" aria-hidden /> Your agent
+          </Link>
+        )}
         {source.kind !== "live" && (
           <span className="rounded-full border border-slate-700 px-2.5 py-0.5 text-[11px] text-slate-400">
             Replay of a saved run
@@ -69,12 +101,46 @@ export function RunView({ source }: { source: RunSource }) {
         <HeadsGraph snapshot={snapshot} />
       </section>
 
-      {approval && <ApprovalCard key={approval.patchId} approval={approval} onDecide={liveRunId ? onDecide : undefined} />}
+      {approval && (
+        <ApprovalCard key={pauseToken ?? approval.patchId} approval={approval} onDecide={liveRunId ? onDecide : undefined} />
+      )}
 
-      {snapshot.status === "paused" && !approval && (
+      {noticeText && !approval && (
+        <p role="status" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-100 ring-1 ring-amber-500/30">
+          {noticeText}
+        </p>
+      )}
+
+      {decided && snapshot.status === "paused" && (
+        <p role="status" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-100 ring-1 ring-amber-500/30">
+          Answer sent. Waiting for Susanoo to carry on…
+        </p>
+      )}
+
+      {needsAnswers && liveRunId && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl bg-amber-500/10 p-4 text-sm text-amber-100 ring-1 ring-amber-500/30">
+          <Hand className="size-4 shrink-0" aria-hidden />
+          <p className="min-w-0 flex-1">
+            {pause?.kind === "questions"
+              ? "Susanoo has a few quick questions for you before it builds."
+              : "Susanoo wrote some example scenarios. Approve, edit or reject them so it can build."}
+          </p>
+          <Link
+            href={`/runs/${encodeURIComponent(liveRunId)}/intake`}
+            className="inline-flex min-h-10 items-center rounded-lg bg-amber-400 px-4 text-sm font-medium text-amber-950 hover:bg-amber-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+          >
+            {pause?.kind === "questions" ? "Answer the questions" : "Review the examples"}
+          </Link>
+        </div>
+      )}
+
+      {snapshot.status === "paused" && !approval && !needsAnswers && !decided && (
         <div role="status" className="flex items-start gap-3 rounded-xl bg-amber-500/10 p-4 text-sm text-amber-100 ring-1 ring-amber-500/30">
           <Hand className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p>Susanoo is waiting on a decision from you before it carries on.</p>
+          <p>
+            Susanoo is waiting on a decision from you before it carries on.
+            {pauseFailing && " We're having trouble loading it right now and will keep trying."}
+          </p>
         </div>
       )}
 

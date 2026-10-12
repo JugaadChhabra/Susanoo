@@ -1,5 +1,7 @@
 import { getAccessToken } from "@/lib/supabase";
 import type {
+  ApprovalIn,
+  ApprovalOut,
   ConnectionSummary,
   ConnectionTest,
   ConnectorInfo,
@@ -8,6 +10,7 @@ import type {
   ProjectRules,
   ProjectSummary,
   RunQuota,
+  RunStatus,
 } from "@/types/generated";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -67,16 +70,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
 export const getHealth = () => apiFetch<Health>("/health", { cache: "no-store" });
 
-export type ApprovalDecision = "approve" | "reject";
-
-/** Answer a gated (test-layer) change. The PRD lists the route but not the body, so we send `{decision}`. */
-export const decideApproval = (runId: string, patchId: string, decision: ApprovalDecision) =>
-  apiFetch<unknown>(`/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(patchId)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ decision }),
-  });
-
 const sendJson = (method: "POST" | "PUT", body: unknown): RequestInit => ({
   method,
   headers: { "Content-Type": "application/json" },
@@ -103,6 +96,31 @@ export const saveConnection = (body: NewConnection) =>
 
 export const testConnection = (connectionId: string) =>
   apiFetch<ConnectionTest>(`/connections/${encodeURIComponent(connectionId)}/test`, { method: "POST" });
+
+/** Start a run of a project (checks the daily quota, then queues it for a worker). */
+export const startRun = (projectId: string) =>
+  apiFetch<RunStatus>(`/projects/${encodeURIComponent(projectId)}/runs`, { method: "POST" });
+
+export const getRun = (runId: string) => apiFetch<RunStatus>(`/runs/${encodeURIComponent(runId)}`, { cache: "no-store" });
+
+/** Statuses after which a run sends no more events. */
+export const TERMINAL_RUN_STATUSES: ReadonlySet<RunStatus["status"]> = new Set(["done", "failed", "cancelled"]);
+
+/** Decide a gated (test-layer) change. `approvalId` is the gate's `approval_id` from GET /runs/{id}/intake. */
+export const decideApproval = (runId: string, approvalId: string, body: ApprovalIn) =>
+  apiFetch<ApprovalOut>(
+    `/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}`,
+    sendJson("POST", body),
+  );
+
+/**
+ * Answers and approvals carry the pause_token of the step the user saw. A 409 means that step is gone
+ * (answered in another tab, a double click, or the run moved on), so the screen says so and reloads it.
+ */
+export const STEP_MOVED_ON =
+  "This step has moved on: it was already answered, or the run went ahead without it. We've reloaded it so you see where things are now.";
+
+export const isStepMovedOn = (e: unknown) => e instanceof ApiError && e.status === 409;
 
 export const revokeConnection = (connectionId: string) =>
   apiFetch<void>(`/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" });

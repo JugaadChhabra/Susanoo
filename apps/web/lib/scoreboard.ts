@@ -1,4 +1,4 @@
-import type { Diagnosis, IterationMetrics, RunEvent } from "@/types/generated";
+import type { Diagnosis, GateOut, IterationMetrics, RunEvent } from "@/types/generated";
 
 const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" ? (v as Record<string, unknown>) : null);
@@ -151,4 +151,19 @@ export function derivePendingApproval(events: RunEvent[]): PendingApproval | nul
     }
   }
   return pending;
+}
+
+/** A live run's gate (from GET /runs/{id}/intake) as an approval card; the newest approval event supplies the words. */
+export function gateApproval(gate: GateOut, events: RunEvent[]): PendingApproval {
+  const asked = events.findLast((e) => e.type === "approval_needed");
+  return {
+    patchId: gate.approval_id,
+    diagnosisId: gate.approval_id,
+    layer: gate.layer || "test",
+    linesChanged: null,
+    file: null,
+    summary: asked?.message ?? "Change one of the tests it is checked against.",
+    hypothesis: gate.hypothesis || null,
+    traceUrl: asked?.trace_url ?? null,
+  };
 }
