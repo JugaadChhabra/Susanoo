@@ -30,7 +30,7 @@ class RunSummary(BaseModel):
     """One run as the projects screen shows it. heldout_f1 is the latest iteration's, if any."""
 
     id: str
-    status: Literal["running", "awaiting_approval", "done", "failed"]
+    status: Literal["queued", "running", "awaiting_approval", "done", "failed", "cancelled"]  # migration 006
     heldout_f1: float | None
     cost_usd: float
     cost_cap_usd: float

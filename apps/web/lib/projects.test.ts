@@ -67,6 +67,8 @@ describe("formatting", () => {
     expect(runStatusLabel("awaiting_approval")).toBe("Needs your approval");
     expect(runStatusLabel("done")).toBe("Finished");
     expect(runStatusLabel("failed")).toBe("Stopped with a problem");
+    expect(runStatusLabel("queued")).toBe("Waiting to start");
+    expect(runStatusLabel("cancelled")).toBe("Cancelled");
   });
 });
 

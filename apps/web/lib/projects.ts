@@ -30,10 +30,12 @@ export const formatCost = (run: Pick<RunSummary, "cost_usd" | "cost_cap_usd">) =
   `${usd(run.cost_usd)} of ${usd(run.cost_cap_usd)}`;
 
 const STATUS_LABELS: Record<RunSummary["status"], string> = {
+  queued: "Waiting to start",
   running: "Running",
   awaiting_approval: "Needs your approval",
   done: "Finished",
   failed: "Stopped with a problem",
+  cancelled: "Cancelled",
 };
 
 export const runStatusLabel = (status: RunSummary["status"]) => STATUS_LABELS[status];

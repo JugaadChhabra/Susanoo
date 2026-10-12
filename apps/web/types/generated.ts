@@ -7,9 +7,31 @@ export interface AgentBundle {
   model: string;
 }
 
+export interface AgentCard {
+  what_it_does: string;
+  can_do: Array<string>;
+  wont_do: Array<string>;
+}
+
 export interface AnswerKey {
   expected: Array<ExpectedIssue>;
   must_not_flag: Array<string>;
+}
+
+export interface AnswersIn {
+  pause_token: string;
+  answers: Record<string, string>;
+}
+
+export interface ApprovalIn {
+  pause_token: string;
+  approved: boolean;
+}
+
+export interface ApprovalOut {
+  ok: boolean;
+  approved: boolean;
+  message: string;
 }
 
 export interface ConnectionSummary {
@@ -77,12 +99,57 @@ export interface ExpectedIssue {
   severity: "block" | "warn" | "nit";
 }
 
+export interface FeedbackIn {
+  thumbs_down: boolean;
+  expectation: string;
+  diff: string;
+  findings?: Array<Finding>;
+}
+
+export interface FeedbackOut {
+  accepted: boolean;
+  message: string;
+  code: string | null;
+  scenario_id: string | null;
+  title: string | null;
+}
+
 export interface Finding {
   file: string;
   line: number;
   rule_id: string;
   severity: "block" | "warn" | "nit";
   message: string;
+}
+
+export interface GateOut {
+  approval_id: string;
+  layer: string;
+  hypothesis: string;
+  scenario_ids: Array<string>;
+}
+
+export interface IntakeAccepted {
+  ok: boolean;
+  message: string;
+}
+
+export interface IntakeOut {
+  waiting: boolean;
+  kind: "questions" | "scenarios" | "gate" | null;
+  pause_token: string | null;
+  message: string;
+  questions: Array<IntakeQuestionOut>;
+  scenarios: Array<ScenarioCardOut>;
+  gate: GateOut | null;
+}
+
+export interface IntakeQuestionOut {
+  id: string;
+  text: string;
+  options: Array<string>;
+  default: string;
+  why: string;
 }
 
 export interface IterationMetrics {
@@ -138,6 +205,27 @@ export interface ProjectSummary {
   runs: Array<RunSummary>;
 }
 
+export interface ReportCard {
+  iteration: number;
+  basis: "heldout" | "train" | "none";
+  score: SetScore;
+  score_percent: number;
+  headline: string;
+  basis_note: string;
+  comparison: string | null;
+  trend: "better" | "same" | "worse" | "new";
+  acceptance: string | null;
+  unscored: string | null;
+  lines: Array<string>;
+}
+
+export interface ReportCards {
+  run_id: string;
+  message: string;
+  latest: ReportCard | null;
+  history: Array<ReportCard>;
+}
+
 export interface Rule {
   id: string;
   text: string;
@@ -163,9 +251,23 @@ export interface RunQuota {
   resets_at: string;
 }
 
+export interface RunStatus {
+  id: string;
+  project_id: string;
+  status: "queued" | "running" | "awaiting_approval" | "done" | "failed" | "cancelled";
+  message: string;
+  cost_usd: number;
+  cost_cap_usd: number;
+  preview_url: string | null;
+  created_at: string;
+  cancel_requested: boolean;
+  error: string | null;
+  metrics: Array<IterationMetrics>;
+}
+
 export interface RunSummary {
   id: string;
-  status: "running" | "awaiting_approval" | "done" | "failed";
+  status: "queued" | "running" | "awaiting_approval" | "done" | "failed" | "cancelled";
   heldout_f1: number | null;
   cost_usd: number;
   cost_cap_usd: number;
@@ -182,6 +284,15 @@ export interface Scenario {
   approved_by_user: boolean;
 }
 
+export interface ScenarioCardOut {
+  id: string;
+  title: string;
+}
+
+export interface ScenarioEdit {
+  title: string;
+}
+
 export interface ScenarioResult {
   scenario_id: string;
   iteration: number;
@@ -193,4 +304,18 @@ export interface ScenarioResult {
   passed: boolean;
   trace_id: string;
   error: string | null;
+}
+
+export interface ScenariosIn {
+  pause_token: string;
+  approved_ids: Array<string>;
+  rejected_ids?: Array<string>;
+  edits?: Record<string, ScenarioEdit>;
+}
+
+export interface SetScore {
+  basis: "heldout" | "train" | "none";
+  caught: number;
+  problems: number;
+  false_alarms: number;
 }

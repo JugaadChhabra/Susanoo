@@ -15,10 +15,12 @@ const outlineButton =
   "inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60";
 
 const STATUS_TONE: Record<RunSummary["status"], string> = {
+  queued: "bg-muted text-muted-foreground",
   running: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
   awaiting_approval: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   done: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   failed: "bg-red-500/15 text-red-700 dark:text-red-300",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
 /** The signed-in user's projects and their runs. [PRD › Frontend and API › Screens › Projects] */

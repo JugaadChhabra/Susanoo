@@ -2,6 +2,7 @@
 
 import time
 import uuid
+from pathlib import Path
 
 import jwt
 import pytest
@@ -164,3 +165,20 @@ def test_database_trouble_is_plain_english(client, store, monkeypatch):
 )
 def test_project_name_comes_from_the_spec(spec, name):
     assert projects.name_from_spec(spec) == name
+
+
+def test_run_summary_statuses_match_migration_006_and_the_runs_router():
+    """The projects list shows every status a run can be in: the runs_status_check of migration 006."""
+    import re
+    import typing
+
+    from susanoo_api.models import RunSummary
+    from susanoo_api.routers.runs import RunState
+
+    sql = (Path(__file__).parents[2] / "supabase" / "migrations" / "006_run_queue.sql").read_text()
+    check = re.search(r"check \(status in \(([^)]*)\)\)", sql)
+    assert check is not None
+    in_db = set(re.findall(r"'(\w+)'", check.group(1)))
+    summary = set(typing.get_args(RunSummary.model_fields["status"].annotation))
+    assert summary == in_db == set(typing.get_args(RunState))
+    assert {"queued", "cancelled"} <= summary
