@@ -10,6 +10,11 @@ the fix with traces. Built for neatHack 2026 by Muaaz Shaikh and Jugaad Chhabra.
 - Plans: [`IMPLEMENTATION_MUAAZ.md`](IMPLEMENTATION_MUAAZ.md), [`IMPLEMENTATION_JUGAAD.md`](IMPLEMENTATION_JUGAAD.md)
 - Evidence for judges: [`EVIDENCE.md`](EVIDENCE.md)
 
+## Architecture
+![Susanoo architecture](docs/architecture/susanoo-architecture-wide.png)
+
+The Next.js dashboard (Vercel) talks to the FastAPI control plane (EC2) over REST and SSE, and the control plane enqueues runs in Supabase. The run worker polls that queue and drives the eight heads through one LangGraph. The Builder and Fixer edit the generated repo through the Claude Agent SDK, and every change gets an Entire checkpoint. The Runner starts the generated app in its own container. Both Susanoo and the generated agent send traces to neatlogs, and the Diagnostician reads the failing ones. Tall version: [`docs/architecture/susanoo-architecture.png`](docs/architecture/susanoo-architecture.png).
+
 ## How we use Entire
 - **Inside Susanoo:** every Fixer patch on a generated repo is a commit with an Entire checkpoint (the failure, the diagnosis, the rationale). Example: hero-7's kept fix `60edf30`, checkpoint `01M4RB1D8JPSNQYGPBW8V7DCMT`, in [susanoo-apps/python-code-review-hero7](https://github.com/susanoo-apps/python-code-review-hero7); Entire's own view of it is in [`docs/evidence/entire-hero7-checkpoints.txt`](docs/evidence/entire-hero7-checkpoints.txt).
 - **On this repo:** Entire was switched on late, on Mon 12 Oct at 21:14 IST, not from the first commit, so live checkpoints exist only from then on. `--import-history` brought in the Claude Code history that was still on disk: 186 turns of the main build session (it starts Sun 11 Oct at 17:53 IST) and of today's session. Those are read-only imported checkpoints (`entire checkpoint list` shows them as `[imported]`). They stay local (`refs/entire/*`, session pushing off) because the transcripts contain personal contact details.
@@ -23,5 +28,3 @@ git config user.name "<your GitHub username>"   # MuaazSM or JugaadChhabra
 bash scripts/setup-dev.sh                        # hooks, identity check, .env
 ```
 Then open Claude Code in the repo (it reads `CLAUDE.md`) and follow your `PROMPTBOOK_*.md` from Phase 0.
-
-_Live link, architecture and demo video are added during the hackathon._
