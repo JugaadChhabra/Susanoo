@@ -4,6 +4,10 @@ ROOT="$(git rev-parse --show-toplevel)"
 ALLOWED_FILE="$ROOT/.devkit/allowed-identities"
 BANNED_FILE="$ROOT/.devkit/banned-trailers"
 
+# Kept to POSIX sh so it can also be sourced from make (/bin/sh) and macOS bash 3.2.
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 # is_allowed_identity <name> <email>  -> exit 0 if allowed
 is_allowed_identity() {
   local name="$1" email="$2" line kind val
@@ -12,7 +16,7 @@ is_allowed_identity() {
     [ -z "$line" ] && continue
     kind="${line%%:*}"; val="${line#*:}"
     if [ "$kind" = "name" ] && [ "$name" = "$val" ]; then return 0; fi
-    if [ "$kind" = "email" ] && [ "${email,,}" = "${val,,}" ]; then return 0; fi
+    if [ "$kind" = "email" ] && [ "$(lower "$email")" = "$(lower "$val")" ]; then return 0; fi
   done < "$ALLOWED_FILE"
   return 1
 }
@@ -25,7 +29,9 @@ has_banned_lines() {
   local f="$1" p
   while IFS= read -r p; do
     if grep -E -i -q -- "$p" "$f"; then return 0; fi
-  done < <(banned_patterns)
+  done <<EOF
+$(banned_patterns)
+EOF
   return 1
 }
 
