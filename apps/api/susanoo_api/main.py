@@ -96,6 +96,9 @@ def create_app() -> FastAPI:
         return {"status": "ok" if supabase["status"] == "ok" else "degraded", "supabase": supabase}
 
     mount_routers(app)
+    from susanoo_api.platform.router import create_platform_app
+
+    app.mount("/api/v1", create_platform_app())
     return app
 
 

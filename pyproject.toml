@@ -6,12 +6,13 @@ requires-python = ">=3.12"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["apps/api", "apps/worker", "packages/core"]
+members = ["apps/api", "apps/worker", "packages/core", "packages/contracts"]
 
 [tool.uv.sources]
 susanoo-core = { workspace = true }
 susanoo-api = { workspace = true }
 susanoo-worker = { workspace = true }
+susanoo-contracts = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -22,6 +23,9 @@ dev = [
     "susanoo-api",
     "susanoo-worker",
     "psycopg[binary]>=3.2",
+    "pypdf>=6,<7",
+    "hypothesis>=6,<7",
+    "psutil>=7,<8",
 ]
 
 [tool.ruff]

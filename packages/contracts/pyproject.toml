@@ -1,0 +1,16 @@
+[project]
+name = "susanoo-contracts"
+version = "0.1.0"
+description = "Versioned Susanoo platform and customer-runner wire contracts"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "rfc8785>=0.1.4,<0.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["susanoo_contracts"]

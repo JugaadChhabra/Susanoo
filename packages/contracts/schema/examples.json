@@ -1,0 +1,120 @@
+{
+  "examples": [
+    {
+      "model": "RunnerClaim",
+      "payload": {
+        "available_slots": 1,
+        "supported_job_kinds": [
+          "outcome_suite"
+        ]
+      }
+    },
+    {
+      "model": "BudgetReservation",
+      "payload": {
+        "amount": 1,
+        "budget_kind": "agent",
+        "lease_token": "synthetic-not-real-lease-0000000000000000000000000000000000000000",
+        "operation_id": "synthetic-step-001"
+      }
+    },
+    {
+      "model": "EventBatch",
+      "payload": {
+        "events": [
+          {
+            "event_id": "00000000-0000-4000-8000-000000000003",
+            "occurred_at": "2026-10-30T00:00:00Z",
+            "payload": {
+              "action_kind": "agent",
+              "operation_id": "synthetic-step-001",
+              "request_digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+            },
+            "sequence": 1,
+            "step_id": "synthetic-step-001",
+            "type": "step_prepared"
+          }
+        ],
+        "lease_token": "synthetic-not-real-lease-0000000000000000000000000000000000000000",
+        "protocol_version": "1.0"
+      }
+    },
+    {
+      "model": "EvidenceBatch",
+      "payload": {
+        "check_results": [
+          {
+            "check_version_id": "00000000-0000-4000-8000-000000000001",
+            "evaluator_digest": "703ac72818f6c6efc3fd18da26dc92c69737a6ef1377637e98df13ebc7e0a860",
+            "measured": {},
+            "observation_ids": [
+              "00000000-0000-4000-8000-000000000002"
+            ],
+            "reason": "Wire example only; not evidence of a real backend",
+            "verdict": "PASS"
+          }
+        ],
+        "lease_token": "synthetic-not-real-lease-0000000000000000000000000000000000000000",
+        "observations": [
+          {
+            "artifact_ids": [],
+            "availability": "available",
+            "captured_at": "2026-10-30T00:00:00Z",
+            "completeness": "complete_for_scope",
+            "digest": "6aea6dfe6561984cdc5c54ead84d47d2cf29e48253ae282aef237404adad4661",
+            "namespace": "synthetic-attempt-001",
+            "observation_id": "00000000-0000-4000-8000-000000000002",
+            "redaction_version": "synthetic-v1",
+            "source": "synthetic_protocol_fixture",
+            "storage_mode": "redacted_hosted",
+            "values": {
+              "count": 1
+            },
+            "window_elapsed": true,
+            "window_seconds": 10
+          }
+        ]
+      }
+    },
+    {
+      "model": "Finalize",
+      "payload": {
+        "business_verdict": "UNKNOWN",
+        "cleanup_state": "not_required",
+        "execution_state": "interrupted",
+        "final_sequence": 1,
+        "lease_token": "synthetic-not-real-lease-0000000000000000000000000000000000000000",
+        "reason": "Synthetic example: uncertain action requires read-back; never redispatch",
+        "reconciliation_state": "pending"
+      }
+    },
+    {
+      "model": "ExportIn",
+      "payload": {
+        "audience": "project",
+        "format": "json",
+        "snapshot_artifact_id": null
+      }
+    }
+  ],
+  "hash_vectors": [
+    {
+      "canonical_json": "{\"one\":1,\"tiny\":1e-7}",
+      "sha256": "69622c8465dbcdbff919bbf1b9af7f5105545fdd5a1f1496d721fb97606eb441",
+      "value": {
+        "one": 1.0,
+        "tiny": 1e-07
+      }
+    },
+    {
+      "canonical_json": "{\"count\":1,\"text\":\"synthetic\"}",
+      "sha256": "4218c6e4240b16cd9b9c85f887de18f0ca9d2eb78368f18dd57c88c9c04c4282",
+      "value": {
+        "count": 1,
+        "text": "synthetic"
+      }
+    }
+  ],
+  "protocol_version": "1.0",
+  "purpose": "synthetic_wire_examples_not_business_acceptance"
+}

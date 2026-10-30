@@ -45,3 +45,34 @@ types-check: types
 
 check-identity:
 	@. .githooks/_lib.sh; is_allowed_identity "$$(git config user.name)" "$$(git config user.email)" && echo "✓ identity ok" || (echo "✖ set git user.name to MuaazSM or JugaadChhabra"; exit 1)
+
+.PHONY: platform-bootstrap platform-api platform-worker platform-test platform-types platform-compose production-check
+platform-bootstrap:
+	uv run python -m susanoo_api.platform.cli bootstrap
+platform-api:
+	uv run python -m susanoo_api.platform.cli serve
+platform-worker:
+	uv run python -m susanoo_api.platform.cli worker
+platform-migrate:
+	uv run python -m susanoo_api.platform.cli migrate
+platform-seed:
+	uv run python -m susanoo_api.platform.cli seed
+platform-test:
+	uv run python scripts/test_platform.py -q
+platform-e2e:
+	cd tests/e2e && npx playwright test --config platform.config.ts
+platform-benchmark:
+	uv run python scripts/test_platform.py -q -k "capacity or twenty_case_protocol"
+platform-types:
+	uv run python scripts/export_platform_contracts.py
+platform-compose:
+	docker compose --env-file .env.platform.compose -f deploy/platform.compose.yml up --build
+production-check:
+	uv run python -m susanoo_api.platform.cli production-check
+
+.PHONY: acceptance platform-acceptance
+.PHONY: platform-migrate platform-seed platform-e2e platform-benchmark
+acceptance:
+	uv run python scripts/platform_acceptance.py
+platform-acceptance:
+	uv run python scripts/platform_acceptance.py --platform-only

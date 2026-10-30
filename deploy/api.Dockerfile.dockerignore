@@ -1,0 +1,9 @@
+.git
+.platform
+.venv
+.env*
+**/node_modules
+**/__pycache__
+apps/web
+tests
+docs

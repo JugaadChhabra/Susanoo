@@ -8,11 +8,16 @@ dependencies = [
     "httpx>=0.27",
     "pyjwt[crypto]>=2.8",
     "susanoo-core",
+    "susanoo-contracts",
+    "reportlab>=4.4,<5",
+    "boto3>=1.40,<2",
+    "cryptography>=46,<51",
     "uvicorn[standard]>=0.30",
 ]
 
 [tool.uv.sources]
 susanoo-core = { workspace = true }
+susanoo-contracts = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

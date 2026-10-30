@@ -1,0 +1,111 @@
+name: expanded-platform
+on:
+  pull_request:
+  push:
+    branches: [codex/aarav-platform]
+permissions:
+  contents: read
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm@sha256:839fbb5a4942a7758dd93e18b42ea5649807491a0545b5eeeb8f0b8bb11857a5
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: postgres
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      PLATFORM_DATABASE_URL: postgresql://postgres:synthetic-ci-only@127.0.0.1:5432/postgres
+      PLATFORM_ENV: development
+      PLATFORM_SECRET_KEY: synthetic-ci-key-not-used-outside-disposable-ci
+      PLATFORM_ORIGIN: http://localhost:3000
+      PLATFORM_PG_BIN: /usr/lib/postgresql/17/bin
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        with:
+          version: "0.11.19"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            tests/e2e/package-lock.json
+      - run: uv sync --frozen
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-17
+      - run: uv run ruff check .
+      - run: uv run pytest -q tests/api tests/scripts tests/scoring tests/guards
+      - run: uv run python scripts/test_platform.py -q
+      - name: Canonical packet has no drift
+        run: |
+          uv run python scripts/export_platform_contracts.py
+          git diff --exit-code -- packages/contracts/schema apps/web/types/platform-generated.ts apps/web/types/platform-schema.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run typecheck && npm run lint && npm test && npm run build
+        working-directory: apps/web
+      - run: npm ci && npx playwright install --with-deps chromium
+        working-directory: tests/e2e
+      - name: Real platform browser tests (no replacement runtime)
+        shell: bash
+        run: |
+          uv run python -m susanoo_api.platform.cli bootstrap
+          uv run python -m susanoo_api.platform.cli serve >.platform/api-ci.log 2>&1 &
+          api_pid=$!
+          uv run python -m susanoo_api.platform.cli worker >.platform/worker-ci.log 2>&1 &
+          worker_pid=$!
+          npm --prefix apps/web run start -- --hostname 127.0.0.1 --port 3000 >.platform/web-ci.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$api_pid" "$worker_pid" "$web_pid" 2>/dev/null || true' EXIT
+          for n in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/evaluation >/dev/null && curl --fail --silent http://127.0.0.1:8000/api/v1/health >/dev/null; then break; fi
+            sleep 2
+          done
+          export PLATFORM_BROWSER_CREDENTIALS="$PWD/$(find .platform -name 'demo-credentials-*.json' -print -quit)"
+          cd tests/e2e
+          npx playwright test --config platform.config.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: platform-capacity-and-screenshots
+          path: |
+            .platform/capacity-report.json
+            .platform/console-desktop.png
+            .platform/console-mobile.png
+            .platform/workflow-desktop.png
+            .platform/workflow-mobile.png
+          retention-days: 7
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PLATFORM_DB_PASSWORD: synthetic-container-check-only
+      PLATFORM_SECRET_KEY: synthetic-container-check-key-not-production
+      PLATFORM_BACKUP_KEY: synthetic-container-backup-key-not-production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: docker compose -f deploy/platform.compose.yml config --quiet
+      - run: docker compose -f deploy/platform.compose.yml build
+      - name: Private control plane starts with real PostgreSQL
+        shell: bash
+        run: |
+          trap 'docker compose -f deploy/platform.compose.yml down --volumes' EXIT
+          docker compose -f deploy/platform.compose.yml up -d
+          for n in $(seq 1 90); do
+            if curl --insecure --fail --silent https://localhost:8443/evaluation >/dev/null; then
+              docker compose -f deploy/platform.compose.yml run --rm api /app/.venv/bin/python -m susanoo_api.platform.cli seed
+              docker compose -f deploy/platform.compose.yml exec -T api /app/.venv/bin/python -m susanoo_api.platform.cli backup --path /app/.platform/ci-smoke.susanoobak
+              exit 0
+            fi
+            sleep 3
+          done
+          docker compose -f deploy/platform.compose.yml logs --no-color
+          exit 1

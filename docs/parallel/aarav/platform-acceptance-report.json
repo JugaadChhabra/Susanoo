@@ -1,0 +1,17 @@
+{
+  "measured_at": "2026-10-30T12:23:13.038944+00:00",
+  "checks": {
+    "platform_postgres": 0,
+    "python_lint": 0,
+    "web_types": 0,
+    "web_lint": 0,
+    "web_unit": 0,
+    "browser_types": 0,
+    "real_platform_browser_protocol_fixture": 0
+  },
+  "browser_executed": true,
+  "customer_runtime_acceptance": "pending_muaz_runtime_and_shared_conformance",
+  "T01_T40_accepted": false,
+  "live_provider_verified": false,
+  "mode": "platform_only"
+}

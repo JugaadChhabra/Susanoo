@@ -1,5 +1,11 @@
 # CLAUDE.md — Susanoo
 
+> Expanded-build update (30 October 2026): read `AGENTS.md` and
+> `docs/spec/Susanoo_Architecture_and_Build_Plan.md` first. The text below records
+> the original hackathon scope. Aarav's platform branch proposes adding his genuine
+> contributor identity; feature branches and review replace direct-to-main work
+> for the expanded build. Legacy schemas and Muaz-owned implementation remain protected.
+
 Susanoo turns a plain-English spec into a running web app with its own AI agent, then attacks it, diagnoses why it fails, fixes the right layer, and proves the fix with traces. We are building it for neatHack 2026.
 
 - Repo: https://github.com/JugaadChhabra/Susanoo

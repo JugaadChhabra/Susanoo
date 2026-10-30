@@ -1,0 +1,30 @@
+{
+  "measured_at": "2026-10-30T12:20:09.375462+00:00",
+  "attempt_records": 10000,
+  "transport": "real loopback HTTP / uvicorn / PostgreSQL; synthetic records; no customer runtime",
+  "host": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.13",
+  "postgres": "PostgreSQL 17.6 on x86_64-windows, compiled by msvc-19.44.35213, 64-bit",
+  "resources": {
+    "api_test_process_peak_rss_bytes": 134758400,
+    "database_size_bytes": 14650515,
+    "api_test_process_cpu_seconds": 0.703,
+    "logical_cpus": 16,
+    "postgres_process_rss_measured": false
+  },
+  "metrics": {
+    "run_status": {
+      "samples": 30,
+      "p50_ms": 45.97,
+      "p95_ms": 145.0,
+      "max_ms": 148.81
+    },
+    "case_list": {
+      "samples": 30,
+      "p50_ms": 33.39,
+      "p95_ms": 140.34,
+      "max_ms": 141.2
+    }
+  },
+  "sla_claimed": false
+}

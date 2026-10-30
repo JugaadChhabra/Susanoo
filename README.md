@@ -1,12 +1,24 @@
 # Susanoo
 
+## Expanded Evaluation Platform
+
+The expanded product is developed on `codex/aarav-platform`, preserving the
+hackathon application below. Its working control plane is at `/evaluation`.
+The [active build plan](docs/spec/Susanoo_Architecture_and_Build_Plan.md),
+[implementation ledger](docs/implementation-status.md),
+[operations guide](docs/parallel/aarav/OPERATIONS.md) and
+[runtime handoff](docs/parallel/aarav/HANDOFF.md) distinguish platform evidence
+from Muaz's pending runtime and complete product acceptance.
+
+## Preserved Hackathon Product
+
 > AI agents are a many-headed mess. Susanoo tames them.
 
 Describe a product in plain English. Susanoo's eight agents, the heads of Orochi, build it as a running web app
 with its own AI agent, attack it with realistic scenarios, diagnose why it fails, fix the right layer, and prove
 the fix with traces. Built for neatHack 2026 by Muaaz Shaikh and Jugaad Chhabra.
 
-- Product requirements: [`PRD.md`](PRD.md) / [`PRD.pdf`](PRD.pdf), the single source of truth
+- Historical product requirements: [`PRD.md`](PRD.md) / [`PRD.pdf`](PRD.pdf)
 - Plans: [`IMPLEMENTATION_MUAAZ.md`](IMPLEMENTATION_MUAAZ.md), [`IMPLEMENTATION_JUGAAD.md`](IMPLEMENTATION_JUGAAD.md)
 - Evidence for judges: [`EVIDENCE.md`](EVIDENCE.md)
 

@@ -1,0 +1,116 @@
+name: susanoo-platform
+
+x-api: &api
+  build:
+    context: ..
+    dockerfile: deploy/api.Dockerfile
+  image: susanoo-platform-api:${PLATFORM_RELEASE:-local}
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:size=256m,mode=1777]
+  environment: &environment
+    PLATFORM_ENV: ${PLATFORM_ENV:-development}
+    PLATFORM_ORIGIN: ${PLATFORM_ORIGIN:-https://localhost:8443}
+    PLATFORM_DATABASE_URL: postgresql://susanoo:${PLATFORM_DB_PASSWORD:?Configure PLATFORM_DB_PASSWORD}@db:5432/susanoo
+    PLATFORM_SECRET_KEY: ${PLATFORM_SECRET_KEY:?Configure PLATFORM_SECRET_KEY}
+    PLATFORM_BACKUP_KEY: ${PLATFORM_BACKUP_KEY:?Configure PLATFORM_BACKUP_KEY}
+    PLATFORM_ARTIFACT_DIR: /app/.platform/artifacts
+    PLATFORM_DELETION_JOURNAL: /app/.platform/deletion-journal.enc
+    PLATFORM_SMTP_HOST: ${PLATFORM_SMTP_HOST:-mail}
+    PLATFORM_SMTP_PORT: ${PLATFORM_SMTP_PORT:-1025}
+    PLATFORM_SMTP_FROM: ${PLATFORM_SMTP_FROM:-susanoo@localhost}
+    PLATFORM_SMTP_TLS: ${PLATFORM_SMTP_TLS:-false}
+    PLATFORM_SMTP_USER: ${PLATFORM_SMTP_USER:-}
+    PLATFORM_SMTP_PASSWORD: ${PLATFORM_SMTP_PASSWORD:-}
+    PLATFORM_GITHUB_APP_ID: ${PLATFORM_GITHUB_APP_ID:-}
+    PLATFORM_GITHUB_APP_PRIVATE_KEY: ${PLATFORM_GITHUB_APP_PRIVATE_KEY:-}
+    PLATFORM_GITHUB_WEBHOOK_SECRET: ${PLATFORM_GITHUB_WEBHOOK_SECRET:-}
+    PLATFORM_S3_BUCKET: ${PLATFORM_S3_BUCKET:-}
+    PLATFORM_S3_ENDPOINT: ${PLATFORM_S3_ENDPOINT:-}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  volumes: [platform_data:/app/.platform]
+  networks: [private]
+  depends_on:
+    db: {condition: service_healthy}
+    migrate: {condition: service_completed_successfully}
+
+services:
+  db:
+    image: postgres:17-bookworm@sha256:839fbb5a4942a7758dd93e18b42ea5649807491a0545b5eeeb8f0b8bb11857a5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: susanoo
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?Configure PLATFORM_DB_PASSWORD}
+      POSTGRES_DB: susanoo
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U susanoo -d susanoo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *api
+    restart: "no"
+    command: [/app/.venv/bin/python, -m, susanoo_api.platform.cli, migrate]
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *api
+    healthcheck:
+      test: [CMD, /app/.venv/bin/python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  worker:
+    <<: *api
+    command: [/app/.venv/bin/python, -m, susanoo_api.platform.cli, worker]
+  backup:
+    <<: *api
+    command: [/app/.venv/bin/python, -m, susanoo_api.platform.backup_worker]
+  web:
+    image: susanoo-platform-web:${PLATFORM_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [private]
+    depends_on:
+      api: {condition: service_healthy}
+  mail:
+    image: axllent/mailpit@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    restart: unless-stopped
+    networks: [private]
+    environment:
+      MP_MAX_MESSAGES: 100
+      MP_MAX_AGE: 24h
+    ports: [127.0.0.1:8025:8025]
+  proxy:
+    image: caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    restart: unless-stopped
+    environment:
+      PLATFORM_HOST: ${PLATFORM_HOST:-localhost}
+    ports: [127.0.0.1:8443:443]
+    volumes:
+      - ./platform.Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [private, edge]
+    depends_on: [web]
+
+networks:
+  private: {}
+  edge: {}
+volumes:
+  postgres_data: {}
+  platform_data: {}
+  caddy_data: {}
+  caddy_config: {}
