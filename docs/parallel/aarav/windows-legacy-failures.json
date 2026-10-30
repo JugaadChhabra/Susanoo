@@ -1,0 +1,19 @@
+{
+  "tests/heads/test_builder.py::test_a_retried_run_starts_from_a_clean_copy": true,
+  "tests/heads/test_builder.py::test_worker_budget_is_capped_by_what_the_run_has_left": true,
+  "tests/heads/test_builder.py::test_a_db_password_shaped_env_value_in_generated_code_is_caught": true,
+  "tests/heads/test_diagnostician.py::test_readable_blocks_case_variants_and_symlinked_folders": true,
+  "tests/heads/test_fixer.py::test_a_symlink_in_the_patch_is_reverted": true,
+  "tests/heads/test_fixer.py::test_a_file_mode_change_outside_the_layer_is_reverted": true,
+  "tests/heads/test_verifier.py::test_a_configured_identity_is_left_alone": true,
+  "tests/integrations/test_coding_worker.py::test_symlink_escape_is_denied": true,
+  "tests/integrations/test_coding_worker.py::test_a_symlink_into_acceptance_is_denied": true,
+  "tests/integrations/test_coding_worker.py::test_a_symlink_inside_backend_pointing_outside_is_denied_for_writes": true,
+  "tests/integrations/test_coding_worker.py::test_a_symlinked_allowed_folder_cannot_redirect_writes": true,
+  "tests/integrations/test_coding_worker.py::test_a_modified_existing_hook_is_restored_exactly": true,
+  "tests/integrations/test_coding_worker.py::test_untampered_runs_still_commit_and_hooks_still_run": true,
+  "tests/integrations/test_tracing.py::test_recorder_turns_model_call_spans_into_the_trace_excerpt": true,
+  "tests/sandbox/test_sandbox_mocks.py::test_world_symlink_outside_repo_is_refused": true,
+  "tests/sandbox/test_sandbox_mocks.py::test_world_symlinked_dir_outside_repo_is_refused": true,
+  "tests/sandbox/test_sandbox_mocks.py::test_policy_symlink_outside_repo_is_refused": true
+}

@@ -7,7 +7,9 @@ has been substituted for Muaz's work.
 ## Exact Starting Point
 
 - Repository: `https://github.com/JugaadChhabra/Susanoo` (public).
-- Feature branch: `codex/aarav-platform`; no main merge or deployment.
+- Feature branch: `codex/aarav-platform`; no main merge or production deployment.
+  The existing Vercel integration automatically creates frontend branch previews;
+  those previews do not qualify the private backend or complete product.
 - Preserved main baseline: `73224ee9133133663a7f4df6925b8afac209d88b`.
 - Platform implementation commit: `a7b5fd67f789814e232e44fc30623661ab015ce2`.
   Later handoff/CI fixes are visible in branch history; start from its latest
@@ -78,20 +80,20 @@ All runs below used the preserved code plus the implementation checkpoint:
 
 | Check | Result |
 |---|---|
-| New platform/contract tests, real disposable PostgreSQL 17.6 | 59 passed, 165.65s |
+| New platform/contract tests, real disposable PostgreSQL 17.6 | Latest hardening rerun: 59 passed, 203.50s |
 | Preserved focused Python suites | 752 passed, 26 skipped, 130.88s |
 | Web unit tests | 116 passed across 13 files |
 | Root Ruff, web TypeScript/lint, browser TypeScript | Passed |
 | Production Next.js 16.4.3 build | Passed; 16 routes |
 | Real local API/DB/storage browser checks | 4 passed, 31.6s; desktop/mobile |
 | Synthetic protocol allocation | 20 cases at concurrency 1 and 3 passed |
-| 10,000-attempt real loopback HTTP benchmark | p95 run status 145.00ms, case list 140.34ms |
-| Encrypted native backup/empty-database restore | Passed, including newer deletions and revocations |
+| 10,000-attempt real loopback HTTP benchmark | Latest p95 run status 159.95ms, case list 151.59ms |
+| Encrypted native backup/empty-database restore | Passed; newer deletions/revocations, controlled-clock expiry and expired-restore refusal |
 | English PDF and desktop/mobile screenshots | Rendered and visually inspected |
 
 See [platform report](platform-acceptance-report.json) and
-[capacity report](capacity-report.json). API-test process peak RSS was 134,758,400
-bytes; database size 14,650,515 bytes. PostgreSQL process RSS was not measured.
+[capacity report](capacity-report.json). API-test process peak RSS was 135,036,928
+bytes; database size 14,601,363 bytes. PostgreSQL process RSS was not measured.
 The benchmark is not an SLA or a real customer-execution throughput result.
 
 The browser producer is an **explicit protocol test double**. Passing local
@@ -99,8 +101,14 @@ checks does not prove business execution, runtime isolation or live providers.
 The full acceptance command intentionally returns nonzero while that evidence is
 absent. Unit, real-service platform, hosted CI and live results are separate.
 
-Hosted results must be checked on the exact published head in GitHub Actions;
-they are not implied by this local table. The new workflow runs real PostgreSQL,
+Hosted checkpoint `22f90f5c03797415dc14ed9c3e33ecdda19fe238` passed
+[expanded platform CI](https://github.com/JugaadChhabra/Susanoo/actions/runs/41055813937)
+and [preserved CI](https://github.com/JugaadChhabra/Susanoo/actions/runs/41055814030).
+That run included 59 platform tests, 116 web unit tests, four browser tests,
+container startup/backup, and the full Linux Python suite (2086 passed, 96 skipped).
+Subsequent backup-temp security and stronger lifecycle/fencing tests require the
+latest exact-head checks on PR #44; the earlier run is not proof of a later head.
+The new workflow runs real PostgreSQL,
 browser checks, canonical drift and container build/start/backup checks. It does
 not run a replacement customer runtime or deploy production.
 
@@ -124,8 +132,8 @@ follow [OPERATIONS.md](OPERATIONS.md). Do not reinitialize an existing database.
 ## Release Limits
 
 - Local Docker Linux engine initialization failed; native services were used.
-  Do not reset or delete the user's Docker data. Container execution needs hosted
-  or target qualification independently of native passing tests.
+  Do not reset or delete the user's Docker data. Hosted container startup/backup
+  passed at the checkpoint above; actual deployment remains separately qualified.
 - Named MinIO image retrieval was unavailable. Protected filesystem and explicit
   S3-compatible boundaries are supplied; no unreviewed mirror was substituted.
 - Cloud storage policies, real SMTP delivery, target TLS/encryption, GitHub App
@@ -134,6 +142,10 @@ follow [OPERATIONS.md](OPERATIONS.md). Do not reinitialize an existing database.
   advisories remain; no forced major CLI downgrade was made.
 - Advanced typed reports/specialized views, complete runtime restart and full
   T01-T40 acceptance remain open, explicitly mapped in `ACCEPTANCE.md`.
-- No production migrations, merge, deployment or customer-system mutations were
+- Full native Windows legacy suite: 17 failed, 2001 passed, 164 skipped (469.66s).
+  The failing files and runtime source are unchanged by this branch. See
+  [Windows qualification](WINDOWS_LEGACY_TESTS.md); native legacy execution is not
+  qualified merely because Linux CI passes.
+- No production migrations, merge, production deployment or customer-system mutations were
   performed. `production-check` only checks configuration and never certifies the
   product. ContextHub workspace was unregistered, so no persistent entries were written.

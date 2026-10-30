@@ -95,6 +95,7 @@ def backup(destination):
     arguments, environment = pg_environment(url)
     payload = io.BytesIO()
     with tempfile.TemporaryDirectory(prefix="susanoo-backup-") as temporary:
+        secure_local_path(temporary)
         dump = Path(temporary) / "platform.dump"
         with psycopg.connect(url, row_factory=dict_row) as db:
             db.execute("set transaction isolation level repeatable read, read only")
@@ -188,9 +189,9 @@ def restore(source, target_url, confirmation, deletion_journal):
             raise PlatformError("EXPIRED_BACKUP", "Expired or unsupported backup cannot be restored.", 409)
         arguments, environment = pg_environment(target_url)
         with tempfile.TemporaryDirectory(prefix="susanoo-restore-") as temporary:
+            secure_local_path(temporary)
             dump = Path(temporary) / "platform.dump"
-            dump.write_bytes(archive.read("platform.dump"))
-            os.chmod(dump, 0o600)
+            atomic_private(dump, archive.read("platform.dump"))
             subprocess.run(
                 [
                     postgres_tool("pg_restore"),

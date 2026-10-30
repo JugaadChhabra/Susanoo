@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -349,6 +349,27 @@ def test_backup_restore_reapplies_newer_deletion_and_revokes_credentials(world, 
         db.execute(sql.SQL("create database {}").format(sql.Identifier(target_name)))
     target_url = make_conninfo(**{**config, "dbname": target_name})
     try:
+        retention = tmp_path / "backup-retention"
+        retention.mkdir()
+        expired_copy = retention / "expired.susanoobak"
+        expired_copy.write_bytes(destination.read_bytes())
+        invalid = retention / "unrecognized.susanoobak"
+        invalid.write_bytes(b"not an authenticated Susanoo backup")
+        assert recovery.expire_backups(retention)["expired_backups_removed"] == 0
+
+        class Later(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime.now(tz) + timedelta(days=31)
+
+        with monkeypatch.context() as clock:
+            clock.setattr(recovery, "datetime", Later)
+            with pytest.raises(PlatformError) as error:
+                recovery.restore(destination, target_url, target_name, recovery.journal_path())
+            assert error.value.code == "EXPIRED_BACKUP"
+            assert recovery.expire_backups(retention)["expired_backups_removed"] == 1
+            assert not expired_copy.exists() and invalid.exists()
+        assert destination.exists()
         monkeypatch.setenv("PLATFORM_ARTIFACT_DIR", str(tmp_path / "restored-objects"))
         report = recovery.restore(destination, target_url, target_name, recovery.journal_path())
         assert report["deletions_reapplied"] == 1

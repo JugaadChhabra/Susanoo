@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from psycopg import sql
+from susanoo_contracts import content_hash
 
 from conftest import approve, launch, result, version
 
@@ -211,6 +212,42 @@ def test_exclusive_fixture_remains_quarantined_after_expired_lease(suite):
             },
         )
         .status_code
+        == 409
+    )
+
+    observation = {
+        "observation_id": str(uuid4()),
+        "source": "synthetic_post_expiry_readback_not_business_backend",
+        "captured_at": datetime.now(UTC).isoformat(),
+        "availability": "available",
+        "completeness": "complete_for_scope",
+        "namespace": claim["namespace"],
+        "window_seconds": 10,
+        "window_elapsed": True,
+        "storage_mode": "redacted_hosted",
+        "values": {"count": 0},
+        "redaction_version": "synthetic-test",
+        "digest": content_hash({"count": 0}),
+    }
+    resolved = runner.ok(
+        f"/attempts/{claim['attempt_id']}/reconciliations",
+        {
+            "lease_token": claim["lease_token"],
+            "state": "resolved",
+            "rationale": "Synthetic complete read-back, no dispatch authority",
+            "observations": [observation],
+        },
+    )
+    released = suite["reviewer"].ok(
+        "POST",
+        f"/resource-leases/{resource['id']}/release",
+        {"reconciliation_id": resolved["id"], "rationale": "Synthetic read-back reviewed independently"},
+    )
+    assert released["released"] and released["original_verdict_unchanged"]
+    next_attempt = runner.claim("outcome_suite")
+    assert next_attempt["fencing_generation"] > claim["fencing_generation"]
+    assert (
+        runner.send(f"/attempts/{claim['attempt_id']}/heartbeat", {"lease_token": claim["lease_token"]}).status_code
         == 409
     )
 

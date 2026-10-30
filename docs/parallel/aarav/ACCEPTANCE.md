@@ -19,7 +19,7 @@ Test references are under `tests/platform`, `tests/contract/platform` and
 | T07 | Launch/event/finalization idempotency and conflicting-payload tests | Matching SDK retries against real runner |
 | T08 | 20 protocol cases allocated at concurrency 1 and 3 with distinct namespaces | Persistent multi-turn sessions and locally enforced business fixture isolation |
 | T09 | Cancel control/ack rejects later dispatch; desktop/mobile cancellation | Runtime acknowledgement timing and in-flight real outcome retention |
-| T10 | Expired exclusive resource stays quarantined; evidence-free release rejected; fencing persisted | Failed cleanup and successful independent read-back/release against actual fixture |
+| T10 | Quarantine, evidence-free release denial, complete read-back release and increasing fences | Actual business-fixture cleanup/read-back and fencing enforcement |
 | T11 | Separate approvals, draft and zero-required launch rejection | Runtime consuming exactly the approved pinned manifest |
 | T12 | Held-out canary absent from engineer browser/API/result/event/export/reproduction; agent_context separated | Hidden data absent from actual model/fixer prompts, local traces and SDK uploads |
 | T13 | Cross-tenant object/list/artifact/claim/export/callback authorization tests | Full connector/provider tenant routing |
@@ -27,7 +27,7 @@ Test references are under `tests/platform`, `tests/contract/platform` and
 | T15 | Conservative exact compatibility, explicit incomparable and transition tests | Runtime datasets and complete regression fixture table |
 | T16 | Waiver expiry changes acceptance only; original machine gate unchanged | Joint UI/runtime acceptance record review |
 | T17 | PDF/JSON/JUnit/ZIP use one authorized snapshot; hash checks and English PDF render QA | Real runtime reproduction bundle in a new fixture; complex-script typography if required |
-| T18 | Immediate revocation/deletion, retention receipts, staged sweep, encrypted restore reapplies current journal | Controlled-clock backup expiration qualification and target storage lifecycle/restore drill |
+| T18 | Immediate revocation/deletion, retention receipts, staged sweep, controlled-clock backup expiry/refused restore; newer deletion journal reapplied | Target cloud storage lifecycle and operational restore drill |
 | T19 | Pinned source approval, encrypted read-only App grants and queued revocation | Real fetch/build, archive traversal, missing runtime/secret, local source adapters |
 | T20 | Signed callbacks, replay/fork/installation/repository boundaries and uninstall routing | Authorized live GitHub App installation/webhook execution |
 | T21 | I01-I14 schemas and conservative capability/preflight boundary | Conformance for every adapter family, including evidence-only sources |

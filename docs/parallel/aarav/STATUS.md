@@ -43,6 +43,8 @@ are pending. This does not block independent platform implementation.
 - Expanded PostgreSQL-backed tests: 59 passed in 165.65 seconds in the final
   combined platform bundle; every configured check returned zero. The sanitized
   report is `platform-acceptance-report.json` (platform-only, not full acceptance).
+- Latest backup-temp ACL, controlled-clock expiration and positive quarantine/
+  monotonic-fencing hardening rerun: **59 passed in 203.50 seconds**.
 - Real API/PostgreSQL/storage browser navigation, signin/signout/recovery and
   approval, launch, evidence, export, fresh reproduction and cancellation:
   **4 passed in 31.6 seconds**, desktop and mobile. Screenshots were inspected
@@ -60,6 +62,12 @@ are pending. This does not block independent platform implementation.
   remains unverified locally; native PostgreSQL 17.6 is used, not a database fake.
 - No new customer runner/evaluator/provider execution has been accepted. The
   explicit protocol test client cannot satisfy Muaz's integration gates.
+- Hosted checkpoint `22f90f5` passed expanded platform and preserved CI, including
+  clean container startup/backup and full Linux Python (2086 passed, 96 skipped).
+  Subsequent heads must be checked independently on PR #44.
+- Full native Windows legacy tests were also attempted: 17 failed, 2001 passed,
+  164 skipped. See `WINDOWS_LEGACY_TESTS.md`; do not label the entire Windows
+  repository green or change Muaz's lane to hide these failures.
 - Publication and exact commit/hosted CI state are recorded in `HANDOFF.md`.
   No main push, merge, production migration or deployment is authorized here.
 

@@ -42,7 +42,11 @@ Canonical protocol `1.0` is a proposal pending his review, not an agreed freeze.
 
 The Windows Docker engine failed before container execution; do not reset user
 Docker data to bypass it. Native PostgreSQL was used instead. Compose includes no
-fake customer runner. The plan's named MinIO distribution was unavailable, so
+fake customer runner; a subsequent hosted checkpoint passed container startup
+and backup. Full native Windows legacy testing still has 17 failures in unchanged
+runtime/test paths, documented in
+[Windows qualification](parallel/aarav/WINDOWS_LEGACY_TESTS.md).
+The plan's named MinIO distribution was unavailable, so
 protected filesystem storage plus the explicit S3 boundary are used pending review.
 Cloud S3/TLS/SMTP/GitHub App execution and complex-script PDF typography require
 their own target qualification. Three low-severity web CLI dependency advisories
