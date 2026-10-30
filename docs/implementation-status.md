@@ -37,6 +37,9 @@ Canonical protocol `1.0` is a proposal pending his review, not an agreed freeze.
   [Muaz handoff](parallel/aarav/HANDOFF.md) for exact qualifications.
 - No production migration, deployment, customer-system call, merge or main push
   is authorized by this ledger. Provider mocks are not live-provider verification.
+- The [GitHub failure audit](parallel/aarav/CI_AUDIT.md) distinguishes corrected
+  historical runs from a test-only deterministic-clock fix for a legacy browser
+  animation flake. It does not turn green CI into full product acceptance.
 
 ## Known Release Limits
 

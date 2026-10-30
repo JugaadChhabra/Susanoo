@@ -89,3 +89,8 @@ are pending. This does not block independent platform implementation.
   The new contract test was renamed, the official signed PGDG repository was
   configured on pinned Ubuntu 24.04, and the tmpfs value is now one quoted item.
   These were not local passing results; hosted execution must be checked again.
+- Follow-up failure-notification audit: historical failures were confirmed fixed
+  and published head `476fa34` was green. The legacy browser counter still had a
+  real-frame timing flake on its first attempt. Its test now uses a controlled
+  clock without changing production UI or enabling retries; 20 consecutive
+  targeted local checks passed. See `CI_AUDIT.md` for evidence and scope limits.

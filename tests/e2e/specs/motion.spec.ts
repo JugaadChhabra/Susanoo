@@ -473,9 +473,12 @@ test("with motion on, the spec reveals line by line as real text, and the caret 
 });
 
 test("with motion on, Proof's after numbers count up behind their unchanged labels", async ({ page }) => {
+  const clockStart = new Date("2026-01-01T00:00:00Z");
+  await page.clock.install({ time: clockStart });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  await page.clock.pauseAt(new Date(clockStart.getTime() + 60_000));
   const stats = page.locator("#proof dl[data-reveal]");
   const after = stats.getByLabel("after 100%");
   const figure = after.locator("[data-count]");
@@ -485,8 +488,14 @@ test("with motion on, Proof's after numbers count up behind their unchanged labe
     (window as unknown as { seen: string[] }).seen = seen;
     new MutationObserver(() => seen.push(el.textContent ?? "")).observe(el, { childList: true, characterData: true, subtree: true });
   });
-  await stats.scrollIntoViewIfNeeded();
+  // A busy CI frame must not batch the initial value with a later RAF update.
+  await stats.evaluate((el) => el.scrollIntoView({ behavior: "instant", block: "center" }));
   await expect(stats).toHaveAttribute("data-inview", "");
+  await expect(figure).toHaveText("88%");
+  await page.clock.runFor(100);
+  await expect.poll(async () => Number.parseInt((await figure.textContent()) ?? "", 10)).toBeGreaterThan(88);
+  expect(Number.parseInt((await figure.textContent()) ?? "", 10)).toBeLessThan(100);
+  await page.clock.runFor(600);
   await expect.poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen.at(-1))).toBe("100%");
   const seen = await page.evaluate(() => (window as unknown as { seen: string[] }).seen);
   // It climbs from the before value, 88%, never past the real value.

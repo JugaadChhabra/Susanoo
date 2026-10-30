@@ -112,6 +112,11 @@ The new workflow runs real PostgreSQL,
 browser checks, canonical drift and container build/start/backup checks. It does
 not run a replacement customer runtime or deploy production.
 
+The follow-up [GitHub failure audit](CI_AUDIT.md) records older red notifications
+and a deterministic-clock correction for a legacy browser counter test. This is
+a test-only hardening change; passing a rerun is not called a production fix or
+full customer-runtime acceptance. Verify the follow-up head's checks separately.
+
 ## Running This Workspace
 
 Current local URL: `http://localhost:3000/evaluation`.
