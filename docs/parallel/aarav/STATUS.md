@@ -76,3 +76,8 @@ are pending. This does not block independent platform implementation.
   directory-only inheritance flags recursively to existing files.
 - Official named MinIO image retrieval was unavailable; no unreviewed mirror was
   substituted. Filesystem/S3 behavior and the distribution deviation are explicit.
+- First hosted checks found a duplicate pytest module basename, unavailable
+  Ubuntu-default PostgreSQL 17 client package and an unquoted Compose tmpfs comma.
+  The new contract test was renamed, the official signed PGDG repository was
+  configured on pinned Ubuntu 24.04, and the tmpfs value is now one quoted item.
+  These were not local passing results; hosted execution must be checked again.

@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   platform:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:
@@ -40,7 +40,17 @@ jobs:
             apps/web/package-lock.json
             tests/e2e/package-lock.json
       - run: uv sync --frozen
-      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-17
+      - name: Install PostgreSQL 17 tools from the signed official PGDG repository
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
       - run: uv run ruff check .
       - run: uv run pytest -q tests/api tests/scripts tests/scoring tests/guards
       - run: uv run python scripts/test_platform.py -q
@@ -83,8 +93,9 @@ jobs:
             .platform/workflow-desktop.png
             .platform/workflow-mobile.png
           retention-days: 7
+          include-hidden-files: true
   containers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       PLATFORM_DB_PASSWORD: synthetic-container-check-only

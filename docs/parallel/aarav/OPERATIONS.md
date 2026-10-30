@@ -54,6 +54,10 @@ Run `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` in
 real API/PostgreSQL/storage/jobs and an explicitly labeled protocol test client;
 it does not establish business-runtime correctness or live-provider qualification.
 
+Hosted Ubuntu 24.04 checks install the matching PostgreSQL 17 client from the
+[official signed PGDG repository](https://www.postgresql.org/download/linux/ubuntu/),
+not Ubuntu's default older client. The container image carries matching 17 tools.
+
 Equivalent expanded commands deliberately use `platform-` names to preserve the
 hackathon Make targets: `platform-bootstrap`, `platform-migrate`, `platform-seed`,
 `platform-compose`, `platform-test`, `platform-e2e`, `platform-benchmark` and
