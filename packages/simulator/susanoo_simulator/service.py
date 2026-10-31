@@ -100,7 +100,14 @@ def create_app(root: Path, admin_key: str) -> FastAPI:
 
     @app.get("/fixtures/{namespace}/log")
     def log(namespace: str, who: ReadGrant):
-        return {"actions": manager.get(namespace).action_log()}
+        sim = manager.get(namespace)
+        operations = sim.domain.operations
+        return {
+            "actions": [
+                {**entry, "mutating": entry["operation"] in operations and operations[entry["operation"]].mutating}
+                for entry in sim.action_log()
+            ]
+        }
 
     @app.get("/fixtures/{namespace}/inspect")
     def inspect(namespace: str, who: AdminGrant):

@@ -8,6 +8,8 @@ dependencies = [
     "httpx>=0.27",
     "pydantic>=2",
     "susanoo-contracts",
+    "susanoo-evaluator",
+    "susanoo-sdk",
 ]
 
 [project.scripts]
