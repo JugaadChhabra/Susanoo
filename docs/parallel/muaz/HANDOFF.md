@@ -1,6 +1,6 @@
 # Muaz Lane Handoff
 
-Updated 31 Oct 2026.
+Updated 1 Nov 2026.
 
 ## Starting point
 
@@ -26,16 +26,28 @@ Read `contract-requests/C0-review.md`. In priority order, the requests that bloc
 When a request lands, the matching strict-xfail test in `tests/contract/runtime/test_c0_review.py`
 will XPASS and fail; I remove the marker and record the agreed digest and commit here.
 
+## Ready for the platform to consume
+
+- **CR-06:** `susanoo_evaluator.run_gate`, `case_verdict`, `gate_blockers` and `evidence_supports`
+  are the single verdict implementation. Please call them from `project_gate`,
+  `validate_evidence` and `finalize_attempt` once the package is in the workspace (D-1).
+- **CR-05:** the typed DSL is `susanoo_evaluator.dsl.Check` (`CHECK_ADAPTER.json_schema()` gives
+  the JSON Schema). Proposed as the `CheckSpec` replacement.
+- **CR-09:** draft adapter models in `susanoo_sdk.models`; see `contract-requests/CR-09-adapter-models.md`.
+
 ## Dependency requests
 
-None yet.
+See `DEPENDENCIES.md`: D-1 (add four packages to the uv workspace; no new third-party deps),
+D-2 (make targets), D-3 (simulator container, later).
 
 ## Unresolved defects
 
-None in this lane yet (no runtime code written).
+- The simulator reconciles at namespace scope: an uncertain step is resolved against all committed
+  changes in the attempt's namespace, not one specific operation. Fine for one-mutation cases; a
+  per-operation correlation needs agent-supplied operation IDs on tool calls.
+- Local mode only: the runner has no platform client yet (blocked on C0).
 
 ## Next step
 
-Independent groundwork that doesn't need the contested shapes: evaluator DSL draft and pure
-verdict/gate functions, the collections simulator and 20 fixtures, and the runner journal state
-machine with crash-window tests.
+Group B runtime work that doesn't need the platform: reference adapter, fidelity contract and
+action comparison, discrepancy candidates, fresh agent pairs, bounded reduction, repair gate.
