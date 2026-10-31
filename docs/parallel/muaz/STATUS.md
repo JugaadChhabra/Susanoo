@@ -18,10 +18,16 @@ Nothing in this lane is *integrated* yet: the platform HTTP boundary waits on C0
 | Python SDK + bounded JSONL bridge (I06/I08 transport) | §10 | implemented; contract violations tested with real subprocesses | `packages/sdk-python`; `tests/runtime/test_jsonl_bridge.py` |
 | Synthetic collections agent (9 modes) + 20-case suite | §2, §12, §25 | implemented | `examples/collections` |
 | **M2 runtime slice** (correct PASS / false completion FAIL / observer outage UNKNOWN) | §26 M2 | **implemented locally, not integrated** | `tests/runtime/test_runner_local.py` |
+| Fidelity contract + preflight, fixed-action comparison, reviewed normalizers, unresolved candidates | §14-15; F01-F03, U02, U05 | implemented, tested | `susanoo_runner.fidelity`, `susanoo_evaluator.normalize`; `tests/runtime/test_fidelity.py` |
+| Fresh agent pairs with controlled single-delta intervention; 2x2 cells | §15; F04, U03 | implemented, tested | `susanoo_runner.impact` |
+| Budgeted delta-debugging reduction + fixture simplification | §15; F05, U04 | implemented, tested | `susanoo_runner.reduce` |
+| Simulator repair gate (reduced repro, valid controls, held-out, unchanged criteria) | §15; F06 | implemented, tested | `susanoo_runner.repair`; `susanoo-runner fidelity-demo` |
+| I03 sync HTTP, I04 async submit/poll, I05 SSE + WebSocket | §4, §19 | implemented; contract-tested against local servers (no live vendor) | `packages/connectors`; `tests/runtime/test_connectors.py` |
+| I01/I02 pinned git, archive and directory snapshots, runtime suggestions, approved builds | §9 | implemented, tested locally (no GitHub App yet; that metadata is Aarav's) | `susanoo_connectors.source`; `tests/runtime/test_source_intake.py` |
 | Platform runner client (claims, heartbeat, events, evidence, finalize) | §11, §29 | Blocked on CR-01-CR-09 | — |
-| Fidelity / differential replay, task impact, reduction, repair gate | §14-15; F01-F06 | Not started | — |
-| Remaining intake families I01-I05, I07, I09-I14 | §4, §19 | Not started | — |
-| Groups C-D, M8-M11 runtime work | §18-21 | Not started | — |
+| Agent-layer repair in isolated worktrees (reuse diagnosis/fixer/verifier) | §15, §17 | Not started | — |
+| I07 TypeScript SDK, I08 container runtime, I09 MCP, I10 A2A/gRPC, I11 browser, I13 imports, I14 recipes | §4, §19 | Not started (Docker unavailable on this machine for I08 tests) | — |
+| Group D: CLI wait/compare/export, passive OTLP, collision, probing, semantic grading; M10 voice/media | §18, §20-21 | Not started | — |
 
 ## Commands
 
@@ -34,7 +40,9 @@ uv run python -m susanoo_runner.cli local --suite examples/collections/suite.jso
 
 ## Last results (1 Nov 2026)
 
-- `uv run pytest tests/runtime tests/contract -q`: **99 passed, 13 xfailed** (open C0 requests).
+- `uv run pytest tests/runtime tests/contract -q`: **142 passed, 13 xfailed** (open C0 requests).
 - Full repository suite `uv run pytest tests -q`: **2108 passed, 163 skipped, 13 xfailed**.
 - Local demo, real JSONL agent process: correct → 20/20 PASS, `READY_FOR_ACCEPTANCE`, ~5.5 s.
   Mode matrix in `examples/collections/README.md`.
+- `susanoo-runner fidelity-demo`: 5 unresolved candidates (duplicate write, access control, state), both
+  task impacts `discrepancy_induced` after intervention, 8 → 2 actions in 18 runs, repair `accepted`.

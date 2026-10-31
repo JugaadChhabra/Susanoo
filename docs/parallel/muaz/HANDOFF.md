@@ -47,7 +47,17 @@ D-2 (make targets), D-3 (simulator container, later).
   per-operation correlation needs agent-supplied operation IDs on tool calls.
 - Local mode only: the runner has no platform client yet (blocked on C0).
 
+## Typed reports for the platform to persist (request)
+
+Group B produces these pydantic models; please add canonical equivalents so the platform can store
+and show them instead of the generic inspector: `ComparisonResult` (+ `Candidate`,
+`StepComparison`, `StateDifference`), `PairOutcome` (+ `Intervention`), `TwoByTwoCell`,
+`ReductionResult` (+ `ReductionAttempt`) and `RepairValidation` (+ `GateCheck`). Owner
+classification of candidates (`confirmed_defect`, `intentional_simplification`,
+`reference_limitation`, `unresolved`) stays on the platform side.
+
 ## Next step
 
-Group B runtime work that doesn't need the platform: reference adapter, fidelity contract and
-action comparison, discrepancy candidates, fresh agent pairs, bounded reduction, repair gate.
+Agent-layer repair in isolated worktrees (reusing the legacy diagnosis/fixer/verifier), then the
+remaining intake families (I07 TypeScript SDK, I08 container, I09 MCP, I10 A2A/gRPC, I11 browser,
+I13 imports, I14 recipes) and Group D. The platform client starts as soon as CR-01-CR-09 land.

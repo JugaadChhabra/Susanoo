@@ -13,6 +13,7 @@ changes the runtime lane needs; until they land, `tests/runtime/conftest.py` put
 members = [
     "apps/api", "apps/worker", "packages/core", "packages/contracts",
     "packages/evaluator", "packages/simulator", "packages/sdk-python", "packages/runner",
+    "packages/connectors",
 ]
 
 [tool.uv.sources]
@@ -21,6 +22,7 @@ susanoo-evaluator = { workspace = true }
 susanoo-simulator = { workspace = true }
 susanoo-sdk = { workspace = true }
 susanoo-runner = { workspace = true }
+susanoo-connectors = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -29,11 +31,13 @@ dev = [
     "susanoo-simulator",
     "susanoo-sdk",
     "susanoo-runner",
+    "susanoo-connectors",
 ]
 ```
 
-New third-party dependencies: none. All four packages only use `pydantic`, `httpx`, `fastapi`,
-`uvicorn` and `rfc8785` (via `susanoo-contracts`), which the lockfile already resolves.
+New third-party dependencies: none. The five packages use `pydantic`, `httpx`, `fastapi`, `uvicorn`,
+`websockets` and `rfc8785` (via `susanoo-contracts`), all already resolved in `uv.lock`. Source
+builds also need the `git` CLI on the runner host.
 
 After this lands, `examples/collections` still needs `PYTHONPATH=examples/collections` (it is an
 example, not a package) or a tiny `pyproject.toml` I can add under `examples/`.
