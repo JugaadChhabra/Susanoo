@@ -2,10 +2,11 @@
 
 from .executor import AttemptExecutor, AttemptResult, CancelToken
 from .journal import Journal, JournalError
-from .local import RunReport, SimulatorServer, run_suite, run_suite_sync
+from .local import AppServer, RunReport, SimulatorServer, run_suite, run_suite_sync
 from .suite import Limits, LocalCase, LocalProfile, LocalSuite
 
 __all__ = [
+    "AppServer",
     "AttemptExecutor",
     "AttemptResult",
     "CancelToken",

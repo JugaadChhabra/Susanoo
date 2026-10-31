@@ -31,27 +31,26 @@ from .journal import Journal
 from .suite import LocalProfile, LocalSuite
 
 
-class SimulatorServer:
-    """The simulator HTTP service on a loopback socket in a background thread."""
+class AppServer:
+    """Serve an ASGI app on a loopback socket in a background thread (tests and local demos)."""
 
-    def __init__(self, root: Path | None = None):
-        self._tmp = tempfile.TemporaryDirectory(prefix="susanoo-sim-") if root is None else None
-        self.root = Path(self._tmp.name) if self._tmp else Path(root)
-        self.admin_key = secrets.token_urlsafe(24)
+    def __init__(self, app: Any):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind(("127.0.0.1", 0))
-        self.base_url = f"http://127.0.0.1:{self._socket.getsockname()[1]}"
-        config = uvicorn.Config(create_app(self.root, self.admin_key), log_level="warning", lifespan="off")
+        self.port = self._socket.getsockname()[1]
+        self.base_url = f"http://127.0.0.1:{self.port}"
+        self.app = app
+        config = uvicorn.Config(app, log_level="warning", lifespan="off")
         self._server = uvicorn.Server(config)
         self._thread = threading.Thread(target=self._server.run, kwargs={"sockets": [self._socket]}, daemon=True)
 
-    def __enter__(self) -> SimulatorServer:
+    def __enter__(self):
         self._thread.start()
         deadline = time.monotonic() + 10
         while not self._server.started:
             if time.monotonic() > deadline:
-                raise RuntimeError("Simulator service did not start")
+                raise RuntimeError("Local server did not start")
             time.sleep(0.01)
         return self
 
@@ -59,6 +58,19 @@ class SimulatorServer:
         self._server.should_exit = True
         self._thread.join(timeout=10)
         self._socket.close()
+
+
+class SimulatorServer(AppServer):
+    """The simulator HTTP service on a loopback socket in a background thread."""
+
+    def __init__(self, root: Path | None = None):
+        self._tmp = tempfile.TemporaryDirectory(prefix="susanoo-sim-") if root is None else None
+        self.root = Path(self._tmp.name) if self._tmp else Path(root)
+        self.admin_key = secrets.token_urlsafe(24)
+        super().__init__(create_app(self.root, self.admin_key))
+
+    def __exit__(self, *exc: Any) -> None:
+        super().__exit__(*exc)
         if self._tmp:
             self._tmp.cleanup()
 

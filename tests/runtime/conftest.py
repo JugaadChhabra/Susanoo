@@ -9,6 +9,7 @@ for relative in (
     "packages/simulator",
     "packages/sdk-python",
     "packages/runner",
+    "packages/connectors",
     "examples/collections",
 ):
     path = str(ROOT / relative)
