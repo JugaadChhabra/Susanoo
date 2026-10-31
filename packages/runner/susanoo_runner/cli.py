@@ -8,6 +8,7 @@ susanoo-runner recover --journal .susanoo/journal.sqlite
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -61,6 +62,87 @@ def print_summary(report: RunReport) -> None:
         print(f"  blocker: {blocker}")
 
 
+async def fidelity_demo(report_path: Path | None) -> int:
+    """Discrepancy -> task impact -> reduced reproduction -> repair gate, all synthetic and local."""
+    from collections_demo import CollectionsAgent, build_suite
+    from collections_demo import fidelity as demo
+    from susanoo_simulator.environment import SimulatorEnvironment
+
+    from .fidelity import compare
+    from .impact import ImpactRunner
+    from .reduce import reduce_reproduction
+    from .repair import validate_simulator_repair
+    from .suite import Limits
+
+    cases = {case.id: case for case in LocalSuite.model_validate(build_suite()).cases}
+    contract = demo.contract()
+    out: dict = {"synthetic": True, "contract": contract.id}
+    with SimulatorServer() as server:
+        sim = SimulatorEnvironment(server.base_url, server.admin_key, label="simulator")
+        ref = SimulatorEnvironment(server.base_url, server.admin_key, label="reference")
+        try:
+            comparison = await compare(contract, demo.SESSION, sim, ref)
+            print(
+                f"1. Compared {len(demo.SESSION.actions)} actions: "
+                f"{len(comparison.candidates)} discrepancy candidate(s)"
+            )
+            for candidate in comparison.candidates:
+                print(f"   - [{candidate.category}] {candidate.summary} (unresolved; owner classifies)")
+            journal = Journal(Path(tempfile_dir()) / "impact.sqlite")
+            impacts = []
+            for mode, case_id in (("duplicate", "C13"), ("forbidden_change", "C01"), ("correct", "C01")):
+                runner = ImpactRunner(
+                    journal,
+                    simulator_url=server.base_url,
+                    admin_key=server.admin_key,
+                    limits=Limits(),
+                    agent_factory=lambda mode=mode: InProcessAgentAdapter(CollectionsAgent(mode)),
+                )
+                try:
+                    pair = await runner.pair(cases[case_id], demo.SIMULATOR, demo.REFERENCE)
+                finally:
+                    await runner.aclose()
+                impacts.append(pair)
+                print(f"2. Task impact, {mode} agent on {case_id}: {pair.relationship}, attribution {pair.attribution}")
+            reduction = await reduce_reproduction(contract, demo.SESSION, demo.duplicate_predicate, sim, ref)
+            print(
+                f"3. Reduced the duplicate-write reproduction from {len(demo.SESSION.actions)} to "
+                f"{len(reduction.reduced_plan.actions)} action(s) in {reduction.runs_used} run(s) ({reduction.label})"
+            )
+            validation = await validate_simulator_repair(
+                contract,
+                demo.repair_proposal(),
+                reduction,
+                demo.duplicate_predicate,
+                controls=demo.CONTROLS,
+                heldout=demo.HELDOUT,
+                sim_env=sim,
+                ref_env=ref,
+            )
+            print(f"4. Simulator repair: {validation.outcome}")
+            for check in validation.checks:
+                print(f"   - {check.name}: {'pass' if check.passed else 'FAIL'} ({check.detail})")
+        finally:
+            await sim.aclose()
+            await ref.aclose()
+    out.update(
+        comparison=comparison.model_dump(mode="json"),
+        impact=[pair.model_dump(mode="json") for pair in impacts],
+        reduction=reduction.model_dump(mode="json"),
+        repair=validation.model_dump(mode="json"),
+    )
+    if report_path:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(out, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    return 0 if validation.outcome == "accepted" else 1
+
+
+def tempfile_dir() -> str:
+    import tempfile
+
+    return tempfile.mkdtemp(prefix="susanoo-impact-")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="susanoo-runner")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -75,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
     local.add_argument("--invocation-timeout", type=float)
     local.add_argument("--observer-outage", action="store_true", help="test switch: observer unavailable")
     local.add_argument("--cleanup-failure", action="store_true", help="test switch: cleanup fails")
+    fidelity = sub.add_parser("fidelity-demo", help="Synthetic simulator-vs-reference discrepancy to repair")
+    fidelity.add_argument("--report", type=Path)
     recover = sub.add_parser("recover", help="Mark interrupted dispatches uncertain after a crash")
     recover.add_argument("--journal", type=Path, default=Path(".susanoo/journal.sqlite"))
     args = parser.parse_args(argv)
@@ -86,6 +170,9 @@ def main(argv: list[str] | None = None) -> int:
         for step in uncertain:
             print(f"  attempt {step.attempt_id} step {step.step_id} ({step.action_kind})")
         return 0
+
+    if args.command == "fidelity-demo":
+        return asyncio.run(fidelity_demo(args.report))
 
     suite = LocalSuite.model_validate_json(args.suite.read_text(encoding="utf-8"))
     factory, label = agent_factory(args.agent, args.agent_cmd)

@@ -37,6 +37,7 @@ class SimulatorFixtureAdapter:
         transport: httpx.AsyncBaseTransport | None = None,
         observer_outage: bool = False,
         cleanup_failure: bool = False,
+        keep_action_logs: bool = False,
         timeout: float = 10.0,
     ):
         self.base_url = base_url
@@ -46,6 +47,8 @@ class SimulatorFixtureAdapter:
         self._tokens: dict[str, dict[str, str]] = {}
         self._baselines: dict[str, dict[str, list[dict]]] = {}
         self._operations: dict[str, list[str]] = {}
+        self.keep_action_logs = keep_action_logs
+        self.action_logs: dict[str, list[dict]] = {}
 
     def _auth(self, namespace: str, role: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._tokens[namespace][f'{role}_token']}"}
@@ -177,6 +180,10 @@ class SimulatorFixtureAdapter:
             return CleanupResult(state="failed", reason_code="cleanup_switch", detail="cleanup failure switch (test)")
         if namespace not in self._tokens:
             return CleanupResult(state="not_required", reason_code="never_prepared")
+        if self.keep_action_logs:
+            log = await self._client.get(f"/fixtures/{namespace}/log", headers=self._auth(namespace, "observer"))
+            if log.status_code == 200:
+                self.action_logs[namespace] = log.json()["actions"]
         try:
             deleted = await self._client.delete(f"/fixtures/{namespace}", headers=self._auth(namespace, "admin"))
         except httpx.HTTPError as error:

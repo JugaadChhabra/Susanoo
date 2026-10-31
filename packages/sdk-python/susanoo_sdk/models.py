@@ -173,6 +173,7 @@ class ActionResult(Wire):
 
 
 class SnapshotScope(Wire):
+    namespace: str
     kinds: list[str] = Field(min_length=1)
 
 
