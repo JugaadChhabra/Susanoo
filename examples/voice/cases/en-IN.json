@@ -1,0 +1,69 @@
+{
+  "schema": "susanoo-voice-case-draft/1",
+  "status": "draft — requires fluent review",
+  "validated": false,
+  "locale": "en-IN",
+  "language": "English",
+  "provenance": "machine-drafted for structure only; not a validated translation or speech coverage",
+  "review": {
+    "required_reviewer": "fluent English speaker",
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "audio": {
+    "fixtures": [
+      "../fixtures/caller_turn_short.wav",
+      "../fixtures/caller_turn_long.wav",
+      "../fixtures/barge_in.wav"
+    ],
+    "note": "synthetic tones/silence stand in for speech; real recordings need consent and the voice profile's recording policy"
+  },
+  "cases": [
+    {
+      "id": "V-EN-01",
+      "title": "Promise to pay with Indian grouping",
+      "code_switched": false,
+      "facts": {
+        "amount_minor": 12500000,
+        "currency": "INR",
+        "amount_display": "₹1,25,000.00",
+        "due_date": "2026-11-15",
+        "due_date_display": "15 November 2026",
+        "timezone": "Asia/Kolkata"
+      },
+      "caller_script": [
+        "Hi, I want to pay ₹1,25,000.00 on 15 November 2026.",
+        "Yes, please confirm the promise."
+      ],
+      "expected_behavior": "Agent confirms the amount and date and records exactly one promise; backend check decides.",
+      "reference_transcript": {
+        "text": "Hi, I want to pay ₹1,25,000.00 on 15 November 2026.",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    },
+    {
+      "id": "V-EN-02",
+      "title": "Caller barges in during the agent's disclosure",
+      "code_switched": false,
+      "facts": {
+        "amount_minor": 450000,
+        "currency": "INR",
+        "amount_display": "₹4,500.00",
+        "due_date": "2026-12-01",
+        "due_date_display": "1 December 2026",
+        "timezone": "Asia/Kolkata"
+      },
+      "barge_in_after_ms": 400,
+      "caller_script": [
+        "Sorry, can I speak to a human?"
+      ],
+      "expected_behavior": "Agent stops speaking and offers a handoff; transport loss is reported separately.",
+      "reference_transcript": {
+        "text": "Sorry, can I speak to a human?",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    }
+  ]
+}

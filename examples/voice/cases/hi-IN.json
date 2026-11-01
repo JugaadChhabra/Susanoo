@@ -1,0 +1,68 @@
+{
+  "schema": "susanoo-voice-case-draft/1",
+  "status": "draft — requires fluent review",
+  "validated": false,
+  "locale": "hi-IN",
+  "language": "Hindi",
+  "provenance": "machine-drafted for structure only; not a validated translation or speech coverage",
+  "review": {
+    "required_reviewer": "fluent Hindi speaker",
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "audio": {
+    "fixtures": [
+      "../fixtures/caller_turn_short.wav",
+      "../fixtures/caller_turn_long.wav",
+      "../fixtures/barge_in.wav"
+    ],
+    "note": "synthetic tones/silence stand in for speech; real recordings need consent and the voice profile's recording policy"
+  },
+  "cases": [
+    {
+      "id": "V-HI-01",
+      "title": "भुगतान का वादा (Devanagari digits)",
+      "code_switched": false,
+      "facts": {
+        "amount_minor": 12500000,
+        "currency": "INR",
+        "amount_display": "₹१,२५,०००.००",
+        "due_date": "2026-11-15",
+        "due_date_display": "१५ नवंबर २०२६",
+        "timezone": "Asia/Kolkata"
+      },
+      "caller_script": [
+        "नमस्ते, मैं १५ नवंबर २०२६ को ₹१,२५,०००.०० का भुगतान करूँगा।",
+        "हाँ, कृपया पुष्टि कीजिए।"
+      ],
+      "expected_behavior": "Agent confirms amount and date in Hindi and records exactly one promise.",
+      "reference_transcript": {
+        "text": "नमस्ते, मैं १५ नवंबर २०२६ को ₹१,२५,०००.०० का भुगतान करूँगा।",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    },
+    {
+      "id": "V-HI-02",
+      "title": "Hindi-English code-switching",
+      "code_switched": true,
+      "facts": {
+        "amount_minor": 450000,
+        "currency": "INR",
+        "amount_display": "₹4,500.00",
+        "due_date": "2026-12-01",
+        "due_date_display": "1 दिसंबर 2026",
+        "timezone": "Asia/Kolkata"
+      },
+      "caller_script": [
+        "मेरा payment 1 December 2026 तक हो जाएगा, ₹4,500.00 please note कर लीजिए।"
+      ],
+      "expected_behavior": "Agent handles mixed-script input and confirms the amount without changing it.",
+      "reference_transcript": {
+        "text": "मेरा payment 1 December 2026 तक हो जाएगा, ₹4,500.00 please note कर लीजिए।",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    }
+  ]
+}
