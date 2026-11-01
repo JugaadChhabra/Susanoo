@@ -54,6 +54,9 @@ class ReasonCode(StrEnum):
     BASELINE_MISSING = "baseline_missing"
     MANUAL_PENDING = "manual_pending"
     SEMANTIC_NOT_CONFIGURED = "semantic_not_configured"
+    SEMANTIC_BLOCKED = "semantic_blocked"
+    SEMANTIC_PROVIDER_ERROR = "semantic_provider_error"
+    SEMANTIC_AMBIGUOUS = "semantic_ambiguous"
 
 
 class EvalContext(DslModel):
