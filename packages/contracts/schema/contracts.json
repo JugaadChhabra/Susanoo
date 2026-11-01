@@ -6376,7 +6376,7 @@
           "type": "integer"
         },
         "cleanup_reserve": {
-          "default": 2,
+          "default": 3,
           "maximum": 1000,
           "minimum": 0,
           "title": "Cleanup Reserve",

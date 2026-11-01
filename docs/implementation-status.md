@@ -11,6 +11,9 @@ provider qualification remain incomplete. Canonical wire major `1.0`, revision `
 is pending peer review, not an agreed freeze. See the current
 [integration handoff](parallel/aarav/INTEGRATION_HANDOFF.md) and
 [Muaz continuation prompt](parallel/aarav/MUAZ_NEXT_PROMPT.md) for the complete remaining split.
+Draft integration review: [PR #45](https://github.com/JugaadChhabra/Susanoo/pull/45), stacked on
+the platform review. First integration commit `da1d896` passed all reported hosted PR checks;
+follow-up changes require their own exact-head verification. Nothing has been merged into main.
 
 The matrix below preserves the original platform checkpoint. The integration handoff supersedes
 its older statements that no runtime exists; it does not turn pending milestones into release acceptance.

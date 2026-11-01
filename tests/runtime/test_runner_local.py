@@ -193,3 +193,75 @@ async def test_reported_tool_events_are_journaled_for_dependency_extraction(simu
     report, journal = await run(simulator, tmp_path, case_ids=["C01"])
     observed = observed_dependencies(journal, report.attempts[0].attempt_id)
     assert observed.tool_operations and "create_promise" in observed.tool_operations
+
+
+@pytest.mark.parametrize("failure", ["evaluation", "reconciliation"])
+async def test_evidence_processing_failure_still_cleans_up(simulator, tmp_path, monkeypatch, failure):
+    from susanoo_runner.executor import AttemptExecutor
+    from susanoo_simulator.adapter import SimulatorFixtureAdapter
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("synthetic evidence processing failure")
+
+    cleanup_calls = []
+    original_cleanup = SimulatorFixtureAdapter.cleanup
+
+    async def cleanup(adapter, fixture):
+        cleanup_calls.append(fixture.namespace)
+        return await original_cleanup(adapter, fixture)
+
+    monkeypatch.setattr(SimulatorFixtureAdapter, "cleanup", cleanup)
+    monkeypatch.setattr(
+        AttemptExecutor, "_observe_and_evaluate" if failure == "evaluation" else "_reconcile", broken
+    )
+    report, journal = await run(simulator, tmp_path, case_ids=["C01"])
+    try:
+        attempt = report.attempts[0]
+        assert attempt.execution_state == "error"
+        assert attempt.cleanup_state == "succeeded"
+        assert cleanup_calls == [attempt.namespace]
+        assert "Evidence processing failed" in attempt.reason
+        assert report.gate == "BLOCKED"
+        if failure == "evaluation":
+            assert attempt.business_verdict == "UNKNOWN"
+        assert journal.unfinished_attempts() == []
+    finally:
+        journal.close()
+
+
+async def test_uncertain_fixture_preparation_is_not_reported_as_no_cleanup_needed(simulator, tmp_path, monkeypatch):
+    from susanoo_simulator.adapter import SimulatorFixtureAdapter
+
+    async def lost_ack(*args, **kwargs):
+        raise TimeoutError("synthetic lost fixture acknowledgement")
+
+    monkeypatch.setattr(SimulatorFixtureAdapter, "prepare", lost_ack)
+    report, journal = await run(simulator, tmp_path, case_ids=["C01"])
+    try:
+        attempt = report.attempts[0]
+        assert attempt.execution_state == "error"
+        assert attempt.business_verdict == "UNKNOWN"
+        assert attempt.cleanup_state == "failed"
+        assert attempt.reconciliation_state == "unresolved"
+        assert report.gate == "BLOCKED"
+        assert journal.step(attempt.attempt_id, "fixture-prepare").dispatch_state == "uncertain"
+        assert not [step for step in journal.steps(attempt.attempt_id) if step.action_kind == "cleanup"]
+    finally:
+        journal.close()
+
+
+async def test_insufficient_housekeeping_reserve_refuses_before_fixture_creation(tmp_path):
+    from susanoo_runner.executor import AttemptExecutor
+    from susanoo_runner.journal import JournalError
+    from susanoo_runner.suite import Limits
+
+    journal = Journal(tmp_path / "insufficient-reserve.sqlite")
+    try:
+        executor = AttemptExecutor(
+            journal, run_id="synthetic", limits=Limits(cleanup_reserve=2), agent_factory=lambda: None, fixtures=None
+        )
+        with pytest.raises(JournalError, match="Reserve fixture preparation"):
+            await executor.run(SUITE.cases[0])
+        assert journal.unfinished_attempts() == []
+    finally:
+        journal.close()

@@ -630,7 +630,7 @@ def runner_claim(ctx, body):
             run_deadline,
             timeout,
             generation,
-            row["manifest"]["limits"].get("cleanup_reserve", 2),
+            row["manifest"]["limits"].get("cleanup_reserve", 3),
             run_deadline,
             timeout,
             row["id"],

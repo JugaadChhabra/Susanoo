@@ -3,6 +3,7 @@
 Fetch the current `codex/aarav-runtime-integration` branch from JugaadChhabra/Susanoo before editing.
 It already contains all 27 commits from `codex/muaz-runtime` plus the new integration work.
 Do not continue from stale `301c39d`, recreate the platform client, or overwrite either lane's work.
+The integration review is draft PR #45, stacked on platform PR #44; neither is a release approval.
 Preserve dirty files, use your genuine contributor identity, and leave all hooks enabled.
 
 First read `AGENTS.md`, `docs/spec/Susanoo_Architecture_and_Build_Plan.md`,

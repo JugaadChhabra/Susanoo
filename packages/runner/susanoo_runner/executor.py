@@ -96,6 +96,10 @@ class AttemptExecutor:
         self.scope = budget_scope or run_id
 
     async def run(self, case: LocalCase, cancel: CancelToken | None = None, *, assignment=None) -> AttemptResult:
+        if self.limits.cleanup_reserve < 3:
+            raise JournalError(
+                "cleanup_budget", "Reserve fixture preparation, observation and cleanup before execution"
+            )
         cancel = cancel or CancelToken()
         started = time.monotonic()
         attempt_id = str(assignment.attempt_id) if assignment else str(uuid.uuid4())
@@ -138,16 +142,21 @@ class AttemptExecutor:
             state.fail("error", f"Runner error: {type(error).__name__}")
         finally:
             outcomes: list[CheckOutcome] = []
-            if fixture is not None:
-                self.journal.set_state(attempt_id, "observing")
-                outcomes = await self._observe_and_evaluate(attempt_id, case, fixture, state)
-                await self._reconcile(attempt_id, fixture, state)
             try:
-                cleanup_state = await self._cleanup(attempt_id, fixture, agent, state)
+                if fixture is not None:
+                    self.journal.set_state(attempt_id, "observing")
+                    outcomes = await self._observe_and_evaluate(attempt_id, case, fixture, state)
+                    await self._reconcile(attempt_id, fixture, state)
             except Exception as error:
-                self.journal.mark_inflight_uncertain(attempt_id, f"cleanup interrupted: {type(error).__name__}")
-                cleanup_state = "failed"
-                state.fail("interrupted", "Cleanup could not be dispatched safely; reconciliation required")
+                state.fail("error", f"Evidence processing failed: {type(error).__name__}")
+            finally:
+                # Observer/evaluator/read-back failures must not bypass process and fixture cleanup.
+                try:
+                    cleanup_state = await self._cleanup(attempt_id, fixture, agent, state)
+                except Exception as error:
+                    self.journal.mark_inflight_uncertain(attempt_id, f"cleanup interrupted: {type(error).__name__}")
+                    cleanup_state = "failed"
+                    state.fail("interrupted", "Cleanup could not be dispatched safely; reconciliation required")
         verdict = case_verdict(case.parsed_checks(), outcomes).verdict
         reconciliation_state = state.reconciliation_state()
         self.journal.finalize(
@@ -180,8 +189,8 @@ class AttemptExecutor:
         )
 
     async def _prepare(self, attempt_id, case, namespace, deadline, state) -> FixtureHandle | None:
-        step = self.journal.prepare_step(attempt_id, "fixture-prepare", "fixture_prepare", case.fixture.digest)
-        self.journal.mark_dispatching(attempt_id, step.step_id)
+        step = self._housekeeping_step(attempt_id, "fixture-prepare", "fixture_prepare", case.fixture.digest)
+        self.journal.mark_dispatching(attempt_id, step.step_id, scope=f"{attempt_id}:cleanup")
         try:
             context = FixtureContext(
                 attempt_id=attempt_id,
@@ -208,6 +217,7 @@ class AttemptExecutor:
                 side_effect_state="requires_observation",
                 error=type(error).__name__,
             )
+            state.uncertain.append(step.step_id)
             state.fail("error", f"Fixture preparation did not complete: {type(error).__name__}")
             return None
         self.journal.record_response(
@@ -308,11 +318,28 @@ class AttemptExecutor:
             state.turns.append(Turn(index=index, message=turn.message, reply=reply.text, dispatch_state="acknowledged"))
 
     async def _observe_and_evaluate(self, attempt_id, case, fixture, state) -> list[CheckOutcome]:
+        step = self._housekeeping_step(
+            attempt_id,
+            "fixture-observe",
+            "observe",
+            content_hash([query.model_dump(mode="json") for query in case.observations]),
+        )
         try:
+            # Simulator observation can advance its clock, so it needs the same durable authority gate.
+            self.journal.mark_dispatching(attempt_id, step.step_id, scope=f"{attempt_id}:cleanup")
             observed = await self.fixtures.observe(fixture, case.observations)
+            self.journal.record_response(
+                attempt_id, step.step_id, dispatch_state="acknowledged", side_effect_state="none_expected"
+            )
         except Exception as error:  # an observer crash is missing evidence, never a pass
             state.note(f"Observer failed: {type(error).__name__}")
             observed = []
+            if self.journal.step(attempt_id, step.step_id).dispatch_state == "dispatching":
+                self.journal.record_response(
+                    attempt_id, step.step_id, dispatch_state="uncertain", side_effect_state="requires_observation",
+                    error=type(error).__name__,
+                )
+                state.uncertain.append(step.step_id)
         observations = {item.name: item for item in observed}
         for item in observed:
             data = item.model_dump(mode="json")
@@ -368,13 +395,17 @@ class AttemptExecutor:
                 except Exception:
                     state.note("Agent process did not stop cleanly")
         if fixture is None:
+            if "fixture-prepare" in state.uncertain:
+                self.journal.append_event(
+                    attempt_id, "cleanup_recorded", {"state": "failed", "reason_code": "preparation_uncertain"}
+                )
+                state.note("Fixture preparation may have taken effect; authorized read-back is required")
+                return "failed"
             self.journal.append_event(attempt_id, "cleanup_recorded", {"state": "not_required"})
             return "not_required"
-        step = self.journal.prepare_step(
+        step = self._housekeeping_step(
             attempt_id, "fixture-cleanup", "cleanup", content_hash({"ns": fixture.namespace})
         )
-        if not self.journal.reserve(f"{attempt_id}:cleanup", "cleanup", step.operation_id):
-            raise JournalError("cleanup_budget", "Cleanup reserve missing")
         self.journal.mark_dispatching(attempt_id, step.step_id, scope=f"{attempt_id}:cleanup")
         try:
             result = await self.fixtures.cleanup(fixture)
@@ -401,6 +432,13 @@ class AttemptExecutor:
         if result.state == "failed":
             state.note(f"Cleanup failed ({result.reason_code}); fixture namespace quarantined")
         return result.state
+
+    def _housekeeping_step(self, attempt_id, step_id, action_kind, digest):
+        step = self.journal.prepare_step(attempt_id, step_id, action_kind, digest)
+        if not self.journal.reserve(f"{attempt_id}:cleanup", "cleanup", step.operation_id):
+            self.journal.abandon_step(attempt_id, step_id, "cleanup_budget")
+            raise JournalError("cleanup_budget", "Housekeeping reserve exhausted; action not dispatched")
+        return step
 
 
 class _AttemptState:

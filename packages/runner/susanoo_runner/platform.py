@@ -30,7 +30,7 @@ from .suite import LocalCase, LocalProfile, Limits
 class PlatformProfile(LocalProfile):
     observation_kinds: dict[str, str] = Field(default_factory=dict)
     allowed_connection_adapters: list[str] = Field(min_length=1)
-    cleanup_reserve: int = Field(default=2, ge=1, le=1000)
+    cleanup_reserve: int = Field(default=3, ge=1, le=1000)
     allowed_connection_hashes: list[str] = Field(min_length=1)
 
 
@@ -207,14 +207,19 @@ class PlatformJournal(Journal):
             if step.action_kind in {"fixture_prepare", "cleanup", "observe"}
             else ("reference" if step.action_kind == "reference_call" else "agent")
         )
-        self.client.post(
-            self.endpoint + "/reservations",
-            {
-                "lease_token": self.claim.lease_token,
-                "operation_id": step.operation_id,
-                "budget_kind": kind,
-            },
-        )
+        try:
+            self.client.post(
+                self.endpoint + "/reservations",
+                {
+                    "lease_token": self.claim.lease_token,
+                    "operation_id": step.operation_id,
+                    "budget_kind": kind,
+                },
+            )
+        except Exception:
+            self.lost_authority = True
+            self.cancel.cancel()
+            raise
         result = super().mark_dispatching(attempt_id, step_id, scope=scope)
         self.flush()
         # Both local intent and hosted dispatch acknowledgement precede the external call.
@@ -265,14 +270,19 @@ class PlatformJournal(Journal):
         if self.lost_authority:
             raise JournalError("LEASE_EXPIRED", "Evidence must be reconciled, not uploaded as live dispatch")
         events = self.wire_events()
-        for start in range(0, len(events), 100):
-            self.client.post(
-                self.endpoint + "/events",
-                {
-                    "lease_token": self.claim.lease_token,
-                    "events": events[start : start + 100],
-                },
-            )
+        try:
+            for start in range(0, len(events), 100):
+                self.client.post(
+                    self.endpoint + "/events",
+                    {
+                        "lease_token": self.claim.lease_token,
+                        "events": events[start : start + 100],
+                    },
+                )
+        except Exception:
+            self.lost_authority = True
+            self.cancel.cancel()
+            raise
 
     def evidence_packet(self, result, *, preflight=False):
         observations, checks = [], []

@@ -3,6 +3,7 @@
 Updated 2026-11-02. Working branch: `codex/aarav-runtime-integration`.
 Base: Muaz's `a8f7707`, which already contains Aarav's `301c39d` and all 27 runtime commits.
 This is a review candidate, not full PRD acceptance or a production deployment.
+Published review: https://github.com/JugaadChhabra/Susanoo/pull/45 (draft, stacked on PR #44).
 
 ## Authorization and ownership
 
@@ -39,6 +40,15 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   Windows instead of failing imports or silently dropping resource limits.
 - Python and TypeScript tool clients propagate the current operation correlation ID. Unknown correlation
   is explicitly unresolved, not evidence that a different namespace write was the uncertain action.
+- Follow-up hardening journals and reserves observation before calling the fixture adapter, because a
+  simulator observer can advance its clock. The default housekeeping reserve is now three operations:
+  prepare, observe, cleanup. Old pinned limits below three are refused before fixture execution; create
+  an approved new manifest rather than mutating old evidence. The canonical digest changed accordingly.
+- Lost event/reservation acknowledgements permanently fence the local attempt. Evidence-processing
+  failures still attempt authorized cleanup; a one-shot worker cannot report success with failed cleanup
+  or pending reconciliation. These changes have focused regression gates.
+- Uncertain fixture creation remains unresolved with failed cleanup instead of falsely saying cleanup
+  was unnecessary. The runner does not retry creation or guess a safe remote deletion.
 - Runtime CI includes TypeScript tests, optional provider dependencies and real Chromium installation.
   The container build includes the new workspace member's metadata, not a customer execution service.
 
@@ -55,6 +65,11 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
 - Added assignment-to-component consistency checks also passed all four focused claim/runtime cases.
 - Final focused native Windows regression bundle: 57 passed in 89.18 seconds, including contracts,
   CLI export/cleanup, platform bridge checks and spawn-isolated semantic grading. Ruff passed.
+- Follow-up complete PostgreSQL platform/contract bundle: 68 passed in 239.99 seconds, including actual
+  lease expiry after the agent write, no observer-clock mutation or cleanup dispatch after expiry,
+  preserved late evidence and idempotent reconciliation without renewed authority.
+- Follow-up focused suites: 26 runner tests, 13 regression tests, 32 runner/journal tests and 31
+  CLI/regression tests passed. These include insufficient-reserve refusal and uncertain fixture creation.
 - TypeScript SDK: 13 passed using `node --test "packages/sdk-typescript/test/*.test.ts"`.
   The old directory-only command is not portable to the installed Node release.
 - Seven additional checks passed: actual local grpcio transport, actual Chromium browser adapter,
@@ -66,6 +81,11 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   source/secret guards or delete the user's caches to hide this environment issue.
 - Full rerun, latest platform bundle, hosted CI and exact publication SHA must be read from the final
   publication record. Do not substitute earlier successful checks for the final head.
+- First publication `da1d896` passed every reported hosted PR check: full Python, expanded runtime
+  (including optional dependencies and Chromium), PostgreSQL platform/browser, web, legacy browser,
+  Caddy, container startup/backup and identity guards. Follow-up head results must be verified separately;
+  earlier-head passes are not final-head evidence. Existing Vercel automation also created a preview;
+  no manual or production deployment was requested or performed.
 - The next full Linux run had 2399 passed, 184 skipped and two semantic worker wall-time assertions
   fail under WSL startup overhead. Provider timeout is still enforced independently; tests now cover
   the documented bounded startup plus termination allowance rather than assuming in-process latency.

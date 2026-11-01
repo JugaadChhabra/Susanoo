@@ -65,7 +65,10 @@ create table if not exists budget_settlements(scope text not null, operation_id 
     consumed integer not null, primary key(scope, operation_id));
 """
 
-BUDGETED = {"agent_invoke": "agent", "reference_call": "reference", "cleanup": "cleanup"}
+BUDGETED = {
+    "agent_invoke": "agent", "reference_call": "reference", "cleanup": "cleanup",
+    "fixture_prepare": "cleanup", "observe": "cleanup",
+}
 
 
 class JournalError(Exception):

@@ -11,6 +11,9 @@ import pytest
 from collections_demo.suite import build_suite
 from susanoo_runner.local import AppServer, SimulatorServer
 from susanoo_runner.platform import PlatformClient, PlatformProfile, execute_claim
+from susanoo_runner.platform import reconcile_stored
+from susanoo_runner.journal import Journal
+from susanoo_api.platform.database import transaction
 from susanoo_runner.suite import LocalSuite
 from susanoo_sdk import JsonlAgentProcess
 from susanoo_contracts import content_hash
@@ -107,14 +110,15 @@ def setup_runtime(world):
 
 
 @pytest.mark.parametrize(
-    "mode,outage,expected,gate",
+    "mode,outage,expected,gate,expire",
     [
-        ("correct", False, "PASS", "READY_FOR_ACCEPTANCE"),
-        ("false_completion", False, "FAIL", "BLOCKED"),
-        ("correct", True, "UNKNOWN", "NEEDS_REVIEW"),
+        ("correct", False, "PASS", "READY_FOR_ACCEPTANCE", False),
+        ("false_completion", False, "FAIL", "BLOCKED", False),
+        ("correct", True, "UNKNOWN", "NEEDS_REVIEW", False),
+        ("correct", False, "UNKNOWN", "BLOCKED", True),
     ],
 )
-def test_real_runtime_round_trip(world, tmp_path, mode, outage, expected, gate):
+def test_real_runtime_round_trip(world, tmp_path, mode, outage, expected, gate, expire, monkeypatch):
     token, connection_hash, launch = setup_runtime(world)
     profile = PlatformProfile(
         allowed_connection_adapters=["locally-approved-collections"], allowed_connection_hashes=[connection_hash]
@@ -155,8 +159,40 @@ def test_real_runtime_round_trip(world, tmp_path, mode, outage, expected, gate):
             )
             claim = client.claim()
             assert claim.kind == "outcome_suite"
+            observations = []
+            if expire:
+                invoke = JsonlAgentProcess.invoke
+
+                async def expire_after_write(agent, *args, **kwargs):
+                    reply = await invoke(agent, *args, **kwargs)
+                    with transaction() as db:
+                        db.execute(
+                            "update platform.attempts set lease_expires_at=now()-interval '1 second' where id=%s",
+                            (claim.attempt_id,),
+                        )
+                    return reply
+
+                async def forbidden_observation(*args, **kwargs):
+                    observations.append(True)
+                    raise AssertionError("Observer must not mutate the simulated clock after authority is lost")
+
+                monkeypatch.setattr(JsonlAgentProcess, "invoke", expire_after_write)
+                monkeypatch.setattr(SimulatorFixtureAdapter, "observe", forbidden_observation)
             result = asyncio.run(execute(client, claim, simulator, mode, outage))
             assert result.business_verdict == expected
+            if expire:
+                assert result.execution_state == "interrupted" and result.reconciliation_state == "pending"
+                assert observations == []
+                path = Path(tmp_path) / f"{mode}.sqlite"
+                journal = Journal(path)
+                try:
+                    assert journal.step(str(claim.attempt_id), "fixture-observe").dispatch_state == "prepared"
+                    assert journal.step(str(claim.attempt_id), "fixture-cleanup").dispatch_state == "prepared"
+                finally:
+                    journal.close()
+                late = reconcile_stored(client, path, str(claim.attempt_id))
+                assert not late["dispatch_authority"]
+                assert reconcile_stored(client, path, str(claim.attempt_id))["id"] == late["id"]
             persisted = world["owner"].ok("GET", f"/runs/{run['id']}")
             assert persisted["gate"] == gate
             assert persisted["counts"][expected.lower() if expected != "UNKNOWN" else "unknown"] == 1

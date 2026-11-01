@@ -119,7 +119,7 @@ class RunLimits(WireModel):
     max_reference_calls: int = Field(default=0, ge=0, le=100000)
     max_output_bytes: int = Field(default=262144, ge=1, le=1048576)
     max_storage_bytes: int = Field(default=10485760, ge=1, le=1073741824)
-    cleanup_reserve: int = Field(default=2, ge=0, le=1000)
+    cleanup_reserve: int = Field(default=3, ge=0, le=1000)
 
 
 class DataPolicy(WireModel):

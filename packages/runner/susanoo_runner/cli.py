@@ -360,11 +360,7 @@ def _platform_worker(args):
                 result = asyncio.run(perform(claim))
                 print(f"{result.attempt_id}: {result.execution_state} / {result.business_verdict}")
                 if args.once:
-                    return (
-                        0
-                        if result.execution_state == "completed" and result.business_verdict == "PASS"
-                        else (1 if result.business_verdict == "FAIL" else EXIT_OPERATIONAL)
-                    )
+                    return _platform_exit_code(result)
             elif args.once:
                 return EXIT_OPERATIONAL
             else:
@@ -373,6 +369,18 @@ def _platform_worker(args):
         return EXIT_OPERATIONAL
     finally:
         client.close()
+
+
+def _platform_exit_code(result):
+    if result.execution_state == "completed" and result.business_verdict == "FAIL":
+        return 1
+    healthy = (
+        result.execution_state == "completed"
+        and result.business_verdict == "PASS"
+        and result.cleanup_state in {"succeeded", "not_required"}
+        and result.reconciliation_state in {"not_needed", "resolved"}
+    )
+    return 0 if healthy else EXIT_OPERATIONAL
 
 
 def _local(args: argparse.Namespace) -> int:

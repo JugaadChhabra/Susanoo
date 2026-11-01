@@ -35,7 +35,7 @@ class Limits(_Model):
     case_timeout_seconds: float = Field(default=300, gt=0, le=3600)
     max_concurrency: int = Field(default=1, ge=1, le=3)
     max_agent_invocations: int = Field(default=160, ge=1)
-    cleanup_reserve: int = Field(default=2, ge=1)
+    cleanup_reserve: int = Field(default=3, ge=1)
 
 
 class LocalCase(_Model):
