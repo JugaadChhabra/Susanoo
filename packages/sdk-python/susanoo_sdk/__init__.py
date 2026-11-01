@@ -27,6 +27,7 @@ from .models import (
     Unavailable,
     Usage,
 )
+from .passive import CoverageReport, PassiveConfig, PassiveRecorder, Redactor
 
 __all__ = [
     "ActionContext",
@@ -38,6 +39,7 @@ __all__ = [
     "CancelResult",
     "CapabilityReport",
     "CleanupResult",
+    "CoverageReport",
     "EnvironmentAdapter",
     "FixtureAdapter",
     "FixtureContext",
@@ -49,7 +51,10 @@ __all__ = [
     "JsonlFrame",
     "Message",
     "ObservationQuery",
+    "PassiveConfig",
+    "PassiveRecorder",
     "Reconciliation",
+    "Redactor",
     "Reply",
     "SessionHandle",
     "SnapshotScope",
