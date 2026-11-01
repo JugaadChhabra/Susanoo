@@ -274,7 +274,14 @@ class AttemptExecutor:
                 step_id,
                 dispatch_state="acknowledged",
                 side_effect_state="requires_observation",
-                response={"invocation_id": reply.invocation_id, "text": reply.text, "truncated": reply.truncated},
+                response={
+                    "invocation_id": reply.invocation_id,
+                    "text": reply.text,
+                    "truncated": reply.truncated,
+                    "tool_events": [e.model_dump(mode="json") for e in reply.tool_events]
+                    if isinstance(reply.tool_events, list)
+                    else None,
+                },
             )
             state.turns.append(Turn(index=index, message=turn.message, reply=reply.text, dispatch_state="acknowledged"))
 

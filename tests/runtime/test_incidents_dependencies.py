@@ -193,7 +193,7 @@ def test_observed_dependencies_come_from_the_journal(local_run):
     assert "promise_created_once" in observed.checks
     assert {"fixture_prepare", "agent_invoke", "cleanup"} <= set(observed.action_kinds)
     assert all(s.startswith("simulator:") for s in observed.observation_sources)
-    assert observed.tool_operations is None  # adapter tool events are not journaled: unknown, not "none"
+    assert set(observed.tool_operations) >= {"read_account", "create_promise"}
 
 
 def test_change_marks_only_affected_conclusions_with_path(local_run):

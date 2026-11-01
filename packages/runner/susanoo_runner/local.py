@@ -114,6 +114,7 @@ class RunReport(BaseModel):
                     attempt["outcomes"] = []
                     attempt["turns"] = []
                     attempt["reconciliations"] = []
+                    attempt["injected_faults"] = []
                     attempt["title"] = "Held-out case"
         return data
 

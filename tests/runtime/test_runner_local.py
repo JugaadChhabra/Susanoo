@@ -163,6 +163,7 @@ async def test_engineer_view_hides_held_out_cases(simulator, tmp_path):
     report, _ = await run(simulator, tmp_path, case_ids=["C06", "C07"])
     hidden = next(a for a in report.view("engineer")["attempts"] if a["case_id"] == "C07")
     assert hidden["outcomes"] == [] and hidden["turns"] == [] and hidden["title"] == "Held-out case"
+    assert hidden["injected_faults"] == [] and hidden["reconciliations"] == []
     assert hidden["business_verdict"] == "PASS"
     operator = next(a for a in report.view("operator")["attempts"] if a["case_id"] == "C07")
     assert operator["outcomes"]
@@ -184,3 +185,11 @@ async def test_jsonl_agent_process_end_to_end(simulator, tmp_path):
     )
     assert set(verdicts(report).values()) == {"PASS"}
     assert all(a.reason == "" for a in report.attempts)
+
+
+async def test_reported_tool_events_are_journaled_for_dependency_extraction(simulator, tmp_path):
+    from susanoo_runner.dependencies import observed_dependencies
+
+    report, journal = await run(simulator, tmp_path, case_ids=["C01"])
+    observed = observed_dependencies(journal, report.attempts[0].attempt_id)
+    assert observed.tool_operations and "create_promise" in observed.tool_operations
