@@ -1,7 +1,9 @@
 from ..engine import Domain
-from . import collections, issue_tracker
+from . import collections, issue_tracker, shared_ledger
 
-DOMAINS: dict[str, Domain] = {domain.name: domain for domain in (collections.DOMAIN, issue_tracker.DOMAIN)}
+DOMAINS: dict[str, Domain] = {
+    domain.name: domain for domain in (collections.DOMAIN, issue_tracker.DOMAIN, shared_ledger.DOMAIN)
+}
 
 
 def get_domain(name: str) -> Domain:

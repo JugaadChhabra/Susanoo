@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Susanoo FastAPI control plane"
 requires-python = ">=3.12"
 dependencies = [
+    "susanoo-evaluator",
     "fastapi>=0.115",
     "httpx>=0.27",
     "pyjwt[crypto]>=2.8",

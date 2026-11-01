@@ -1,6 +1,6 @@
 """T30/T38: semantic grading is calibrated, versioned, permission-gated and never overrides deterministic FAIL."""
 
-import threading
+import multiprocessing
 import time
 from datetime import UTC, datetime
 
@@ -16,6 +16,8 @@ from susanoo_evaluator.semantic import (
     Rubric,
     SemanticGrader,
     SemanticThresholds,
+    WORKER_STARTUP_SECONDS,
+    WORKER_STOP_SECONDS,
     calibrate_grader,
     evaluate_all,
     evaluate_with_semantic,
@@ -41,6 +43,16 @@ CONFIG = GraderConfig(
     timeout_seconds=0.5,
 )
 PERMIT = ExternalDataPermission(allowed=True, observations=["handoffs"], granted_by="owner@example.test")
+MANAGER = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def provider_process_state():
+    global MANAGER
+    with multiprocessing.Manager() as manager:
+        MANAGER = manager
+        yield
+    MANAGER = None
 
 
 class FakeJudge:
@@ -49,8 +61,8 @@ class FakeJudge:
     name = "fake"
 
     def __init__(self, mode="keyword", external=True):
-        self.mode, self.external, self.requests = mode, external, []
-        self.release = threading.Event()
+        self.mode, self.external, self.requests = mode, external, MANAGER.list()
+        self.release = MANAGER.Event()
 
     def grade(self, request, *, timeout):
         self.requests.append(request)
@@ -161,7 +173,7 @@ def test_uncalibrated_or_failing_calibration_blocks_use():
     uncalibrated = SemanticGrader(CONFIG, judge, calibration=None, permission=PERMIT)
     result = grade(uncalibrated)
     assert result.verdict == "UNKNOWN" and result.measured["semantic_status"] == "not_calibrated"
-    assert judge.requests == []
+    assert list(judge.requests) == []
     lenient = calibrate_grader(CONFIG, FakeJudge("always_pass"), CONTROLS, thresholds=THRESHOLDS, permission=PERMIT)
     assert not lenient.accepted and set(lenient.false_passes) == {"neg-1", "amb-1", "held-neg"}
     assert any("false-pass" in reason for reason in lenient.reasons)
@@ -191,14 +203,14 @@ def test_external_data_permission_is_required_and_off_by_default():
     grader, judge = calibrated(permission=ExternalDataPermission())
     result = grade(grader)
     assert result.verdict == "UNKNOWN" and result.measured["semantic_status"] == "external_data_denied"
-    assert judge.requests == [] and grader.sent == []
+    assert list(judge.requests) == [] and grader.sent == []
     wrong_scope = ExternalDataPermission(allowed=True, observations=["promises"])
     grader, judge = calibrated(permission=wrong_scope)
-    assert grade(grader).measured["semantic_status"] == "external_data_denied" and judge.requests == []
+    assert grade(grader).measured["semantic_status"] == "external_data_denied" and list(judge.requests) == []
     denied_cal = calibrate_grader(
         CONFIG, (spy := FakeJudge()), CONTROLS, thresholds=THRESHOLDS, permission=ExternalDataPermission()
     )
-    assert not denied_cal.accepted and spy.requests == []
+    assert not denied_cal.accepted and list(spy.requests) == []
     # A provider inside the trust boundary needs no external-data grant.
     local, judge = calibrated(judge=FakeJudge(external=False), permission=ExternalDataPermission())
     assert grade(local).verdict == "PASS" and judge.requests
@@ -214,7 +226,8 @@ def test_provider_failures_are_unknown_never_pass(mode, status):
     result = grade(grader)
     judge.release.set()
     assert result.verdict == "UNKNOWN" and result.measured["semantic_status"] == status
-    assert time.monotonic() - started < 3
+    # Startup/termination are bounded separately; the provider itself still gets only 0.5 seconds.
+    assert time.monotonic() - started < WORKER_STARTUP_SECONDS + CONFIG.timeout_seconds + 2 * WORKER_STOP_SECONDS + 1
 
 
 def test_ambiguous_and_unusable_observations_are_unknown():
@@ -233,7 +246,7 @@ def test_semantic_never_overrides_deterministic_fail():
     two = two.model_copy(update={"records": [*two.records, {**two.records[0], "id": "HND-0002"}]})
     outcomes = evaluate_all([COUNT, SEMANTIC], {"handoffs": two}, CTX, graders={"tone-v1": grader})
     assert [o.verdict for o in outcomes] == ["FAIL", "UNKNOWN"]
-    assert outcomes[1].measured["semantic_status"] == "deterministic_fail_precedence" and judge.requests == []
+    assert outcomes[1].measured["semantic_status"] == "deterministic_fail_precedence" and list(judge.requests) == []
     assert case_verdict([COUNT, SEMANTIC], outcomes).verdict == "FAIL"
     # Even a forced semantic PASS cannot lift the requirement out of FAIL.
     forced = outcomes[1].model_copy(update={"verdict": "PASS"})

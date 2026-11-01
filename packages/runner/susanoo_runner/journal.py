@@ -61,6 +61,8 @@ create table if not exists budgets(scope text not null, kind text not null, cap 
     used integer not null default 0, primary key(scope, kind));
 create table if not exists reservations(scope text not null, operation_id text not null, kind text not null,
     amount integer not null, primary key(scope, operation_id));
+create table if not exists budget_settlements(scope text not null, operation_id text not null,
+    consumed integer not null, primary key(scope, operation_id));
 """
 
 BUDGETED = {"agent_invoke": "agent", "reference_call": "reference", "cleanup": "cleanup"}
@@ -200,6 +202,10 @@ class Journal:
             if prior:
                 if (prior["kind"], prior["amount"]) != (kind, amount):
                     raise JournalError("idempotency_conflict", "Reservation reused with different input")
+                if db.execute(
+                    "select 1 from budget_settlements where scope=? and operation_id=?", (scope, operation_id)
+                ).fetchone():
+                    raise JournalError("reservation_settled", "Completed allowance cannot authorize another dispatch")
                 return True
             budget = db.execute("select cap,used from budgets where scope=? and kind=?", (scope, kind)).fetchone()
             if budget is None:
@@ -216,6 +222,30 @@ class Journal:
     def budget(self, scope: str, kind: str) -> tuple[int, int]:
         row = self._db.execute("select cap,used from budgets where scope=? and kind=?", (scope, kind)).fetchone()
         return (row["cap"], row["used"]) if row else (0, 0)
+
+    def settle_reservation(self, scope: str, operation_id: str, consumed: int) -> None:
+        """Release only known-unused allowance after completion, atomically and idempotently.
+
+        Uncertain or in-flight work must retain its worst-case reservation.
+        """
+        with self._tx() as db:
+            reservation = db.execute(
+                "select kind,amount from reservations where scope=? and operation_id=?", (scope, operation_id)
+            ).fetchone()
+            if not reservation or type(consumed) is not int or not 0 <= consumed <= reservation["amount"]:
+                raise JournalError("invalid_settlement", "Consumption must be within the original reservation")
+            prior = db.execute(
+                "select consumed from budget_settlements where scope=? and operation_id=?", (scope, operation_id)
+            ).fetchone()
+            if prior:
+                if prior["consumed"] != consumed:
+                    raise JournalError("idempotency_conflict", "Settlement changed after completion")
+                return
+            db.execute("insert into budget_settlements values(?,?,?)", (scope, operation_id, consumed))
+            db.execute(
+                "update budgets set used=used-? where scope=? and kind=?",
+                (reservation["amount"] - consumed, scope, reservation["kind"]),
+            )
 
     # --- steps ------------------------------------------------------------------------------
 

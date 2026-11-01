@@ -101,10 +101,11 @@ async def test_slow_agent_hits_the_adapter_deadline_and_late_reply_is_ignored(tm
                 return Reply(text=message.text)
         serve(Slow())
         """,
-        request_deadline_seconds=0.5,
+        request_deadline_seconds=5,
     )
     try:
         session = await process.start_session(CTX)
+        process.limits = process.limits.model_copy(update={"request_deadline_seconds": 0.5})
         with pytest.raises(AdapterError) as error:
             await process.invoke(session, Message(text="slow"), CTX)
         assert error.value.code == "deadline_exceeded"
@@ -137,5 +138,5 @@ async def test_child_processes_die_with_the_attempt(tmp_path):
 
     pid = int(marker.read_text())
     time.sleep(0.2)
-    with pytest.raises(ProcessLookupError):
-        os.kill(pid, 0)
+    import psutil
+    assert not psutil.pid_exists(pid)

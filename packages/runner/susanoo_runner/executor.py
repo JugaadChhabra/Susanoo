@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import threading
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -37,7 +38,7 @@ CANCELLED = "cancelled"
 
 class CancelToken:
     def __init__(self) -> None:
-        self._event = asyncio.Event()
+        self._event = threading.Event()
 
     def cancel(self) -> None:
         self._event.set()
@@ -94,22 +95,29 @@ class AttemptExecutor:
         self.agent_factory, self.fixtures = agent_factory, fixtures
         self.scope = budget_scope or run_id
 
-    async def run(self, case: LocalCase, cancel: CancelToken | None = None) -> AttemptResult:
+    async def run(self, case: LocalCase, cancel: CancelToken | None = None, *, assignment=None) -> AttemptResult:
         cancel = cancel or CancelToken()
         started = time.monotonic()
-        attempt_id = str(uuid.uuid4())
-        namespace = f"attempt-{uuid.uuid4().hex[:16]}"
+        attempt_id = str(assignment.attempt_id) if assignment else str(uuid.uuid4())
+        namespace = assignment.namespace if assignment else f"attempt-{uuid.uuid4().hex[:16]}"
         deadline_at = started + self.limits.case_timeout_seconds
         deadline = datetime.now(UTC) + timedelta(seconds=self.limits.case_timeout_seconds)
-        manifest = {"case": case.model_dump(mode="json"), "limits": self.limits.model_dump(mode="json")}
+        if assignment:
+            deadline = min(deadline, assignment.deadline)
+            deadline_at = started + max(0, (deadline - datetime.now(UTC)).total_seconds())
+        manifest = (
+            assignment.model_dump(mode="json")
+            if assignment
+            else {"case": case.model_dump(mode="json"), "limits": self.limits.model_dump(mode="json")}
+        )
         self.journal.begin_attempt(
             attempt_id=attempt_id,
             run_id=self.run_id,
             case_id=case.id,
             namespace=namespace,
             manifest=manifest,
-            manifest_hash=content_hash(manifest),
-            fencing_generation=1,
+            manifest_hash=assignment.manifest_hash if assignment else content_hash(manifest),
+            fencing_generation=assignment.fencing_generation if assignment else 1,
             deadline=deadline,
         )
         self.journal.set_budget(self.scope, "agent", self.limits.max_agent_invocations)
@@ -122,6 +130,8 @@ class AttemptExecutor:
             if fixture is not None:
                 agent = self.agent_factory()
                 await self._converse(attempt_id, case, namespace, deadline, deadline_at, fixture, agent, cancel, state)
+                if cancel.requested:
+                    state.fail("cancelled", "Cancellation requested while the invocation was in flight")
         except Exception as error:
             # A runner bug must not leave a step looking undispatched: anything in flight is uncertain.
             state.uncertain += self.journal.mark_inflight_uncertain(attempt_id, f"runner error {type(error).__name__}")
@@ -132,7 +142,12 @@ class AttemptExecutor:
                 self.journal.set_state(attempt_id, "observing")
                 outcomes = await self._observe_and_evaluate(attempt_id, case, fixture, state)
                 await self._reconcile(attempt_id, fixture, state)
-            cleanup_state = await self._cleanup(attempt_id, fixture, agent, state)
+            try:
+                cleanup_state = await self._cleanup(attempt_id, fixture, agent, state)
+            except Exception as error:
+                self.journal.mark_inflight_uncertain(attempt_id, f"cleanup interrupted: {type(error).__name__}")
+                cleanup_state = "failed"
+                state.fail("interrupted", "Cleanup could not be dispatched safely; reconciliation required")
         verdict = case_verdict(case.parsed_checks(), outcomes).verdict
         reconciliation_state = state.reconciliation_state()
         self.journal.finalize(
@@ -169,7 +184,10 @@ class AttemptExecutor:
         self.journal.mark_dispatching(attempt_id, step.step_id)
         try:
             context = FixtureContext(
-                attempt_id=attempt_id, namespace=namespace, fencing_generation=1, deadline=deadline
+                attempt_id=attempt_id,
+                namespace=namespace,
+                fencing_generation=self.journal.attempt(attempt_id)["fencing_generation"],
+                deadline=deadline,
             )
             fixture = await self.fixtures.prepare(case.fixture, context)
         except AdapterError as error:
@@ -237,6 +255,10 @@ class AttemptExecutor:
                 return
             self.journal.mark_dispatching(attempt_id, step_id, scope=self.scope)
             context = base.model_copy(update={"turn": index})
+            if context.tool_route:
+                context = context.model_copy(
+                    update={"tool_route": context.tool_route.model_copy(update={"operation_id": step.operation_id})}
+                )
             timeout = min(self.limits.invocation_timeout_seconds, remaining)
             try:
                 reply = await asyncio.wait_for(agent.invoke(session, Message(text=turn.message), context), timeout)

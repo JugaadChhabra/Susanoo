@@ -81,9 +81,17 @@ def create_app(root: Path, admin_key: str) -> FastAPI:
         return tokens.__dict__
 
     @app.post("/fixtures/{namespace}/operations/{operation}")
-    def call(namespace: str, operation: str, body: OperationCall, who: AgentGrant):
+    def call(
+        namespace: str,
+        operation: str,
+        body: OperationCall,
+        who: AgentGrant,
+        x_susanoo_operation_id: str | None = Header(default=None, max_length=200),
+    ):
         try:
-            result = manager.get(namespace).execute(who.actor, operation, body.request, body.idempotency_key)
+            result = manager.get(namespace).execute(
+                who.actor, operation, body.request, body.idempotency_key, operation_id=x_susanoo_operation_id
+            )
         except SimulatorError as error:
             # The agent sees a transport failure; the action log keeps what really happened.
             raise HTTPException(503 if error.code == "unavailable" else 502, error.message) from None

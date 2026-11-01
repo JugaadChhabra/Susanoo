@@ -39,7 +39,7 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
   }
   const requirement = await revision({ kind: "requirement", source_clause: "UI-PROTOCOL-001", expected: "Exactly one synthetic record", owner: "Synthetic reviewer" }, "Browser Requirement");
   const check = await revision({ kind: "check", requirement_version_id: requirement.id, operator: "count", observation: "synthetic_records", expected: 1 }, "Browser Check");
-  const fixture = await revision({ kind: "fixture", adapter: "protocol_fixture_no_business_backend", digest: "a".repeat(64), compatibility_key: "browser-protocol-v1" }, "Browser Fixture");
+  const fixture = await revision({ kind: "fixture", adapter: "protocol_fixture_no_business_backend", digest: createHash("sha256").update("{}").digest("hex"), compatibility_key: "browser-protocol-v1" }, "Browser Fixture");
   const caseVersion = await revision({ kind: "case", fixture_version_id: fixture.id, check_version_ids: [check.id], script: [{ message: "Protocol test only" }] }, "Browser Case");
   const suite = await revision({ kind: "suite", case_version_ids: [caseVersion.id] }, "Browser Suite");
   const environment = await revision({ kind: "environment", adapter: "protocol_fixture_no_business_backend", version: "test-only", allowed_operations: ["synthetic_write"], identity_profile: "synthetic", fixture_version_id: fixture.id }, "Browser Environment");
@@ -65,7 +65,7 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
       const attempt = await claim("outcome_suite");
       const id = randomUUID(); const values = { count: 0 };
       await runner(`/attempts/${attempt.attempt_id}/evidence`, { lease_token: attempt.lease_token,
-        observations: [{ observation_id: id, source: "protocol_test_double_not_business_backend", captured_at: new Date().toISOString(), availability: "available", completeness: "complete_for_scope", namespace: attempt.namespace,
+        observations: [{ observation_id: id, name: "synthetic_records", source: "protocol_test_double_not_business_backend", captured_at: new Date().toISOString(), availability: "available", completeness: "complete_for_scope", namespace: attempt.namespace,
           window_seconds: 10, window_elapsed: true, storage_mode: "redacted_hosted", values, redaction_version: "synthetic-test", digest: createHash("sha256").update(JSON.stringify(values)).digest("hex") }],
         check_results: [{ check_version_id: check.id, evaluator_digest: "b".repeat(64), verdict: "FAIL", reason: "Synthetic protocol fixture failure; no business evaluator executed", observation_ids: [id] }],
       });

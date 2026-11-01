@@ -13,6 +13,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
+COPY examples/collections/pyproject.toml ./examples/collections/pyproject.toml
 COPY supabase/migrations ./supabase/migrations
 RUN uv sync --frozen --no-dev --package susanoo-api && mkdir -m 0700 -p /app/.platform && chown -R susanoo:susanoo /app
 USER susanoo

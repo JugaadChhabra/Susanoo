@@ -286,6 +286,7 @@ def result(suite, claim, verdict="PASS", availability="available", completeness=
         "observations": [
             {
                 "observation_id": observation_id,
+                "name": suite["check"]["data"]["observation"],
                 "source": "protocol_test_double_not_business_backend",
                 "captured_at": datetime.now(UTC).isoformat(),
                 "availability": availability,

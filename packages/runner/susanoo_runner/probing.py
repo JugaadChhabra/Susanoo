@@ -262,6 +262,8 @@ def run_probes(
                     queue.insert(0, candidate.id)
                 return
             executions[candidate.id] = _execute(candidate, amount, probe, cleanup, plan.cleanup_allowance)
+            execution = executions[candidate.id]
+            journal.settle_reservation(scope, f"{run_id}:{candidate.id}", execution.cost + execution.cleanup_cost)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for future in [pool.submit(work) for _ in range(workers)]:

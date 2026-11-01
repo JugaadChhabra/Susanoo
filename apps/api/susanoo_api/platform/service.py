@@ -4,7 +4,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from psycopg.types.json import Jsonb
-from susanoo_contracts import content_hash
+from pydantic import TypeAdapter
+from susanoo_contracts import CheckSpec, claim_component_hashes, content_hash
+from susanoo_evaluator.dsl import Check
+from susanoo_evaluator.engine import CheckOutcome
+from susanoo_evaluator.verdict import AttemptSummary, case_verdict, evidence_supports, run_gate
 
 from .database import PlatformError
 from .security import issue_token, token_hash
@@ -416,7 +420,11 @@ def json_safe(value):
         return {key: json_safe(item) for key, item in value.items()}
     if isinstance(value, list):
         return [json_safe(item) for item in value]
-    if isinstance(value, (UUID, datetime)):
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            raise ValueError("Manifest timestamps must be timezone-aware")
+        return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    if isinstance(value, UUID):
         return str(value)
     return value
 
@@ -504,19 +512,24 @@ def cancel_run(ctx, run_id):
 def project_gate(db, run_id):
     """Project reported business verdicts and independent operational blockers; never grade observations here."""
     attempts = db.execute("select * from platform.attempts where run_id=%s", (run_id,)).fetchall()
-    active = {"queued", "preparing", "running", "observing", "evaluating"}
-    if any(item["execution_state"] in active for item in attempts):
-        state, gate = "running", "IN_PROGRESS"
-    else:
-        blocked = any(
-            item["cleanup_state"] == "failed"
-            or item["reconciliation_state"] in {"pending", "unresolved"}
-            or (item["required"] and (item["business_verdict"] == "FAIL" or item["execution_state"] != "completed"))
+    gate = run_gate(
+        [
+            AttemptSummary(
+                **{
+                    name: item[name]
+                    for name in (
+                        "required",
+                        "execution_state",
+                        "business_verdict",
+                        "cleanup_state",
+                        "reconciliation_state",
+                    )
+                }
+            )
             for item in attempts
-        )
-        unknown = any(item["required"] and item["business_verdict"] != "PASS" for item in attempts)
-        state = "completed"
-        gate = "BLOCKED" if blocked or not attempts else "NEEDS_REVIEW" if unknown else "READY_FOR_ACCEPTANCE"
+        ]
+    )
+    state = "running" if gate == "IN_PROGRESS" else "completed"
     db.execute("update platform.runs set status=%s,gate=%s where id=%s", (state, gate, run_id))
     return gate
 
@@ -608,10 +621,20 @@ def runner_claim(ctx, body):
     claim = ctx.db.execute(
         """update platform.attempts set execution_state='preparing',runner_id=%s,lease_hash=%s,
         lease_expires_at=least(%s,now()+make_interval(secs=>%s),now()+interval '30 seconds'),
-        fencing_generation=%s,
+        fencing_generation=%s,cleanup_budget=%s,
         started_at=now(),deadline=least(%s,now()+make_interval(secs=>%s)) where id=%s
         returning lease_expires_at,fencing_generation,deadline""",
-        (runner["id"], token_hash(token), run_deadline, timeout, generation, run_deadline, timeout, row["id"]),
+        (
+            runner["id"],
+            token_hash(token),
+            run_deadline,
+            timeout,
+            generation,
+            row["manifest"]["limits"].get("cleanup_reserve", 2),
+            run_deadline,
+            timeout,
+            row["id"],
+        ),
     ).fetchone()
     ctx.db.execute("update platform.runners set last_heartbeat=now() where id=%s", (runner["id"],))
     ctx.db.execute("update platform.runs set status='running' where id=%s", (row["run_id"],))
@@ -626,20 +649,29 @@ def runner_claim(ctx, body):
         "connection": row["manifest"].get("connection", {}).get("data"),
         "script": case["case"]["data"]["script"] if case else [],
     }
+    execution = (
+        row["manifest"]
+        if not case
+        else {
+            name: row["manifest"][name]
+            for name in ("environment", "connection", "suite", "request", "limits", "policy", "timezone")
+        }
+    )
+    components = claim_component_hashes(execution, case)
     return {
         "protocol_version": "1.0",
         "attempt_id": row["id"],
         "run_id": row["run_id"],
         "kind": row["kind"],
         "lease_token": token,
-        "manifest_hash": row["manifest_hash"],
+        "manifest_hash": content_hash(components),
+        "run_manifest_hash": row["manifest_hash"],
+        "component_hashes": components,
         **claim,
         "namespace": row["namespace"],
         "agent_context": agent_context,
         "evaluator_context": case,
-        "execution_manifest": row["manifest"]
-        if not case
-        else {name: row["manifest"][name] for name in ("environment", "limits", "policy", "timezone")},
+        "execution_manifest": execution,
     }
 
 
@@ -691,47 +723,10 @@ def runner_events(ctx, attempt_id, body):
     row = owned_attempt(ctx, attempt_id, body.lease_token)
     accepted, duplicates = [], []
     for event in body.events:
-        allowed = {
-            "step_prepared": {"request_digest", "operation_id", "action_kind"},
-            "step_dispatching": {"operation_id"},
-            "step_response_recorded": {"dispatch_state", "response_artifact_id", "side_effect_state"},
-            "observation_recorded": {"observation_id"},
-            "check_recorded": {"check_version_id"},
-            "cleanup_recorded": {"state", "reason_code"},
-            "reconciliation_recorded": {"state", "evidence_id"},
-            "cancel_acknowledged": set(),
-            "progress": {"code"},
-            "job_result": {
-                "invocation_ok",
-                "observer_ok",
-                "cleanup_ok",
-                "isolation_verified",
-                "max_concurrency",
-                "control_set_hash",
-                "controls_verified",
-                "missed_defects",
-                "false_alarms",
-                "artifact_ids",
-                "status",
-                "tested_version",
-                "classification",
-                "reproduced",
-                "source_commit",
-                "image_digest",
-                "dependency_ids",
-                "discrepancy_ids",
-                "reduction_ids",
-                "patch_artifact_id",
-                "base_commit",
-                "validation_passed",
-                "heldout_passed",
-                "controls_passed",
-                "criteria_unchanged",
-            },
-        }[event.type]
-        if not set(event.payload).issubset(allowed):
-            raise PlatformError("FORBIDDEN", "Event includes fields outside its evidence contract.", 403)
         data = dump(event)
+        payload = data["payload"]
+        if event.type == "job_result" and payload["job_kind"] != row["kind"]:
+            raise PlatformError("INVALID_INPUT", "Job result kind must match the assigned job.", 422)
         digest = content_hash(data)
         old = ctx.db.execute(
             "select event_id,payload_hash from platform.runner_events "
@@ -743,8 +738,6 @@ def runner_events(ctx, attempt_id, body):
                 raise PlatformError("IDEMPOTENCY_CONFLICT", "Event ID or sequence conflicts with stored evidence.", 409)
             duplicates.append(event.event_id)
             continue
-        if row["cancel_acknowledged_at"] and event.type == "step_dispatching":
-            raise PlatformError("INVALID_STATE", "No new action may dispatch after cancellation acknowledgement.", 409)
         if event.type == "cancel_acknowledged":
             ctx.db.execute("update platform.attempts set cancel_acknowledged_at=now() where id=%s", (attempt_id,))
             row["cancel_acknowledged_at"] = datetime.now(UTC)
@@ -759,15 +752,28 @@ def runner_events(ctx, attempt_id, body):
             ).fetchone()
             if not prepared:
                 raise PlatformError("INVALID_STATE", "Record the prepared intent before dispatch.", 409)
-            operation = event.payload.get("operation_id")
+            operation = payload.get("operation_id")
             if not operation or prepared["intent"].get("operation_id") != operation:
                 raise PlatformError("INVALID_INPUT", "Dispatch operation must match its prepared intent.", 422)
+            action_kind = prepared["intent"]["action_kind"]
+            housekeeping = action_kind in {"cleanup", "observe"}
+            if row["cancel_acknowledged_at"] and not housekeeping:
+                raise PlatformError(
+                    "INVALID_STATE", "Only cleanup or observation may dispatch after cancellation.", 409
+                )
             reserved = ctx.db.execute(
-                "select 1 from platform.budget_reservations where run_id=%s and attempt_id=%s and operation_id=%s",
+                "select budget_kind from platform.budget_reservations "
+                "where run_id=%s and attempt_id=%s and operation_id=%s",
                 (row["run_id"], attempt_id, operation),
             ).fetchone()
             if not reserved:
                 raise PlatformError("BUDGET_REQUIRED", "Reserve the operation budget before dispatch.", 409)
+            budget_kind = (
+                "cleanup" if housekeeping or action_kind == "fixture_prepare"
+                else "reference" if action_kind == "reference_call" else "agent"
+            )
+            if reserved["budget_kind"] != budget_kind:
+                raise PlatformError("BUDGET_REQUIRED", "Reservation kind must match the approved action kind.", 409)
             duplicate = ctx.db.execute(
                 """select 1 from platform.runner_events where attempt_id=%s and event_type='step_dispatching'
                 and payload->'payload'->>'operation_id'=%s""",
@@ -857,16 +863,23 @@ def validate_evidence(ctx, row, body):
             ).fetchone()
             if not exists:
                 raise PlatformError("INVALID_INPUT", "Check references unavailable observation evidence.", 422)
-            if result.verdict != "UNKNOWN" and (
-                exists["data"]["availability"] != "available"
-                or (
-                    pinned_check["data"]["requires_complete_observation"]
-                    and (
-                        exists["data"]["completeness"] != "complete_for_scope"
-                        or not exists["data"]["window_elapsed"]
-                        or exists["data"]["window_seconds"] < pinned_check["data"]["window_seconds"]
+            observed = exists["data"]
+            if observed["name"] != pinned_check["data"]["observation"]:
+                raise PlatformError("INVALID_INPUT", "Evidence must name the check's declared observation.", 422)
+            if not evidence_supports(
+                pinned_check["data"]["operator"],
+                result.verdict,
+                requires_complete_observation=pinned_check["data"]["requires_complete_observation"],
+                check_window_seconds=pinned_check["data"]["window_seconds"],
+                **{
+                    name: observed[name]
+                    for name in (
+                        "availability",
+                        "completeness",
+                        "window_seconds",
+                        "window_elapsed",
                     )
-                )
+                },
             ):
                 raise PlatformError(
                     "INVALID_INPUT", "Unavailable or incomplete evidence cannot establish this check.", 422
@@ -930,10 +943,28 @@ def finalize_attempt(ctx, attempt_id, body):
         actual = {str(result["version_id"]): result["data"]["verdict"] for result in results}
         if body.execution_state == "completed" and not required.issubset(actual):
             raise PlatformError("INCOMPLETE_EVIDENCE", "Required check results are missing.", 409)
-        if body.business_verdict == "PASS" and any(actual.get(check_id) != "PASS" for check_id in required):
-            raise PlatformError("INVALID_INPUT", "A PASS contradicts missing or non-passing required evidence.", 422)
-        if any(actual.get(check_id) == "FAIL" for check_id in required) and body.business_verdict != "FAIL":
-            raise PlatformError("INVALID_INPUT", "A required FAIL cannot be relabeled by finalization.", 422)
+        definitions = [
+            TypeAdapter(Check).validate_python(
+                CheckSpec.model_validate(check["data"]).evaluator_definition(check["id"])
+            )
+            for check in case["checks"]
+        ]
+        outcomes = [
+            CheckOutcome(
+                check_id=check_id,
+                requirement_id="persisted",
+                required=True,
+                verdict=verdict,
+                reason_code="violated" if verdict == "FAIL" else "satisfied",
+                reason="Persisted immutable runner evidence",
+            )
+            for check_id, verdict in actual.items()
+        ]
+        aggregated = case_verdict(definitions, outcomes).verdict
+        if body.business_verdict != aggregated:
+            raise PlatformError(
+                "INVALID_INPUT", "Business verdict contradicts the evaluator's required-check result.", 422
+            )
         for result in results:
             if result["data"]["verdict"] != "PASS":
                 ctx.db.execute(

@@ -217,7 +217,7 @@ def test_dispatch_requires_budget_and_cannot_repeat(suite):
         claim,
         1,
         "step_prepared",
-        {"request_digest": "a" * 64, "operation_id": "operation-one", "action_kind": "agent"},
+        {"request_digest": "a" * 64, "operation_id": "operation-one", "action_kind": "agent_invoke"},
         step_id="one",
     )
     event = {

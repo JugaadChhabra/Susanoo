@@ -14,6 +14,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -88,6 +89,7 @@ class JsonlAgentProcess:
         self._total = 0
         self._tasks: list[asyncio.Task] = []
         self._abandoned: set[str] = set()
+        self._job = None
 
     async def start(self) -> None:
         if self._proc is not None:
@@ -102,6 +104,17 @@ class JsonlAgentProcess:
             start_new_session=True,
             limit=self.limits.max_frame_bytes + 1,
         )
+        if os.name == "nt":
+            from .process_tree import WindowsJob
+
+            try:
+                self._job = WindowsJob(self._proc.pid)
+            except OSError as error:
+                self._proc.kill()
+                await self._proc.wait()
+                raise AdapterError(
+                    "process_isolation_unavailable", "Cannot own the Windows agent process tree"
+                ) from error
         self._tasks = [asyncio.create_task(self._read_stdout()), asyncio.create_task(self._read_stderr())]
 
     def _fail(self, error: AdapterError) -> None:
@@ -209,6 +222,9 @@ class JsonlAgentProcess:
     def _kill(self) -> None:
         # Kill the whole session group even if the leader already exited: children it spawned share it.
         if self._proc:
+            if self._job:
+                self._job.close()
+                return
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(self._proc.pid, signal.SIGKILL)
 
@@ -300,7 +316,19 @@ async def _serve(agent: SusanooAgent, protocol_out) -> None:
             )
 
     reader = asyncio.StreamReader(limit=FrameLimits().max_frame_bytes + 1)
-    await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
+    if os.name == "nt":
+        # Windows inherited anonymous stdin pipes are not overlapped Proactor handles.
+        def read_stdin():
+            try:
+                while line := sys.stdin.buffer.readline(FrameLimits().max_frame_bytes + 1):
+                    loop.call_soon_threadsafe(reader.feed_data, line)
+                loop.call_soon_threadsafe(reader.feed_eof)
+            except RuntimeError:
+                pass  # daemon reader may observe a closed loop during normal shutdown
+
+        threading.Thread(target=read_stdin, daemon=True, name="susanoo-jsonl-stdin").start()
+    else:
+        await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
     while line := await reader.readline():
         try:
             frame = JsonlFrame.model_validate_json(line)

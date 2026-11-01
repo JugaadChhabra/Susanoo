@@ -11,6 +11,11 @@ dependencies = [
     "susanoo-evaluator",
     "susanoo-sdk",
     "susanoo-simulator",
+    "susanoo-core",
+    "susanoo-connectors",
+    "opentelemetry-proto>=1.45,<2",
+    "protobuf>=5.29",
+    "psutil>=7,<8",
 ]
 
 [project.scripts]

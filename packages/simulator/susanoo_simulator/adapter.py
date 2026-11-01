@@ -153,9 +153,15 @@ class SimulatorFixtureAdapter:
                 finding="indeterminate",
                 note=f"Action log unreadable: {type(error).__name__}",
             )
+        matched = [entry for entry in read.json()["actions"] if entry.get("operation_id") == intent.operation_id]
+        if not matched:
+            return Reconciliation(
+                operation_id=intent.operation_id, state="unresolved", finding="indeterminate",
+                note="No operation-correlated read-back; unrelated namespace activity is not evidence",
+            )
         effects = [
             entry
-            for entry in read.json()["actions"]
+            for entry in matched
             if entry["mutating"]
             and (entry["status"] == "ok" or (entry["status"] == "error" and "failure_after_commit" in entry["faults"]))
         ]
@@ -165,13 +171,13 @@ class SimulatorFixtureAdapter:
                 operation_id=intent.operation_id,
                 state="resolved",
                 finding="effect_present",
-                note=f"{len(effects)} committed change(s) in this namespace: {', '.join(names)}",
+                note=f"{len(effects)} operation-correlated committed change(s): {', '.join(names)}",
             )
         return Reconciliation(
             operation_id=intent.operation_id,
             state="resolved",
             finding="effect_absent",
-            note="No committed change in this namespace",
+            note="Operation-correlated log records show no committed change",
         )
 
     async def cleanup(self, fixture: FixtureHandle) -> CleanupResult:

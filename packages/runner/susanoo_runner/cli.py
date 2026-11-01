@@ -29,10 +29,13 @@ import sys
 import time
 from pathlib import Path
 
+import httpx
+from pydantic import ValidationError
+
 from susanoo_sdk import InProcessAgentAdapter, JsonlAgentProcess
 
 from .ci import EXIT_CONFIG, EXIT_OPERATIONAL, ConfigError
-from .journal import Journal
+from .journal import Journal, JournalError
 from .local import RunReport, SimulatorServer, run_suite_sync
 from .suite import LocalProfile, LocalSuite
 
@@ -194,6 +197,22 @@ def build_parser() -> argparse.ArgumentParser:
     recover = sub.add_parser("recover", help="Mark interrupted dispatches uncertain after a crash")
     recover.add_argument("--journal", type=Path, default=Path(".susanoo/journal.sqlite"))
 
+    platform = sub.add_parser("platform-worker", help="Execute locally approved platform claims; never remote commands")
+    platform.add_argument("--url", required=True, help="Control plane URL ending in /api/v1")
+    platform.add_argument("--token-env", default="SUSANOO_RUNNER_TOKEN")
+    platform.add_argument("--profile", type=Path, required=True)
+    platform.add_argument("--simulator-url", required=True)
+    platform.add_argument("--simulator-key-env", default="SUSANOO_SIMULATOR_ADMIN_KEY")
+    platform.add_argument("--state-dir", type=Path, default=Path(".susanoo/platform"))
+    platform.add_argument("--once", action="store_true")
+    _add_agent(platform)
+
+    reconcile = sub.add_parser("platform-reconcile", help="Upload a stored journal without resuming execution")
+    reconcile.add_argument("--url", required=True)
+    reconcile.add_argument("--token-env", default="SUSANOO_RUNNER_TOKEN")
+    reconcile.add_argument("--journal", type=Path, required=True)
+    reconcile.add_argument("--attempt", required=True)
+
     preflight = sub.add_parser("preflight", help="Validate suite, profile and agent without running cases")
     preflight.add_argument("--suite", type=Path, required=True)
     preflight.add_argument("--profile", type=Path, help="LocalProfile JSON; the ceiling for this machine")
@@ -250,9 +269,34 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return EXIT_CONFIG
+    except JournalError as error:
+        print(f"Runner stopped ({error.code}); no business action was automatically retried.", file=sys.stderr)
+        return EXIT_OPERATIONAL
+    except ValidationError:
+        print("Configuration or claim validation failed; sensitive input values are not logged.", file=sys.stderr)
+        return EXIT_CONFIG
+    except httpx.HTTPError:
+        print(
+            "Platform transport failed; preserve the journal and reconcile before further execution.", file=sys.stderr
+        )
+        return EXIT_OPERATIONAL
 
 
 def _dispatch(args: argparse.Namespace, raw: list[str]) -> int:
+    if args.command == "platform-worker":
+        return _platform_worker(args)
+    if args.command == "platform-reconcile":
+        from .platform import PlatformClient, reconcile_stored
+
+        token = os.environ.get(args.token_env)
+        if not token:
+            raise ConfigError(f"Set {args.token_env} locally; do not put bearer tokens in command arguments")
+        client = PlatformClient(args.url, token)
+        try:
+            print(json.dumps(reconcile_stored(client, args.journal, args.attempt)))
+            return EXIT_OPERATIONAL  # late evidence is not a new successful execution
+        finally:
+            client.close()
     if args.command == "recover":
         journal = Journal(args.journal)
         uncertain = journal.recover()
@@ -273,6 +317,62 @@ def _dispatch(args: argparse.Namespace, raw: list[str]) -> int:
         "export": _export,
     }[args.command]
     return handler(args, raw) if args.command == "run" else handler(args)
+
+
+def _platform_worker(args):
+    from susanoo_simulator.adapter import SimulatorFixtureAdapter
+    from .platform import PlatformClient, PlatformProfile, execute_claim
+    from .local_security import secure_local_path
+
+    token, key = os.environ.get(args.token_env), os.environ.get(args.simulator_key_env)
+    if not token or not key:
+        raise ConfigError("Runner token and simulator key must be set in the named environment variables")
+    profile = PlatformProfile.model_validate_json(args.profile.read_text(encoding="utf-8"))
+    factory, _ = agent_factory(args.agent, args.agent_cmd)
+    marker = args.state_dir / ".susanoo-runner-owned"
+    if args.state_dir.is_symlink() or (
+        args.state_dir.exists() and any(args.state_dir.iterdir()) and not marker.is_file()
+    ):
+        raise ConfigError("Use a dedicated empty runner state directory, not an existing project/data directory")
+    args.state_dir.mkdir(parents=True, exist_ok=True)
+    secure_local_path(args.state_dir)
+    marker.touch(exist_ok=True)
+    client = PlatformClient(args.url, token)
+
+    async def perform(claim):
+        fixtures = SimulatorFixtureAdapter(args.simulator_url, key)
+        try:
+            return await execute_claim(
+                client,
+                claim,
+                profile=profile,
+                journal_path=args.state_dir / f"{claim.attempt_id}.sqlite",
+                agent_factory=factory,
+                fixtures=fixtures,
+            )
+        finally:
+            await fixtures.aclose()
+
+    try:
+        while True:
+            claim = client.claim()
+            if claim:
+                result = asyncio.run(perform(claim))
+                print(f"{result.attempt_id}: {result.execution_state} / {result.business_verdict}")
+                if args.once:
+                    return (
+                        0
+                        if result.execution_state == "completed" and result.business_verdict == "PASS"
+                        else (1 if result.business_verdict == "FAIL" else EXIT_OPERATIONAL)
+                    )
+            elif args.once:
+                return EXIT_OPERATIONAL
+            else:
+                time.sleep(2)
+    except KeyboardInterrupt:
+        return EXIT_OPERATIONAL
+    finally:
+        client.close()
 
 
 def _local(args: argparse.Namespace) -> int:
@@ -458,6 +558,10 @@ def _wait(args: argparse.Namespace) -> int:
 
 
 def _alive(pid: int) -> bool:
+    if os.name == "nt":
+        import psutil
+
+        return psutil.pid_exists(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

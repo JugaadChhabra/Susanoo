@@ -71,6 +71,7 @@ class SimulatorServer(AppServer):
 
     def __exit__(self, *exc: Any) -> None:
         super().__exit__(*exc)
+        self.app.state.manager.close()
         if self._tmp:
             self._tmp.cleanup()
 

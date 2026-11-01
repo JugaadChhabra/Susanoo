@@ -10,7 +10,17 @@ dependencies = [
     "susanoo-contracts",
     "susanoo-evaluator",
     "susanoo-sdk",
+    "mcp>=2.3,<2.4",
+    "httpx2>=2.13,<3",
+    "jsonschema>=4.26",
+    "protobuf>=5.29",
+    "pyyaml>=6",
 ]
+
+[project.optional-dependencies]
+grpc = ["grpcio>=1.66"]
+browser = ["playwright>=1.48"]
+twilio = ["twilio>=9.3,<10"]
 
 [build-system]
 requires = ["hatchling"]

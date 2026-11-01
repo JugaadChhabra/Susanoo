@@ -1,5 +1,8 @@
 # Aarav Platform Status
 
+Current integration work (2026-11-02) is recorded in [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md).
+The historical checkpoint below predates Muaz's runtime and must not be read as its current status.
+
 State: implementation ready for platform review and Muaz integration, not full
 product acceptance. Updated 2026-10-30.
 Baseline: 73224ee9133133663a7f4df6925b8afac209d88b.

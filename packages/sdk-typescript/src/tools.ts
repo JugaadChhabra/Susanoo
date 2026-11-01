@@ -57,7 +57,10 @@ export class ToolClient {
     try {
       response = await this.fetchImpl(url, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.route.token}` },
+        headers: {
+          "content-type": "application/json", authorization: `Bearer ${this.route.token}`,
+          ...(this.route.operation_id ? { "X-Susanoo-Operation-ID": this.route.operation_id } : {}),
+        },
         body: JSON.stringify({ request, idempotency_key: idempotencyKey }),
         redirect: "error",
         signal: AbortSignal.any(signals),

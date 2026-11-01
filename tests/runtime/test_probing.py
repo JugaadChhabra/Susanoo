@@ -160,7 +160,7 @@ def test_concurrent_workers_and_runs_never_exceed_the_cap(tmp_path):
         )
     cap, used = journals[0].budget("ref", "reference")
     assert cap == 37 and used <= 37
-    assert sum(sum(e.reserved for e in r.executions) for r in runs) == used
+    assert sum(sum(e.cost + e.cleanup_cost for e in r.executions) for r in runs) == used
     assert len(sent) == sum(e.calls for r in runs for e in r.executions)
     for j in journals:
         j.close()

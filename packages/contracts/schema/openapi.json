@@ -53,6 +53,16 @@
             },
             "title": "Script",
             "type": "array"
+          },
+          "tool_route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -65,6 +75,21 @@
           "script"
         ],
         "title": "AgentContext",
+        "type": "object"
+      },
+      "Alias": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "pattern": "^fixture\\.[A-Za-z_][A-Za-z0-9_]*$",
+            "title": "Alias",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alias"
+        ],
+        "title": "Alias",
         "type": "object"
       },
       "ApprovalIn": {
@@ -299,7 +324,8 @@
           "budget_kind": {
             "enum": [
               "agent",
-              "reference"
+              "reference",
+              "cleanup"
             ],
             "title": "Budget Kind",
             "type": "string"
@@ -323,6 +349,178 @@
           "budget_kind"
         ],
         "title": "BudgetReservation",
+        "type": "object"
+      },
+      "BuildResult": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Artifact Ids",
+            "type": "array"
+          },
+          "image_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Digest"
+          },
+          "job_kind": {
+            "default": "build",
+            "enum": [
+              "build",
+              "source_import"
+            ],
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "source_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Commit"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "BuildResult",
+        "type": "object"
+      },
+      "BusinessDate": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "timezone"
+        ],
+        "title": "BusinessDate",
+        "type": "object"
+      },
+      "CalibrationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "control_set_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Control Set Hash",
+            "type": "string"
+          },
+          "controls_verified": {
+            "title": "Controls Verified",
+            "type": "boolean"
+          },
+          "false_alarms": {
+            "minimum": 0.0,
+            "title": "False Alarms",
+            "type": "integer"
+          },
+          "job_kind": {
+            "const": "calibration",
+            "default": "calibration",
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "missed_defects": {
+            "minimum": 0.0,
+            "title": "Missed Defects",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "control_set_hash",
+          "controls_verified",
+          "missed_defects",
+          "false_alarms"
+        ],
+        "title": "CalibrationResult",
+        "type": "object"
+      },
+      "CancelEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CancelPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "cancel_acknowledged",
+            "default": "cancel_acknowledged",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at"
+        ],
+        "title": "CancelEvent",
+        "type": "object"
+      },
+      "CancelPayload": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "CancelPayload",
         "type": "object"
       },
       "Capabilities": {
@@ -393,6 +591,17 @@
             "title": "Observe",
             "type": "boolean"
           },
+          "observer_consistency": {
+            "default": "unknown",
+            "enum": [
+              "bounded",
+              "immediate",
+              "unbounded",
+              "unknown"
+            ],
+            "title": "Observer Consistency",
+            "type": "string"
+          },
           "patch_source": {
             "default": false,
             "title": "Patch Source",
@@ -407,6 +616,16 @@
             "default": false,
             "title": "Reset",
             "type": "boolean"
+          },
+          "retry_semantics": {
+            "default": "unknown",
+            "enum": [
+              "idempotent",
+              "never",
+              "unknown"
+            ],
+            "title": "Retry Semantics",
+            "type": "string"
           },
           "sessions": {
             "default": false,
@@ -539,6 +758,71 @@
         "title": "ChangeIn",
         "type": "object"
       },
+      "CheckEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CheckPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "check_recorded",
+            "default": "check_recorded",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "CheckEvent",
+        "type": "object"
+      },
+      "CheckPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "check_version_id": {
+            "format": "uuid",
+            "title": "Check Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_version_id"
+        ],
+        "title": "CheckPayload",
+        "type": "object"
+      },
       "CheckResult": {
         "additionalProperties": false,
         "properties": {
@@ -571,6 +855,18 @@
             "title": "Reason",
             "type": "string"
           },
+          "reason_code": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
           "verdict": {
             "$ref": "#/components/schemas/Verdict"
           }
@@ -587,6 +883,41 @@
       "CheckSpec": {
         "additionalProperties": false,
         "properties": {
+          "allow_unchanged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Unchanged"
+          },
+          "allowed": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed"
+          },
           "control_set_hash": {
             "anyOf": [
               {
@@ -599,8 +930,93 @@
             ],
             "title": "Control Set Hash"
           },
+          "entity": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity"
+          },
           "expected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              },
+              {
+                "$ref": "#/components/schemas/Alias"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Expected"
+          },
+          "filter": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Money"
+                },
+                {
+                  "$ref": "#/components/schemas/BusinessDate"
+                },
+                {
+                  "$ref": "#/components/schemas/Alias"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "maxProperties": 20,
+            "title": "Filter",
+            "type": "object"
+          },
+          "forbid_create": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forbid Create"
+          },
+          "forbid_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forbid Delete"
           },
           "grader_version_id": {
             "anyOf": [
@@ -614,11 +1030,87 @@
             ],
             "title": "Grader Version Id"
           },
+          "instructions": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
           "kind": {
             "const": "check",
             "default": "check",
             "title": "Kind",
             "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              },
+              {
+                "$ref": "#/components/schemas/Alias"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              },
+              {
+                "$ref": "#/components/schemas/Alias"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
           },
           "observation": {
             "maxLength": 200,
@@ -655,6 +1147,20 @@
             ],
             "title": "Path"
           },
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paths"
+          },
           "required": {
             "default": true,
             "title": "Required",
@@ -670,6 +1176,17 @@
             "title": "Requires Complete Observation",
             "type": "boolean"
           },
+          "rubric_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rubric Id"
+          },
           "severity": {
             "default": "high",
             "enum": [
@@ -681,12 +1198,76 @@
             "title": "Severity",
             "type": "string"
           },
+          "target_filter": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Money"
+                },
+                {
+                  "$ref": "#/components/schemas/BusinessDate"
+                },
+                {
+                  "$ref": "#/components/schemas/Alias"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "maxProperties": 20,
+            "title": "Target Filter",
+            "type": "object"
+          },
+          "target_observation": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Observation"
+          },
+          "target_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Path"
+          },
           "window_seconds": {
             "default": 10,
             "maximum": 3600.0,
             "minimum": 0.0,
             "title": "Window Seconds",
             "type": "integer"
+          },
+          "within_seconds": {
+            "anyOf": [
+              {
+                "maximum": 86400.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Within Seconds"
           }
         },
         "required": [
@@ -695,6 +1276,87 @@
           "observation"
         ],
         "title": "CheckSpec",
+        "type": "object"
+      },
+      "CleanupEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CleanupPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "cleanup_recorded",
+            "default": "cleanup_recorded",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "CleanupEvent",
+        "type": "object"
+      },
+      "CleanupPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "reason_code": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "state": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "not_required"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "CleanupPayload",
         "type": "object"
       },
       "CollisionSpec": {
@@ -1019,6 +1681,22 @@
         "title": "DependencyIn",
         "type": "object"
       },
+      "DispatchPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "title": "DispatchPayload",
+        "type": "object"
+      },
       "EmailIn": {
         "additionalProperties": false,
         "properties": {
@@ -1167,7 +1845,53 @@
         "properties": {
           "events": {
             "items": {
-              "$ref": "#/components/schemas/RunnerEvent"
+              "discriminator": {
+                "mapping": {
+                  "cancel_acknowledged": "#/components/schemas/CancelEvent",
+                  "check_recorded": "#/components/schemas/CheckEvent",
+                  "cleanup_recorded": "#/components/schemas/CleanupEvent",
+                  "job_result": "#/components/schemas/JobResultEvent",
+                  "observation_recorded": "#/components/schemas/ObservationEvent",
+                  "progress": "#/components/schemas/ProgressEvent",
+                  "reconciliation_recorded": "#/components/schemas/ReconciliationEvent",
+                  "step_dispatching": "#/components/schemas/StepDispatchingEvent",
+                  "step_prepared": "#/components/schemas/StepPreparedEvent",
+                  "step_response_recorded": "#/components/schemas/StepResponseEvent"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StepPreparedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/StepDispatchingEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/StepResponseEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ObservationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CheckEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CleanupEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ReconciliationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CancelEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ProgressEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/JobResultEvent"
+                }
+              ]
             },
             "maxItems": 100,
             "minItems": 1,
@@ -1229,6 +1953,16 @@
       "ExecutionManifest": {
         "additionalProperties": false,
         "properties": {
+          "connection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "environment": {
             "anyOf": [
               {
@@ -1287,11 +2021,31 @@
               }
             ]
           },
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "schema_version": {
             "const": "1.0",
             "default": "1.0",
             "title": "Schema Version",
             "type": "string"
+          },
+          "suite": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "timezone": {
             "title": "Timezone",
@@ -1924,6 +2678,94 @@
         "title": "JobCreate",
         "type": "object"
       },
+      "JobResultEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "discriminator": {
+              "mapping": {
+                "action_comparison": "#/components/schemas/ReportResult",
+                "build": "#/components/schemas/BuildResult",
+                "calibration": "#/components/schemas/CalibrationResult",
+                "collision": "#/components/schemas/ReportResult",
+                "fresh_agent_pair": "#/components/schemas/ReportResult",
+                "incident_draft": "#/components/schemas/ReportResult",
+                "patch_proposal": "#/components/schemas/RepairResult",
+                "preflight": "#/components/schemas/PreflightResult",
+                "probe": "#/components/schemas/ReportResult",
+                "reduce_reproduction": "#/components/schemas/ReportResult",
+                "repair_retest": "#/components/schemas/RepairResult",
+                "simulator_inspect": "#/components/schemas/ReportResult",
+                "simulator_reset": "#/components/schemas/ReportResult",
+                "source_import": "#/components/schemas/BuildResult",
+                "trace_import": "#/components/schemas/ReportResult",
+                "voice": "#/components/schemas/ReportResult"
+              },
+              "propertyName": "job_kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PreflightResult"
+              },
+              {
+                "$ref": "#/components/schemas/CalibrationResult"
+              },
+              {
+                "$ref": "#/components/schemas/BuildResult"
+              },
+              {
+                "$ref": "#/components/schemas/RepairResult"
+              },
+              {
+                "$ref": "#/components/schemas/ReportResult"
+              }
+            ],
+            "title": "Payload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "job_result",
+            "default": "job_result",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "JobResultEvent",
+        "type": "object"
+      },
       "LeaseRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2026,6 +2868,26 @@
         "title": "MembershipChange",
         "type": "object"
       },
+      "Money": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount_minor",
+          "currency"
+        ],
+        "title": "Money",
+        "type": "object"
+      },
       "Observation": {
         "additionalProperties": false,
         "properties": {
@@ -2062,6 +2924,25 @@
           "digest": {
             "pattern": "^[a-f0-9]{64}$",
             "title": "Digest",
+            "type": "string"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
             "type": "string"
           },
           "namespace": {
@@ -2113,6 +2994,7 @@
         },
         "required": [
           "observation_id",
+          "name",
           "source",
           "captured_at",
           "availability",
@@ -2125,6 +3007,71 @@
           "digest"
         ],
         "title": "Observation",
+        "type": "object"
+      },
+      "ObservationEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ObservationPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "observation_recorded",
+            "default": "observation_recorded",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "ObservationEvent",
+        "type": "object"
+      },
+      "ObservationPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "observation_id": {
+            "format": "uuid",
+            "title": "Observation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "observation_id"
+        ],
+        "title": "ObservationPayload",
         "type": "object"
       },
       "PinnedCase": {
@@ -2185,6 +3132,83 @@
         "title": "PolicySpec",
         "type": "object"
       },
+      "PreflightResult": {
+        "additionalProperties": false,
+        "properties": {
+          "cleanup_ok": {
+            "title": "Cleanup Ok",
+            "type": "boolean"
+          },
+          "invocation_ok": {
+            "title": "Invocation Ok",
+            "type": "boolean"
+          },
+          "isolation_verified": {
+            "default": false,
+            "title": "Isolation Verified",
+            "type": "boolean"
+          },
+          "job_kind": {
+            "const": "preflight",
+            "default": "preflight",
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "max_concurrency": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Max Concurrency",
+            "type": "integer"
+          },
+          "observer_ok": {
+            "title": "Observer Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "invocation_ok",
+          "observer_ok",
+          "cleanup_ok"
+        ],
+        "title": "PreflightResult",
+        "type": "object"
+      },
+      "PreparedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "action_kind": {
+            "enum": [
+              "agent_invoke",
+              "environment_action",
+              "fixture_prepare",
+              "observe",
+              "cleanup",
+              "reference_call"
+            ],
+            "title": "Action Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "request_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Request Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "request_digest",
+          "action_kind"
+        ],
+        "title": "PreparedPayload",
+        "type": "object"
+      },
       "ProbeSpec": {
         "additionalProperties": false,
         "properties": {
@@ -2241,6 +3265,72 @@
           "candidate_ids"
         ],
         "title": "ProbeSpec",
+        "type": "object"
+      },
+      "ProgressEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ProgressPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "progress",
+            "default": "progress",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "ProgressEvent",
+        "type": "object"
+      },
+      "ProgressPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "ProgressPayload",
         "type": "object"
       },
       "ProjectCreate": {
@@ -2397,9 +3487,129 @@
         "title": "PublishIn",
         "type": "object"
       },
+      "ReconciliationEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReconciliationPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "reconciliation_recorded",
+            "default": "reconciliation_recorded",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "ReconciliationEvent",
+        "type": "object"
+      },
       "ReconciliationIn": {
         "additionalProperties": false,
         "properties": {
+          "cleanup_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "succeeded",
+                  "failed",
+                  "not_required"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup State"
+          },
+          "late_events": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "cancel_acknowledged": "#/components/schemas/CancelEvent",
+                  "check_recorded": "#/components/schemas/CheckEvent",
+                  "cleanup_recorded": "#/components/schemas/CleanupEvent",
+                  "job_result": "#/components/schemas/JobResultEvent",
+                  "observation_recorded": "#/components/schemas/ObservationEvent",
+                  "progress": "#/components/schemas/ProgressEvent",
+                  "reconciliation_recorded": "#/components/schemas/ReconciliationEvent",
+                  "step_dispatching": "#/components/schemas/StepDispatchingEvent",
+                  "step_prepared": "#/components/schemas/StepPreparedEvent",
+                  "step_response_recorded": "#/components/schemas/StepResponseEvent"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StepPreparedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/StepDispatchingEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/StepResponseEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ObservationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CheckEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CleanupEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ReconciliationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CancelEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ProgressEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/JobResultEvent"
+                }
+              ]
+            },
+            "maxItems": 100,
+            "title": "Late Events",
+            "type": "array"
+          },
           "lease_token": {
             "maxLength": 200,
             "minLength": 32,
@@ -2435,6 +3645,30 @@
           "rationale"
         ],
         "title": "ReconciliationIn",
+        "type": "object"
+      },
+      "ReconciliationPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "format": "uuid",
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "resolved",
+              "unresolved"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "evidence_id"
+        ],
+        "title": "ReconciliationPayload",
         "type": "object"
       },
       "RepairContext": {
@@ -2522,6 +3756,136 @@
         "title": "RepairIn",
         "type": "object"
       },
+      "RepairResult": {
+        "additionalProperties": false,
+        "properties": {
+          "base_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Commit"
+          },
+          "controls_passed": {
+            "title": "Controls Passed",
+            "type": "boolean"
+          },
+          "criteria_unchanged": {
+            "title": "Criteria Unchanged",
+            "type": "boolean"
+          },
+          "heldout_passed": {
+            "title": "Heldout Passed",
+            "type": "boolean"
+          },
+          "job_kind": {
+            "default": "repair_retest",
+            "enum": [
+              "repair_retest",
+              "patch_proposal"
+            ],
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "patch_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch Artifact Id"
+          },
+          "source_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Commit"
+          },
+          "tested_version": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested Version"
+          },
+          "validation_passed": {
+            "title": "Validation Passed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "validation_passed",
+          "heldout_passed",
+          "controls_passed",
+          "criteria_unchanged"
+        ],
+        "title": "RepairResult",
+        "type": "object"
+      },
+      "ReportResult": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Artifact Ids",
+            "type": "array"
+          },
+          "job_kind": {
+            "enum": [
+              "action_comparison",
+              "fresh_agent_pair",
+              "reduce_reproduction",
+              "simulator_inspect",
+              "simulator_reset",
+              "trace_import",
+              "incident_draft",
+              "collision",
+              "probe",
+              "voice"
+            ],
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "unknown",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_kind",
+          "status"
+        ],
+        "title": "ReportResult",
+        "type": "object"
+      },
       "RequirementSpec": {
         "additionalProperties": false,
         "properties": {
@@ -2605,6 +3969,56 @@
           "reconciliation_id"
         ],
         "title": "ResourceReleaseIn",
+        "type": "object"
+      },
+      "ResponsePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "dispatch_state": {
+            "enum": [
+              "acknowledged",
+              "rejected_before_effect",
+              "uncertain",
+              "not_dispatched"
+            ],
+            "title": "Dispatch State",
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "response_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Artifact Id"
+          },
+          "side_effect_state": {
+            "enum": [
+              "none_expected",
+              "requires_observation",
+              "confirmed_by_readback",
+              "unresolved"
+            ],
+            "title": "Side Effect State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "dispatch_state",
+          "side_effect_state"
+        ],
+        "title": "ResponsePayload",
         "type": "object"
       },
       "ReviewIn": {
@@ -2760,6 +4174,13 @@
             "title": "Case Timeout Seconds",
             "type": "integer"
           },
+          "cleanup_reserve": {
+            "default": 2,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Cleanup Reserve",
+            "type": "integer"
+          },
           "invocation_timeout_seconds": {
             "default": 60,
             "maximum": 300.0,
@@ -2793,6 +4214,13 @@
             "maximum": 100000.0,
             "minimum": 0.0,
             "title": "Max Reference Calls",
+            "type": "integer"
+          },
+          "max_storage_bytes": {
+            "default": 10485760,
+            "maximum": 1073741824.0,
+            "minimum": 1.0,
+            "title": "Max Storage Bytes",
             "type": "integer"
           },
           "max_turns": {
@@ -2996,6 +4424,14 @@
             "title": "Attempt Id",
             "type": "string"
           },
+          "component_hashes": {
+            "additionalProperties": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "title": "Component Hashes",
+            "type": "object"
+          },
           "deadline": {
             "format": "date-time",
             "title": "Deadline",
@@ -3057,6 +4493,11 @@
             "format": "uuid",
             "title": "Run Id",
             "type": "string"
+          },
+          "run_manifest_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Run Manifest Hash",
+            "type": "string"
           }
         },
         "required": [
@@ -3065,6 +4506,7 @@
           "kind",
           "lease_token",
           "manifest_hash",
+          "run_manifest_hash",
           "lease_expires_at",
           "fencing_generation",
           "deadline",
@@ -3074,68 +4516,6 @@
           "execution_manifest"
         ],
         "title": "RunnerClaimResponse",
-        "type": "object"
-      },
-      "RunnerEvent": {
-        "additionalProperties": false,
-        "properties": {
-          "event_id": {
-            "format": "uuid",
-            "title": "Event Id",
-            "type": "string"
-          },
-          "occurred_at": {
-            "format": "date-time",
-            "title": "Occurred At",
-            "type": "string"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
-          },
-          "sequence": {
-            "minimum": 1.0,
-            "title": "Sequence",
-            "type": "integer"
-          },
-          "step_id": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Step Id"
-          },
-          "type": {
-            "enum": [
-              "step_prepared",
-              "step_dispatching",
-              "step_response_recorded",
-              "observation_recorded",
-              "check_recorded",
-              "cleanup_recorded",
-              "reconciliation_recorded",
-              "cancel_acknowledged",
-              "job_result",
-              "progress"
-            ],
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "event_id",
-          "sequence",
-          "type",
-          "occurred_at"
-        ],
-        "title": "RunnerEvent",
         "type": "object"
       },
       "RunnerRegistration": {
@@ -3380,6 +4760,156 @@
         "title": "SourceSpec",
         "type": "object"
       },
+      "StepDispatchingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DispatchPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "step_dispatching",
+            "default": "step_dispatching",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "StepDispatchingEvent",
+        "type": "object"
+      },
+      "StepPreparedEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/PreparedPayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "step_prepared",
+            "default": "step_prepared",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "StepPreparedEvent",
+        "type": "object"
+      },
+      "StepResponseEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ResponsePayload"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "type": {
+            "const": "step_response_recorded",
+            "default": "step_response_recorded",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "occurred_at",
+          "payload"
+        ],
+        "title": "StepResponseEvent",
+        "type": "object"
+      },
       "SuiteSpec": {
         "additionalProperties": false,
         "properties": {
@@ -3430,6 +4960,57 @@
           "password"
         ],
         "title": "TokenIn",
+        "type": "object"
+      },
+      "ToolRoute": {
+        "additionalProperties": false,
+        "description": "Approved route to the environment; the token binds namespace and operations server-side.",
+        "properties": {
+          "base_url": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "namespace": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Namespace",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "operations": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Operations",
+            "type": "array"
+          },
+          "token": {
+            "format": "password",
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "base_url",
+          "namespace",
+          "token"
+        ],
+        "title": "ToolRoute",
         "type": "object"
       },
       "ValidationError": {

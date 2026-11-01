@@ -358,7 +358,7 @@ def test_exports_share_one_snapshot_and_hide_held_out_content(runs):
         cwd=tmp,
     )
     assert operator.returncode == 0
-    assert hidden["script"][0]["message"] in (tmp / "op.json").read_text()
+    assert hidden["script"][0]["message"] in (tmp / "op.json").read_text(encoding="utf-8")
 
 
 def test_junit_marks_unknown_as_non_green_error(runs):

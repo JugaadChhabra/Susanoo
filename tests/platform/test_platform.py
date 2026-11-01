@@ -182,7 +182,7 @@ def test_cancel_stops_dispatch_after_acknowledgement(suite):
                     "type": "step_dispatching",
                     "step_id": "write",
                     "occurred_at": datetime.now(UTC).isoformat(),
-                    "payload": {},
+                    "payload": {"operation_id": "forbidden-after-cancel"},
                 }
             ],
         },

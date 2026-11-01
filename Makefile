@@ -71,6 +71,12 @@ production-check:
 	uv run python -m susanoo_api.platform.cli production-check
 
 .PHONY: acceptance platform-acceptance
+.PHONY: runtime-test runtime-demo
+runtime-test:
+	uv run pytest tests/runtime tests/contract/runtime -q
+	node --test "packages/sdk-typescript/test/*.test.ts"
+runtime-demo:
+	uv run susanoo-runner local --suite examples/collections/suite.json --agent jsonl:correct
 .PHONY: platform-migrate platform-seed platform-e2e platform-benchmark
 acceptance:
 	uv run python scripts/platform_acceptance.py

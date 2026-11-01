@@ -10,7 +10,10 @@ import asyncio
 import math
 import os
 import platform
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import sys
 import time
 from collections.abc import Callable
@@ -59,6 +62,9 @@ def percentile(values: list[float], fraction: float) -> float:
 
 
 def peak_rss_mb() -> float:
+    if resource is None:
+        import psutil
+        return psutil.Process().memory_info().peak_wset / (1024 * 1024)
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return peak / (1024 * 1024) if sys.platform == "darwin" else peak / 1024
 

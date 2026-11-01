@@ -6,13 +6,23 @@ requires-python = ">=3.12"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["apps/api", "apps/worker", "packages/core", "packages/contracts"]
+members = [
+    "apps/api", "apps/worker", "packages/core", "packages/contracts",
+    "packages/evaluator", "packages/simulator", "packages/sdk-python", "packages/runner", "packages/connectors",
+    "examples/collections",
+]
 
 [tool.uv.sources]
 susanoo-core = { workspace = true }
 susanoo-api = { workspace = true }
 susanoo-worker = { workspace = true }
 susanoo-contracts = { workspace = true }
+susanoo-evaluator = { workspace = true }
+susanoo-simulator = { workspace = true }
+susanoo-sdk = { workspace = true }
+susanoo-runner = { workspace = true }
+susanoo-connectors = { workspace = true }
+susanoo-collections-demo = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -26,7 +36,12 @@ dev = [
     "pypdf>=6,<7",
     "hypothesis>=6,<7",
     "psutil>=7,<8",
+    "susanoo-evaluator", "susanoo-simulator", "susanoo-sdk", "susanoo-runner", "susanoo-connectors",
+    "susanoo-collections-demo",
+    "opentelemetry-proto>=1.45,<2", "protobuf>=5.29", "mcp>=2.3,<2.4", "httpx2>=2.13,<3",
+    "jsonschema>=4.26", "pyyaml>=6", "langgraph>=1.2,<2",
 ]
+providers = ["grpcio>=1.66", "playwright>=1.48", "twilio>=9.3,<10"]
 
 [tool.ruff]
 target-version = "py312"

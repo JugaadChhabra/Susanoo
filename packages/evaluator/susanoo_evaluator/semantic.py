@@ -15,7 +15,7 @@ written by the grading model itself are excluded, so a model cannot approve its 
 
 from __future__ import annotations
 
-import concurrent.futures
+import multiprocessing
 import json
 from collections.abc import Iterable, Mapping
 from typing import Any, Literal, Protocol, runtime_checkable
@@ -40,6 +40,8 @@ SemanticStatus = Literal[
     "deterministic_fail_precedence",
     "observation_unusable",
 ]
+WORKER_STARTUP_SECONDS = 5
+WORKER_STOP_SECONDS = 1
 
 
 class Rubric(DslModel):
@@ -193,19 +195,55 @@ def build_request(config: GraderConfig, observation: str, records: list[dict[str
     )
 
 
+def _provider_worker(connection, provider, request, timeout):
+    try:
+        connection.send(("ready", None))
+        connection.recv()
+        connection.send(("graded", provider.grade(request, timeout=timeout)))
+    except Exception as error:
+        connection.send(("provider_error", f"Grader failed: {type(error).__name__}"))
+    finally:
+        connection.close()
+
+
 def _call(
     provider: SemanticProvider, request: GraderRequest, timeout: float
 ) -> tuple[SemanticStatus, GraderReply | str]:
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = pool.submit(provider.grade, request, timeout=timeout)
+    """A timed-out provider cannot leave an unbounded grading thread behind.
+
+    Providers must be spawn-serializable. Create network clients inside grade(), never
+    inherit connection pools or fork a process containing active application threads.
+    """
+    context = multiprocessing.get_context("spawn")
+    parent, child = context.Pipe()
+    process = context.Process(target=_provider_worker, args=(child, provider, request, timeout), daemon=True)
     try:
-        raw = future.result(timeout=timeout)
-    except concurrent.futures.TimeoutError:
-        return "provider_timeout", f"Grader gave no answer within {timeout}s"
+        process.start()
+        child.close()
+        if not parent.poll(WORKER_STARTUP_SECONDS):
+            return "provider_timeout", "Grader worker did not start within the bounded startup allowance"
+        status, raw = parent.recv()
+        if status != "ready":
+            return "provider_error", "Grader worker could not initialize"
+        parent.send(True)
+        if not parent.poll(timeout):
+            return "provider_timeout", f"Grader gave no answer within {timeout}s"
+        status, raw = parent.recv()
+        if status != "graded":
+            return "provider_error", raw
     except Exception as error:
         return "provider_error", f"Grader failed: {type(error).__name__}"
     finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+        if process.pid:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=WORKER_STOP_SECONDS)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=WORKER_STOP_SECONDS)
+            process.close()
+        parent.close()
+        child.close()
     try:
         return "graded", GraderReply.model_validate(raw)
     except ValidationError:

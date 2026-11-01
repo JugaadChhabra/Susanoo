@@ -217,6 +217,7 @@ def test_exclusive_fixture_remains_quarantined_after_expired_lease(suite):
 
     observation = {
         "observation_id": str(uuid4()),
+        "name": "promises",
         "source": "synthetic_post_expiry_readback_not_business_backend",
         "captured_at": datetime.now(UTC).isoformat(),
         "availability": "available",

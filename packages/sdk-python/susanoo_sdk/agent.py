@@ -129,6 +129,7 @@ class ToolClient:
         response = await self._client.post(
             f"/fixtures/{self.route.namespace}/operations/{operation}",
             json={"request": request, "idempotency_key": idempotency_key},
+            headers={"X-Susanoo-Operation-ID": self.route.operation_id} if self.route.operation_id else {},
         )
         if response.status_code >= 500:
             self.events.append(ToolEvent(operation=operation, status="transport_error"))

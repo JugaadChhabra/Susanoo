@@ -666,7 +666,7 @@ def create_platform_app():
     @app.post("/runner/attempts/{attempt_id}/reservations")
     def reservation(attempt_id: UUID, body: BudgetReservation, ctx: RunnerCtx):
         row = service.owned_attempt(ctx, attempt_id, body.lease_token)
-        if row["cancel_acknowledged_at"]:
+        if row["cancel_acknowledged_at"] and body.budget_kind != "cleanup":
             raise PlatformError("INVALID_STATE", "No new budget reservation after cancellation acknowledgement.", 409)
         ctx.db.execute("select id from platform.runs where id=%s for update", (row["run_id"],))
         prior = ctx.db.execute(
@@ -684,12 +684,17 @@ def create_platform_app():
                 )
             return {"reserved": True, "duplicate": True}
         used = ctx.db.execute(
-            "select coalesce(sum(amount),0) n from platform.budget_reservations where run_id=%s and budget_kind=%s",
-            (row["run_id"], body.budget_kind),
+            "select coalesce(sum(amount),0) n from platform.budget_reservations where run_id=%s and budget_kind=%s "
+            "and (%s<>'cleanup' or attempt_id=%s)",
+            (row["run_id"], body.budget_kind, body.budget_kind, attempt_id),
         ).fetchone()["n"]
-        cap = row["manifest"]["limits"][
-            "max_agent_invocations" if body.budget_kind == "agent" else "max_reference_calls"
-        ]
+        cap = (
+            row["cleanup_budget"]
+            if body.budget_kind == "cleanup"
+            else row["manifest"]["limits"][
+                "max_agent_invocations" if body.budget_kind == "agent" else "max_reference_calls"
+            ]
+        )
         if used + body.amount > cap:
             raise PlatformError("BUDGET_EXCEEDED", "The reserved call allowance would be exceeded.", 409)
         ctx.db.execute(

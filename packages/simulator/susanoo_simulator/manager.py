@@ -90,3 +90,11 @@ class FixtureManager:
 
     def namespaces(self) -> list[str]:
         return sorted(self._sims)
+
+    def close(self) -> None:
+        """Release SQLite handles at service shutdown without resetting or deleting fixture state."""
+        with self._lock:
+            for simulator in self._sims.values():
+                simulator.close()
+            self._sims.clear()
+            self._grants.clear()

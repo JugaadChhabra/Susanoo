@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { ToolClient, ToolTransportError } from "../src/index.ts";
 
-const seen: { url: string; auth: string | undefined; body: unknown }[] = [];
+const seen: { url: string; auth: string | undefined; operation: string | string[] | undefined; body: unknown }[] = [];
 let server: Server;
 let base = "";
 
@@ -18,7 +18,8 @@ async function body(req: IncomingMessage): Promise<unknown> {
 
 before(async () => {
   server = createServer(async (req, res) => {
-    seen.push({ url: req.url ?? "", auth: req.headers.authorization, body: await body(req) });
+    seen.push({ url: req.url ?? "", auth: req.headers.authorization,
+      operation: req.headers["x-susanoo-operation-id"], body: await body(req) });
     const op = (req.url ?? "").split("/").pop();
     res.setHeader("content-type", "application/json");
     if (op === "fail") return res.writeHead(503).end(JSON.stringify({ detail: "injected fault" }));
@@ -36,12 +37,13 @@ after(() => server.close());
 const route = () => ({ base_url: base, namespace: "ns-1", token: "route-token", operations: [] });
 
 test("calls the namespaced operation route with the bearer token and records tool events", async () => {
-  const tools = new ToolClient(route());
+  const tools = new ToolClient({ ...route(), operation_id: "attempt-1:turn-001" });
   const call = await tools.call("create_promise", { account_id: "ACC-1" }, "key-1");
   assert.deepEqual(call, { operation: "create_promise", status: "ok", code: null, response: { echoed: true }, seq: 7 });
   const last = seen.at(-1);
   assert.equal(last?.url, "/fixtures/ns-1/operations/create_promise");
   assert.equal(last?.auth, "Bearer route-token");
+  assert.equal(last?.operation, "attempt-1:turn-001");
   assert.deepEqual(last?.body, { request: { account_id: "ACC-1" }, idempotency_key: "key-1" });
   assert.deepEqual(tools.events, [{ operation: "create_promise", status: "ok", seq: 7, detail: {} }]);
 });

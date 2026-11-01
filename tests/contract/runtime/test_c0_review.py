@@ -21,7 +21,9 @@ T0 = datetime(2026, 10, 30, tzinfo=UTC)
 
 
 def open_request(cr: str):
-    return pytest.mark.xfail(strict=True, reason=f"{cr} open; see C0-review.md")
+    # These assertions are now regression gates, not expected failures.
+    # Agreement still requires peer review of the published canonical digest.
+    return lambda test: test
 
 
 def event(**overrides):

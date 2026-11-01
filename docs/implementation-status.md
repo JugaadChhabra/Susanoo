@@ -1,12 +1,19 @@
 # Expanded Build Implementation Status
 
-Updated 2026-10-30. Branch: `codex/aarav-platform`; preserved baseline:
+Updated 2026-11-02. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
 `73224ee9133133663a7f4df6925b8afac209d88b`.
 
 The hackathon product is preserved. The expanded platform has a working private
 control plane and UI at `/evaluation`. This is **not complete product acceptance**:
-Muaz's new runner, evaluator, simulator and connectors have not been integrated.
-Canonical protocol `1.0` is a proposal pending his review, not an agreed freeze.
+The outcome/preflight runner now connects to the real platform and has passed synthetic
+PASS/FAIL/UNKNOWN service integration. Advanced job dispatch, specialized report views and
+provider qualification remain incomplete. Canonical wire major `1.0`, revision `1.1-proposed`,
+is pending peer review, not an agreed freeze. See the current
+[integration handoff](parallel/aarav/INTEGRATION_HANDOFF.md) and
+[Muaz continuation prompt](parallel/aarav/MUAZ_NEXT_PROMPT.md) for the complete remaining split.
+
+The matrix below preserves the original platform checkpoint. The integration handoff supersedes
+its older statements that no runtime exists; it does not turn pending milestones into release acceptance.
 
 | Milestone | Aarav platform implementation | Remaining shared/runtime exit gate |
 |---|---|---|

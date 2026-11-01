@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import Header, Request, Response
+from psycopg.types.json import Jsonb
 from susanoo_contracts import (
     EvidenceBatch,
     LeaseRequest,
@@ -11,6 +12,7 @@ from susanoo_contracts import (
     ResourceReleaseIn,
     RunnerArtifactCreate,
     content_hash,
+    canonical_json,
 )
 
 from . import artifacts, service
@@ -99,7 +101,12 @@ def mount_runner_io(app):
             "select * from platform.evidence where attempt_id=%s and kind='observation' order by received_at",
             (attempt_id,),
         ).fetchall()
-        return {"items": records, "evidence": artifacts.scoped_evidence(evidence, project)}
+        late = ctx.db.execute(
+            "select reconciliation_id,event_id,sequence,payload,received_at from platform.late_runner_events "
+            "where attempt_id=%s order by sequence",
+            (attempt_id,),
+        ).fetchall()
+        return {"items": records, "evidence": artifacts.scoped_evidence(evidence, project), "late_events": late}
 
     @app.post("/runner/attempts/{attempt_id}/artifacts", status_code=201)
     def reserve(attempt_id: UUID, body: RunnerArtifactCreate, ctx: RunnerCtx):
@@ -197,15 +204,46 @@ def mount_runner_io(app):
     @app.post("/runner/attempts/{attempt_id}/reconciliations", status_code=201)
     def reconcile(attempt_id: UUID, body: ReconciliationIn, ctx: RunnerCtx):
         attempt = service.owned_attempt(ctx, attempt_id, body.lease_token, read_only=True)
+        if attempt["execution_state"] in {"preparing", "running", "observing", "evaluating"} and (
+            attempt["lease_expires_at"] <= datetime.now(UTC)
+        ):
+            ctx.db.execute(
+                """update platform.attempts set execution_state='interrupted',business_verdict='UNKNOWN',
+                reconciliation_state='pending',reason='Expired runner reconnected with late evidence' where id=%s""",
+                (attempt_id,),
+            )
+            ctx.db.execute(
+                "update platform.resource_leases set state='quarantined' where attempt_id=%s and state='leased'",
+                (attempt_id,),
+            )
+            attempt["execution_state"] = "interrupted"
+            service.project_gate(ctx.db, attempt["run_id"])
         if attempt["execution_state"] not in {"interrupted", "timed_out", "cancelled", "error"}:
             raise PlatformError("INVALID_STATE", "Reconciliation is for settled uncertain attempts only.", 409)
+        data = service.dump(body)
+        data.pop("lease_token")
+        if len(canonical_json(data).encode()) > 1048576:
+            raise PlatformError("CAPACITY_EXCEEDED", "Reconciliation exceeds the 1 MiB boundary.", 422)
+        digest = content_hash(data)
+        prior = ctx.db.execute(
+            "select id,created_at from platform.reconciliations where attempt_id=%s and content_hash=%s",
+            (attempt_id, digest),
+        ).fetchone()
+        if prior:
+            return {
+                **prior,
+                "dispatch_authority": False,
+                "original_verdict_unchanged": True,
+                "fresh_reproduction_required": True,
+            }
         # Append read-back observations without renewing a lease or changing the verdict.
         service.validate_evidence(
             ctx, attempt, EvidenceBatch(lease_token=body.lease_token, observations=body.observations)
         )
         row = ctx.db.execute(
             """insert into platform.reconciliations(workspace_id,project_id,attempt_id,actor_id,actor_kind,
-            state,rationale,evidence_ids) values(%s,%s,%s,%s,'runner',%s,%s,%s) returning id,created_at""",
+            state,rationale,evidence_ids,content_hash,cleanup_state)
+            values(%s,%s,%s,%s,'runner',%s,%s,%s,%s,%s) returning id,created_at""",
             (
                 attempt["workspace_id"],
                 attempt["project_id"],
@@ -214,8 +252,40 @@ def mount_runner_io(app):
                 body.state,
                 body.rationale,
                 [o.observation_id for o in body.observations],
+                digest,
+                body.cleanup_state,
             ),
         ).fetchone()
+        for event in body.late_events:
+            value = service.dump(event)
+            event_hash = content_hash(value)
+            existing = ctx.db.execute(
+                """select event_id,payload_hash from platform.runner_events
+                where attempt_id=%s and (event_id=%s or sequence=%s)
+                union all select event_id,payload_hash from platform.late_runner_events
+                where attempt_id=%s and (event_id=%s or sequence=%s)""",
+                (attempt_id, event.event_id, event.sequence, attempt_id, event.event_id, event.sequence),
+            ).fetchall()
+            if existing:
+                if any(item["event_id"] != event.event_id or item["payload_hash"] != event_hash for item in existing):
+                    raise PlatformError(
+                        "IDEMPOTENCY_CONFLICT", "Late journal evidence conflicts with stored events.", 409
+                    )
+                continue
+            ctx.db.execute(
+                """insert into platform.late_runner_events(workspace_id,project_id,attempt_id,reconciliation_id,
+                event_id,sequence,payload,payload_hash) values(%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    attempt["workspace_id"],
+                    attempt["project_id"],
+                    attempt_id,
+                    row["id"],
+                    event.event_id,
+                    event.sequence,
+                    Jsonb(value),
+                    event_hash,
+                ),
+            )
         return {
             **row,
             "dispatch_authority": False,

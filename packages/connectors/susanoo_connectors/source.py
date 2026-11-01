@@ -13,7 +13,10 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import shutil
 import stat
 import subprocess
@@ -284,6 +287,11 @@ def run_build(
     """Run an owner-approved recipe in a copy of the snapshot. Never a shell; never control-plane secrets."""
     if approved_digest != recipe.digest:
         raise SourceError("recipe_not_approved", "The recipe differs from the approved digest")
+    if resource is None:
+        return BuildResult(
+            status="unsupported_runtime", recipe_digest=recipe.digest, snapshot_digest=snapshot.digest,
+            log_tail="Resource-bounded source builds require a POSIX runner or an approved container host",
+        )
     if recipe.runtime == "container":
         return BuildResult(
             status="unsupported_runtime",

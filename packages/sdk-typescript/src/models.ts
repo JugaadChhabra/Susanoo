@@ -54,6 +54,7 @@ export interface ToolRoute {
   /** The one secret an agent legitimately needs; bound to namespace and operations server-side. */
   token: string;
   operations: string[];
+  operation_id?: string | null;
 }
 
 /** Everything the agent may know about an attempt. No expected outcomes, checks or fixture truth. */

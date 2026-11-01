@@ -316,7 +316,7 @@ def expire_evidence():
             order by r.created_at for update of r skip locked limit 50"""
         ).fetchall()
         for run in runs:
-            for table in ("evidence", "runner_events"):
+            for table in ("evidence", "runner_events", "late_runner_events"):
                 from psycopg import sql
 
                 db.execute(
@@ -378,6 +378,7 @@ def purge_deleted():
                 "retention_receipts",
                 "source_grants",
                 "resource_leases",
+                "late_runner_events",
                 "reconciliations",
                 "budget_reservations",
                 "repairs",

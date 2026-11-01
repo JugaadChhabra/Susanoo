@@ -179,6 +179,9 @@ class Simulator:
         self._db.execute("pragma journal_mode=wal")
         self._db.execute("pragma synchronous=full")
         self._db.executescript(SCHEMA)
+        if "operation_id" not in {row[1] for row in self._db.execute("pragma table_info(action_log)")}:
+            self._db.execute("alter table action_log add column operation_id text")
+        self._active_operation_id = None
 
     # --- lifecycle ------------------------------------------------------------------------
 
@@ -299,10 +302,17 @@ class Simulator:
     # --- operations -----------------------------------------------------------------------
 
     def execute(
-        self, actor_name: str, operation: str, request: dict[str, Any], idempotency_key: str | None = None
+        self,
+        actor_name: str,
+        operation: str,
+        request: dict[str, Any],
+        idempotency_key: str | None = None,
+        *,
+        operation_id: str | None = None,
     ) -> ActionResult:
         """Run one operation. Raises ``SimulatorError`` for transport-style failures (lost ack included)."""
         with self._lock:
+            self._active_operation_id = operation_id
             op = self.domain.operations.get(operation)
             actor = self.seed.actors.get(actor_name)
             call = self._count_call(operation)
@@ -497,8 +507,9 @@ class Simulator:
     def _log(self, actor, operation, key, request, status, code, response, faults=None) -> ActionResult:
         with self._tx():
             cursor = self._db.execute(
-                """insert into action_log(at,actor,operation,idempotency_key,request,status,code,response,faults)
-                values(?,?,?,?,?,?,?,?,?)""",
+                """insert into action_log(at,actor,operation,idempotency_key,request,status,code,response,
+                faults,operation_id)
+                values(?,?,?,?,?,?,?,?,?,?)""",
                 (
                     _iso(self.now()),
                     actor,
@@ -509,6 +520,7 @@ class Simulator:
                     code,
                     json.dumps(response),
                     json.dumps(faults or []),
+                    self._active_operation_id,
                 ),
             )
         message = response.get("error") if status == "rejected" else None
