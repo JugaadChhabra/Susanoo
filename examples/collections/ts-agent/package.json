@@ -1,0 +1,10 @@
+{
+  "name": "@susanoo/collections-demo-ts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript port of the synthetic collections demo agent (I07). Runs on Node >=22.18 without npm install.",
+  "scripts": {
+    "serve": "node serve.ts --mode correct"
+  }
+}
