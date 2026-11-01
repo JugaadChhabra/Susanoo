@@ -4,6 +4,7 @@ Updated 2026-11-02. Working branch: `codex/aarav-runtime-integration`.
 Base: Muaz's `a8f7707`, which already contains Aarav's `301c39d` and all 27 runtime commits.
 This is a review candidate, not full PRD acceptance or a production deployment.
 Published review: https://github.com/JugaadChhabra/Susanoo/pull/45 (draft, stacked on PR #44).
+Setup and recovery: [customer runner operations](RUNNER_OPERATIONS.md).
 
 ## Authorization and ownership
 
@@ -51,6 +52,9 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   was unnecessary. The runner does not retry creation or guess a safe remote deletion.
 - Runtime CI includes TypeScript tests, optional provider dependencies and real Chromium installation.
   The container build includes the new workspace member's metadata, not a customer execution service.
+- Preserved hackathon Dockerfiles now include every workspace member's metadata and the API's evaluator/
+  contract sources. Hosted container CI also builds and import-smokes both legacy images. Runner state
+  under `.susanoo` is excluded from Git and all root Docker contexts; it contains assignment secrets.
 
 ## Verified before publication
 
@@ -70,6 +74,8 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   preserved late evidence and idempotent reconciliation without renewed authority.
 - Follow-up focused suites: 26 runner tests, 13 regression tests, 32 runner/journal tests and 31
   CLI/regression tests passed. These include insufficient-reserve refusal and uncertain fixture creation.
+- Docker workspace/secret-exclusion static tests: 3 passed. Actual legacy-image builds are a separate
+  hosted gate, not inferred from static assertions or the unavailable local Docker daemon.
 - TypeScript SDK: 13 passed using `node --test "packages/sdk-typescript/test/*.test.ts"`.
   The old directory-only command is not portable to the installed Node release.
 - Seven additional checks passed: actual local grpcio transport, actual Chromium browser adapter,
@@ -90,6 +96,11 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   fail under WSL startup overhead. Provider timeout is still enforced independently; tests now cover
   the documented bounded startup plus termination allowance rather than assuming in-process latency.
   This run is not labelled green; final-head hosted results remain required.
+- A subsequent WSL run had 2400 passed, 184 skipped and one reproduction refusal in 563.75 seconds.
+  That run overlapped the housekeeping-default change: its parent generated a reserve-two manifest,
+  then its subprocess loaded the new reserve-three code and correctly refused the stale manifest.
+  It is mixed-revision evidence, not a green result or a reason to weaken immutable-manifest refusal.
+  A fresh no-edit-during-execution run is required and final-head hosted CI remains authoritative.
 
 ## Remaining by lane
 

@@ -3,6 +3,9 @@
 This is the expanded control plane, not the customer execution host. Existing
 hackathon routes remain available. The local UI is `/evaluation`; no customer
 runner, evaluator, sample business backend or successful business outcome is seeded.
+The outcome/preflight runtime bridge is now available separately; see
+[customer runner operations](RUNNER_OPERATIONS.md) for local approval, registration,
+execution and evidence-only recovery. The API still never hosts customer code.
 
 ## Native Development
 
@@ -65,7 +68,9 @@ hackathon Make targets: `platform-bootstrap`, `platform-migrate`, `platform-seed
 creates only synthetic identities/project, not approved fake business outcomes.
 For export-demo, select a stored authorized run in the console and request its
 four formats; reuse the first returned snapshot artifact for a matching snapshot.
-A real `demo` requires Muaz's sample runtime and is intentionally not fabricated.
+`make runtime-demo` runs the installed synthetic collections example locally. This is not
+the same as seeding a successful platform run; platform execution needs approved revisions,
+local connection approval, registration and an actual customer-side worker.
 
 ## Private Compose
 

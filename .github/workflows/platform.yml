@@ -105,6 +105,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: docker compose -f deploy/platform.compose.yml config --quiet
       - run: docker compose -f deploy/platform.compose.yml build
+      - name: Preserved hackathon images still resolve the expanded workspace
+        run: |
+          docker build -f apps/api/Dockerfile -t susanoo-legacy-api-ci .
+          docker build -f apps/worker/Dockerfile -t susanoo-legacy-worker-ci .
+          docker run --rm --entrypoint python susanoo-legacy-api-ci -c "import susanoo_api.main; import susanoo_contracts; import susanoo_evaluator"
+          docker run --rm --entrypoint python susanoo-legacy-worker-ci -c "import susanoo_worker.main"
       - name: Private control plane starts with real PostgreSQL
         shell: bash
         run: |

@@ -227,4 +227,5 @@ __marimo__/
 # macOS
 .DS_Store
 .platform/
+.susanoo/
 .env.platform
