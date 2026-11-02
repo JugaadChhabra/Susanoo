@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, field_validator, model_validator
@@ -129,6 +130,7 @@ class DataPolicy(WireModel):
     external_models_allowed: bool = False
     source_upload_allowed: bool = False
     media_upload_allowed: bool = False
+    report_upload_allowed: bool = False
     allowed_hosts: list[Name] = Field(default_factory=list, max_length=100)
     allowed_operations: list[Name] = Field(default_factory=list, max_length=100)
 
@@ -873,11 +875,21 @@ class JobCreate(WireModel):
     limits: RunLimits = Field(default_factory=RunLimits)
 
 
+class AutomaticRunBudget(WireModel):
+    max_runs_per_window: int = Field(default=10, ge=0, le=1000)
+    window_seconds: int = Field(default=3600, ge=60, le=2592000)
+    max_cases_per_run: int = Field(default=50, ge=1, le=5000)
+    max_agent_invocations: int = Field(default=400, ge=1, le=100000)
+    max_cost_minor: int | None = Field(default=None, ge=0)
+    allowed_suites: list[str] = Field(default_factory=list, max_length=100)
+
+
 class ScheduleIn(WireModel):
     name: Name
     interval_seconds: int = Field(ge=60, le=2592000)
     run: RunCreate
     enabled: bool = False
+    automatic_budget: AutomaticRunBudget | None = None
 
 
 class DependencyIn(WireModel):
@@ -976,14 +988,79 @@ class RepairIn(WireModel):
     layer: Literal["agent", "simulator", "evaluator"]
 
 
+class RelayConfiguration(WireModel):
+    public_base_url: str = Field(pattern=r"^https://[^/?#]+$", max_length=500)
+    event_id_path: str = "event_id"
+    task_id_path: str = "task_id"
+    status_path: str = "status"
+    sequence_path: str | None = "sequence"
+    result_path: str | None = "result"
+    terminal_states: list[Name] = Field(default_factory=lambda: ["completed", "failed", "cancelled"], min_length=1)
+    previous_secret_ref: SecretRef | None = None
+
+    @field_validator("public_base_url")
+    @classmethod
+    def public_origin(cls, value):
+        parsed = urlsplit(value)
+        if not parsed.hostname or parsed.username or parsed.password or any(ord(c) < 33 for c in value):
+            raise ValueError("Use an HTTPS public origin without credentials or whitespace")
+        return value
+
+    @field_validator("event_id_path", "task_id_path", "status_path", "sequence_path", "result_path")
+    @classmethod
+    def mapping_path(cls, value):
+        import re
+        from .checks import PATH_PATTERN
+
+        if value is not None and not re.fullmatch(PATH_PATTERN, value):
+            raise ValueError("Use a bounded typed field path")
+        return value
+
+
 class IntegrationIn(WireModel):
-    provider: Literal["github", "ci", "media"]
+    provider: Literal["github", "ci", "media", "webhook"]
     secret_ref: SecretRef
     installation_id: int | None = Field(default=None, ge=1)
     repository: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")] | None = None
     publish_enabled: bool = False
     trigger_run: RunCreate | None = None
     approved_branch: Name | None = None
+    relay: RelayConfiguration | None = None
+    automatic_budget: AutomaticRunBudget | None = None
+
+
+class RelayTaskRegistration(LeaseRequest):
+    integration_id: UUID
+    task_id: Name
+    invocation_id: Name
+    operation_id: Name
+
+
+class RelayPoll(LeaseRequest):
+    after: int = Field(default=0, ge=0)
+
+
+class CollectorCredentialIn(WireModel):
+    hours: int = Field(default=24, ge=1, le=720)
+
+
+class ReportClassificationIn(WireModel):
+    candidate_id: Name
+    classification: Literal["confirmed_defect", "intentional_simplification", "reference_limitation", "unresolved"]
+    rationale: str = Field(min_length=1, max_length=4000)
+    evidence_ids: list[UUID] = Field(min_length=1, max_length=30)
+
+
+class AdvancedReportRecord(WireModel):
+    id: UUID
+    run_id: UUID
+    attempt_id: UUID
+    report_type: Name
+    report_key: Name
+    content_hash: Digest
+    payload: dict[str, Any]
+    hidden: bool
+    created_at: datetime
 
 
 class PatchFile(WireModel):
@@ -1139,6 +1216,7 @@ class ScheduleRecord(ReadModel):
     configuration: RunCreate
     enabled: bool
     next_due_at: datetime
+    automatic_budget: AutomaticRunBudget | None = None
 
 
 class RunnerRecord(ReadModel):

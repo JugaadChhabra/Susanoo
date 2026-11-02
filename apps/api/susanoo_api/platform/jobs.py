@@ -56,11 +56,12 @@ def tick():
             ctx = Context(db, {"user_id": schedule["created_by"]}, str(uuid4()))
             try:
                 with db.transaction():
-                    service.create_run(
-                        ctx,
-                        schedule["project_id"],
-                        RunCreate.model_validate(schedule["configuration"]),
-                        f"schedule:{schedule['id']}:{schedule['next_due_at'].isoformat()}",
+                    from .automation import dispatch_automatic
+
+                    dispatch_automatic(
+                        ctx, schedule["project_id"], RunCreate.model_validate(schedule["configuration"]),
+                        trigger_kind="schedule", trigger_key=str(schedule["id"]),
+                        version_key=schedule["next_due_at"].isoformat(), budget=schedule["automatic_budget"],
                     )
             except PlatformError as exc:
                 ctx.audit("schedule.dispatch_blocked", schedule["id"], details={"code": exc.code})
@@ -79,6 +80,7 @@ def tick():
     revoke_settled_grants()
     expire_artifacts()
     expire_evidence()
+    expire_runtime_ingestion()
     purge_deleted()
     if time.monotonic() - _last_orphan_sweep > 3600:
         with transaction() as db:
@@ -229,8 +231,6 @@ def trigger_job(job):
             "select payload from platform.deliveries where integration_id=%s and delivery_id=%s",
             (integration["id"], job["payload"]["delivery_id"]),
         ).fetchone()["payload"]
-        if configuration.get("approved_branch") and payload.get("branch") != configuration["approved_branch"]:
-            raise PlatformError("FORBIDDEN", "Trigger branch not approved.", 403)
         project = db.execute(
             "select * from platform.projects where id=%s and deleted_at is null", (integration["project_id"],)
         ).fetchone()
@@ -239,13 +239,19 @@ def trigger_job(job):
         ctx = Context(db, {"user_id": integration["created_by"]}, str(uuid4()))
         ctx.project(project["id"], service.OWNERS)
         body = RunCreate.model_validate(configuration["trigger_run"])
+        from .automation import dispatch_automatic, record_trigger_block
+
+        if configuration.get("approved_branch") and payload.get("branch") != configuration["approved_branch"]:
+            record_trigger_block(ctx, project, body, integration["id"], payload, "Trigger branch not approved")
+            return
         connection = ctx.version(body.connection_version_id, ctx.project(project["id"]), "connection")
         if connection["data"].get("source_commit") != payload.get("revision"):
-            raise PlatformError(
-                "STALE_BASE", "Trigger revision requires a new approved pinned connection version.", 409
-            )
-        service.create_run(
-            ctx, project["id"], body, f"trigger:{integration['id']}:{payload.get('revision')}:{body.suite_version_id}"
+            record_trigger_block(ctx, project, body, integration["id"], payload,
+                                 "STALE_BASE: Trigger revision requires a new approved pinned connection version")
+            return
+        dispatch_automatic(
+            ctx, project["id"], body, trigger_kind="webhook", trigger_key=str(integration["id"]),
+            version_key=str(payload.get("revision")), budget=configuration.get("automatic_budget"),
         )
 
 
@@ -316,6 +322,11 @@ def expire_evidence():
             order by r.created_at for update of r skip locked limit 50"""
         ).fetchall()
         for run in runs:
+            db.execute(
+                "delete from platform.report_reviews where report_id in "
+                "(select id from platform.advanced_reports where run_id=%s)", (run["id"],),
+            )
+            db.execute("delete from platform.advanced_reports where run_id=%s", (run["id"],))
             for table in ("evidence", "runner_events", "late_runner_events"):
                 from psycopg import sql
 
@@ -375,6 +386,12 @@ def purge_deleted():
             )
             # This fixed order follows the private-schema FK graph; no user-provided table names.
             for table in (
+                "report_reviews",
+                "advanced_reports",
+                "relay_events",
+                "relay_tasks",
+                "passive_records",
+                "automatic_decisions",
                 "retention_receipts",
                 "source_grants",
                 "resource_leases",
@@ -408,3 +425,21 @@ def purge_deleted():
                     sql.SQL("delete from platform.{} where project_id=%s").format(sql.Identifier(table)), (project_id,)
                 )
             db.execute("update platform.deletion_tombstones set purged_at=now() where project_id=%s", (project_id,))
+
+
+def expire_runtime_ingestion():
+    with transaction() as db:
+        expired = db.execute(
+            "select id from platform.relay_tasks where expires_at<=now() order by expires_at limit 1000 for update"
+        ).fetchall()
+        identifiers = [row["id"] for row in expired]
+        if identifiers:
+            db.execute("delete from platform.relay_events where task_id=any(%s::uuid[])", (identifiers,))
+            db.execute("delete from platform.relay_tasks where id=any(%s::uuid[])", (identifiers,))
+        db.execute(
+            """delete from platform.passive_records where (project_id,record_id) in (
+            select e.project_id,e.record_id from platform.passive_records e
+            join platform.projects p on p.id=e.project_id
+            where e.created_at+make_interval(days=>(p.policy->>'hosted_retention_days')::int)<=now()
+            limit 1000)"""
+        )

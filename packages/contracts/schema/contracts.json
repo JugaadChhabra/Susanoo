@@ -36,6 +36,29 @@
       "title": "ActionContext",
       "type": "object"
     },
+    "ActionPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/PlannedAction"
+          },
+          "minItems": 1,
+          "title": "Actions",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "actions"
+      ],
+      "title": "ActionPlan",
+      "type": "object"
+    },
     "ActionResult": {
       "additionalProperties": false,
       "properties": {
@@ -72,6 +95,91 @@
         "status"
       ],
       "title": "ActionResult",
+      "type": "object"
+    },
+    "Actor": {
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operations",
+          "type": "array"
+        },
+        "permissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Permissions",
+          "type": "array"
+        }
+      },
+      "title": "Actor",
+      "type": "object"
+    },
+    "AdvancedReportRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "format": "uuid",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "hidden": {
+          "title": "Hidden",
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "report_key": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Type",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "attempt_id",
+        "report_type",
+        "report_key",
+        "content_hash",
+        "payload",
+        "hidden",
+        "created_at"
+      ],
+      "title": "AdvancedReportRecord",
       "type": "object"
     },
     "AgentContext": {
@@ -149,6 +257,48 @@
         "script"
       ],
       "title": "AgentContext",
+      "type": "object"
+    },
+    "AgentRepairReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/susanoo_runner__agent_repair__RepairValidation"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "agent_repair",
+          "default": "agent_repair",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "AgentRepairReportSubmission",
       "type": "object"
     },
     "AgentReply": {
@@ -493,6 +643,122 @@
       "title": "AttemptRecord",
       "type": "object"
     },
+    "AudioMetricsReport": {
+      "additionalProperties": false,
+      "properties": {
+        "interruptions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Interruption"
+              },
+              "type": "array"
+            },
+            {
+              "$ref": "#/$defs/Unavailable"
+            }
+          ],
+          "title": "Interruptions"
+        },
+        "modality": {
+          "enum": [
+            "audio",
+            "transcript_only"
+          ],
+          "title": "Modality",
+          "type": "string"
+        },
+        "response_latency": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LatencyDistribution"
+            },
+            {
+              "$ref": "#/$defs/Unavailable"
+            }
+          ],
+          "title": "Response Latency"
+        },
+        "speech_quality": {
+          "$ref": "#/$defs/Unavailable"
+        },
+        "transcript_quality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TranscriptQuality"
+            },
+            {
+              "$ref": "#/$defs/Unavailable"
+            }
+          ],
+          "title": "Transcript Quality"
+        }
+      },
+      "required": [
+        "modality",
+        "transcript_quality",
+        "response_latency",
+        "interruptions"
+      ],
+      "title": "AudioMetricsReport",
+      "type": "object"
+    },
+    "AutomaticRunBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_suites": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Allowed Suites",
+          "type": "array"
+        },
+        "max_agent_invocations": {
+          "default": 400,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Agent Invocations",
+          "type": "integer"
+        },
+        "max_cases_per_run": {
+          "default": 50,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Cases Per Run",
+          "type": "integer"
+        },
+        "max_cost_minor": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost Minor"
+        },
+        "max_runs_per_window": {
+          "default": 10,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Max Runs Per Window",
+          "type": "integer"
+        },
+        "window_seconds": {
+          "default": 3600,
+          "maximum": 2592000,
+          "minimum": 60,
+          "title": "Window Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "AutomaticRunBudget",
+      "type": "object"
+    },
     "BudgetReservation": {
       "additionalProperties": false,
       "properties": {
@@ -612,6 +878,48 @@
         "timezone"
       ],
       "title": "BusinessDate",
+      "type": "object"
+    },
+    "CalibrationReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/SemanticCalibration"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "calibration",
+          "default": "calibration",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "CalibrationReportSubmission",
       "type": "object"
     },
     "CalibrationResult": {
@@ -742,6 +1050,89 @@
         "acknowledged"
       ],
       "title": "CancelResult",
+      "type": "object"
+    },
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "access_control",
+            "duplicate_write",
+            "validation",
+            "transport",
+            "response_value",
+            "state_value",
+            "missing_side_effect",
+            "extra_side_effect"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "classification": {
+          "const": "unresolved",
+          "default": "unresolved",
+          "title": "Classification",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "matches_declared_simplification": {
+          "default": false,
+          "title": "Matches Declared Simplification",
+          "type": "boolean"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "reproduction_steps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reproduction Steps",
+          "type": "array"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "summary"
+      ],
+      "title": "Candidate",
       "type": "object"
     },
     "Capabilities": {
@@ -913,6 +1304,156 @@
         "capabilities"
       ],
       "title": "CapabilityReport",
+      "type": "object"
+    },
+    "CapacityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_max_seconds": {
+          "title": "Attempt Max Seconds",
+          "type": "number"
+        },
+        "attempt_p50_seconds": {
+          "title": "Attempt P50 Seconds",
+          "type": "number"
+        },
+        "attempt_p95_seconds": {
+          "title": "Attempt P95 Seconds",
+          "type": "number"
+        },
+        "attempts": {
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "attempts_per_second": {
+          "title": "Attempts Per Second",
+          "type": "number"
+        },
+        "cases_per_run": {
+          "title": "Cases Per Run",
+          "type": "integer"
+        },
+        "concurrency": {
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "execution_errors": {
+          "title": "Execution Errors",
+          "type": "integer"
+        },
+        "gates": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gates",
+          "type": "array"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "journal_bytes": {
+          "title": "Journal Bytes",
+          "type": "integer"
+        },
+        "measured_at": {
+          "format": "date-time",
+          "title": "Measured At",
+          "type": "string"
+        },
+        "not_passed": {
+          "title": "Not Passed",
+          "type": "integer"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "integer"
+        },
+        "peak_rss_mb": {
+          "title": "Peak Rss Mb",
+          "type": "number"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "repetitions": {
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "suite_id": {
+          "title": "Suite Id",
+          "type": "string"
+        },
+        "wall_seconds": {
+          "title": "Wall Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "measured_at",
+        "host",
+        "python",
+        "suite_id",
+        "cases_per_run",
+        "concurrency",
+        "repetitions",
+        "attempts",
+        "passed",
+        "not_passed",
+        "execution_errors",
+        "wall_seconds",
+        "attempts_per_second",
+        "attempt_p50_seconds",
+        "attempt_p95_seconds",
+        "attempt_max_seconds",
+        "peak_rss_mb",
+        "journal_bytes",
+        "gates"
+      ],
+      "title": "CapacityReport",
+      "type": "object"
+    },
+    "CapacityReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/CapacityReport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "capacity",
+          "default": "capacity",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "CapacityReportSubmission",
       "type": "object"
     },
     "CaseSpec": {
@@ -1836,6 +2377,129 @@
       "title": "CleanupResult",
       "type": "object"
     },
+    "CollectorCredentialIn": {
+      "additionalProperties": false,
+      "properties": {
+        "hours": {
+          "default": 24,
+          "maximum": 720,
+          "minimum": 1,
+          "title": "Hours",
+          "type": "integer"
+        }
+      },
+      "title": "CollectorCredentialIn",
+      "type": "object"
+    },
+    "CollisionReport": {
+      "additionalProperties": false,
+      "properties": {
+        "caught": {
+          "title": "Caught",
+          "type": "boolean"
+        },
+        "defects_found": {
+          "items": {
+            "enum": [
+              "lost_update",
+              "duplicate_record",
+              "invalid_transition",
+              "ownership_conflict",
+              "write_after_revocation"
+            ],
+            "type": "string"
+          },
+          "title": "Defects Found",
+          "type": "array"
+        },
+        "isolated": {
+          "title": "Isolated",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "Scheduling covers approved local/router operations only; remote internals are not ordered.",
+          "title": "Note",
+          "type": "string"
+        },
+        "repetitions": {
+          "items": {
+            "$ref": "#/$defs/RepetitionResult"
+          },
+          "title": "Repetitions",
+          "type": "array"
+        },
+        "schedule_digest": {
+          "title": "Schedule Digest",
+          "type": "string"
+        },
+        "schedule_id": {
+          "title": "Schedule Id",
+          "type": "string"
+        },
+        "seed_digest": {
+          "title": "Seed Digest",
+          "type": "string"
+        },
+        "shared_namespace": {
+          "title": "Shared Namespace",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schedule_id",
+        "schedule_digest",
+        "shared_namespace",
+        "isolated",
+        "seed_digest",
+        "repetitions",
+        "defects_found",
+        "caught"
+      ],
+      "title": "CollisionReport",
+      "type": "object"
+    },
+    "CollisionReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/CollisionReport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "collision",
+          "default": "collision",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "CollisionReportSubmission",
+      "type": "object"
+    },
     "CollisionSpec": {
       "additionalProperties": false,
       "properties": {
@@ -1884,6 +2548,282 @@
         "barriers"
       ],
       "title": "CollisionSpec",
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_delta": {
+          "title": "Accepted Delta",
+          "type": "integer"
+        },
+        "baseline": {
+          "$ref": "#/$defs/ProbeAccounting"
+        },
+        "note": {
+          "default": "Seeded examples alone do not establish an optimisation advantage.",
+          "title": "Note",
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/ProbeAccounting"
+        }
+      },
+      "required": [
+        "baseline",
+        "priority",
+        "accepted_delta"
+      ],
+      "title": "Comparison",
+      "type": "object"
+    },
+    "ComparisonReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ComparisonResult"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "comparison",
+          "default": "comparison",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ComparisonReportSubmission",
+      "type": "object"
+    },
+    "ComparisonResult": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "contract_digest": {
+          "title": "Contract Digest",
+          "type": "string"
+        },
+        "contract_id": {
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "criteria_digest": {
+          "title": "Criteria Digest",
+          "type": "string"
+        },
+        "normalizers_applied": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Normalizers Applied",
+          "type": "array"
+        },
+        "plan_digest": {
+          "title": "Plan Digest",
+          "type": "string"
+        },
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "preflight": {
+          "$ref": "#/$defs/Preflight"
+        },
+        "reference_digest": {
+          "title": "Reference Digest",
+          "type": "string"
+        },
+        "reference_state": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Reference State",
+          "type": "object"
+        },
+        "simulator_digest": {
+          "title": "Simulator Digest",
+          "type": "string"
+        },
+        "simulator_state": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Simulator State",
+          "type": "object"
+        },
+        "state_differences": {
+          "items": {
+            "$ref": "#/$defs/StateDifference"
+          },
+          "title": "State Differences",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "compared",
+            "blocked_preflight"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/StepComparison"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "synthetic": {
+          "default": true,
+          "title": "Synthetic",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "contract_id",
+        "contract_digest",
+        "criteria_digest",
+        "plan_id",
+        "plan_digest",
+        "simulator_digest",
+        "reference_digest",
+        "status",
+        "preflight"
+      ],
+      "title": "ComparisonResult",
+      "type": "object"
+    },
+    "Conclusion": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "conclusion_id": {
+          "title": "Conclusion Id",
+          "type": "string"
+        },
+        "covered_kinds": {
+          "description": "kinds this map claims to cover completely",
+          "items": {
+            "type": "string"
+          },
+          "title": "Covered Kinds",
+          "type": "array"
+        },
+        "dependencies": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "node key -> version digest at the time of the result",
+          "title": "Dependencies",
+          "type": "object"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "verdict": {
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conclusion_id",
+        "run_id",
+        "case_id",
+        "verdict",
+        "recorded_at",
+        "dependencies",
+        "covered_kinds"
+      ],
+      "title": "Conclusion",
+      "type": "object"
+    },
+    "ConclusionReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/Conclusion"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "conclusion",
+          "default": "conclusion",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ConclusionReportSubmission",
       "type": "object"
     },
     "ConnectionSpec": {
@@ -2230,6 +3170,11 @@
           "title": "Mode",
           "type": "string"
         },
+        "report_upload_allowed": {
+          "default": false,
+          "title": "Report Upload Allowed",
+          "type": "boolean"
+        },
         "source_upload_allowed": {
           "default": false,
           "title": "Source Upload Allowed",
@@ -2364,6 +3309,37 @@
       "title": "DeadlineCheck",
       "type": "object"
     },
+    "Defect": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "lost_update",
+            "duplicate_record",
+            "invalid_transition",
+            "ownership_conflict",
+            "write_after_revocation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "entity",
+        "detail"
+      ],
+      "title": "Defect",
+      "type": "object"
+    },
     "DependencyIn": {
       "additionalProperties": false,
       "properties": {
@@ -2394,6 +3370,39 @@
       "title": "DependencyIn",
       "type": "object"
     },
+    "Difference": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "value",
+            "missing_in_simulator",
+            "missing_in_reference",
+            "length"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "reference": {
+          "default": null,
+          "title": "Reference"
+        },
+        "simulator": {
+          "default": null,
+          "title": "Simulator"
+        }
+      },
+      "required": [
+        "path",
+        "kind"
+      ],
+      "title": "Difference",
+      "type": "object"
+    },
     "DispatchPayload": {
       "additionalProperties": false,
       "properties": {
@@ -2410,10 +3419,149 @@
       "title": "DispatchPayload",
       "type": "object"
     },
+    "DraftScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "alias_digests": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "synthetic alias -> sha256 of the production value",
+          "title": "Alias Digests",
+          "type": "object"
+        },
+        "approved_requirement": {
+          "const": false,
+          "default": false,
+          "title": "Approved Requirement",
+          "type": "boolean"
+        },
+        "auto_replay": {
+          "const": false,
+          "default": false,
+          "title": "Auto Replay",
+          "type": "boolean"
+        },
+        "case": {
+          "additionalProperties": true,
+          "description": "LocalCase-shaped skeleton; checks intentionally empty",
+          "title": "Case",
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "draft_id": {
+          "title": "Draft Id",
+          "type": "string"
+        },
+        "fixture": {
+          "additionalProperties": true,
+          "description": "synthetic fixture recipe with aliases only",
+          "title": "Fixture",
+          "type": "object"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        },
+        "requires_approval": {
+          "const": true,
+          "default": true,
+          "title": "Requires Approval",
+          "type": "boolean"
+        },
+        "source_count": {
+          "title": "Source Count",
+          "type": "integer"
+        },
+        "source_signature": {
+          "title": "Source Signature",
+          "type": "string"
+        },
+        "status": {
+          "const": "draft",
+          "default": "draft",
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "draft_id",
+        "source_signature",
+        "source_count",
+        "title",
+        "rationale",
+        "case",
+        "fixture",
+        "alias_digests",
+        "created_at"
+      ],
+      "title": "DraftScenario",
+      "type": "object"
+    },
     "DslModel": {
       "additionalProperties": false,
       "properties": {},
       "title": "DslModel",
+      "type": "object"
+    },
+    "EditCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "deletions": {
+          "minimum": 0,
+          "title": "Deletions",
+          "type": "integer"
+        },
+        "hypothesis_length": {
+          "minimum": 0,
+          "title": "Hypothesis Length",
+          "type": "integer"
+        },
+        "insertions": {
+          "minimum": 0,
+          "title": "Insertions",
+          "type": "integer"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None when the reference is empty",
+          "title": "Rate"
+        },
+        "reference_length": {
+          "minimum": 0,
+          "title": "Reference Length",
+          "type": "integer"
+        },
+        "substitutions": {
+          "minimum": 0,
+          "title": "Substitutions",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "substitutions",
+        "deletions",
+        "insertions",
+        "reference_length",
+        "hypothesis_length"
+      ],
+      "title": "EditCounts",
       "type": "object"
     },
     "EnvironmentSpec": {
@@ -2851,6 +3999,152 @@
         "lease_token"
       ],
       "title": "EvidenceBatch",
+      "type": "object"
+    },
+    "EvidenceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "title": "Actor",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "elapsed_ms": {
+          "title": "Elapsed Ms",
+          "type": "number"
+        },
+        "event": {
+          "enum": [
+            "call",
+            "router_rejected",
+            "ack_withheld",
+            "late_ack",
+            "revoked",
+            "fault",
+            "actor_finished"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "faults": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Faults",
+          "type": "array"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotency Key"
+        },
+        "mutating": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mutating"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation"
+        },
+        "repetition": {
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "sim_clock": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sim Clock"
+        },
+        "sim_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sim Seq"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "step": {
+          "title": "Step",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "repetition",
+        "actor",
+        "event",
+        "elapsed_ms"
+      ],
+      "title": "EvidenceEntry",
       "type": "object"
     },
     "ExecutionManifest": {
@@ -3415,6 +4709,56 @@
       "title": "FixtureHandle",
       "type": "object"
     },
+    "FixtureSeed": {
+      "additionalProperties": false,
+      "properties": {
+        "actors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Actor"
+          },
+          "title": "Actors",
+          "type": "object"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "object"
+        },
+        "clock": {
+          "format": "date-time",
+          "title": "Clock",
+          "type": "string"
+        },
+        "domain": {
+          "title": "Domain",
+          "type": "string"
+        },
+        "domain_version": {
+          "title": "Domain Version",
+          "type": "string"
+        },
+        "entities": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Entities",
+          "type": "object"
+        }
+      },
+      "required": [
+        "domain",
+        "domain_version",
+        "clock"
+      ],
+      "title": "FixtureSeed",
+      "type": "object"
+    },
     "FixtureSpec": {
       "additionalProperties": false,
       "properties": {
@@ -3606,6 +4950,30 @@
       "title": "Gate",
       "type": "string"
     },
+    "GateCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "passed",
+        "detail"
+      ],
+      "title": "GateCheck",
+      "type": "object"
+    },
     "GraderSpec": {
       "additionalProperties": false,
       "properties": {
@@ -3723,6 +5091,39 @@
       "title": "GraderSpec",
       "type": "object"
     },
+    "HeldoutSummary": {
+      "additionalProperties": false,
+      "description": "The only thing the separate held-out evaluator may return: counts and the split digest.",
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "split_digest": {
+          "title": "Split Digest",
+          "type": "string"
+        },
+        "unknown": {
+          "minimum": 0,
+          "title": "Unknown",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "split_digest",
+        "passed",
+        "failed",
+        "unknown"
+      ],
+      "title": "HeldoutSummary",
+      "type": "object"
+    },
     "IdentityRecord": {
       "properties": {
         "email": {
@@ -3742,6 +5143,156 @@
       "title": "IdentityRecord",
       "type": "object"
     },
+    "ImportBatch": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes_read": {
+          "default": 0,
+          "title": "Bytes Read",
+          "type": "integer"
+        },
+        "cursor": {
+          "$ref": "#/$defs/ImportCursor"
+        },
+        "duplicates": {
+          "description": "record ids already imported",
+          "items": {
+            "type": "string"
+          },
+          "title": "Duplicates",
+          "type": "array"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/RecordError"
+          },
+          "title": "Errors",
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/TraceRecord"
+          },
+          "title": "Records",
+          "type": "array"
+        },
+        "truncated": {
+          "default": false,
+          "description": "stopped at a limit; resume from cursor",
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cursor"
+      ],
+      "title": "ImportBatch",
+      "type": "object"
+    },
+    "ImportCursor": {
+      "additionalProperties": false,
+      "description": "Where the next incremental batch starts (line or row number within the source).",
+      "properties": {
+        "position": {
+          "default": 0,
+          "title": "Position",
+          "type": "integer"
+        },
+        "source_name": {
+          "title": "Source Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_name"
+      ],
+      "title": "ImportCursor",
+      "type": "object"
+    },
+    "ImportReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ImportBatch"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "import",
+          "default": "import",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ImportReportSubmission",
+      "type": "object"
+    },
+    "IncidentReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/DraftScenario"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "incident",
+          "default": "incident",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "IncidentReportSubmission",
+      "type": "object"
+    },
     "IntegrationIn": {
       "additionalProperties": false,
       "properties": {
@@ -3758,6 +5309,17 @@
           ],
           "default": null,
           "title": "Approved Branch"
+        },
+        "automatic_budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomaticRunBudget"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "installation_id": {
           "anyOf": [
@@ -3776,7 +5338,8 @@
           "enum": [
             "github",
             "ci",
-            "media"
+            "media",
+            "webhook"
           ],
           "title": "Provider",
           "type": "string"
@@ -3785,6 +5348,17 @@
           "default": false,
           "title": "Publish Enabled",
           "type": "boolean"
+        },
+        "relay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RelayConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "repository": {
           "anyOf": [
@@ -3821,6 +5395,96 @@
         "secret_ref"
       ],
       "title": "IntegrationIn",
+      "type": "object"
+    },
+    "Interruption": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_continued_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Agent audio after the barge-in began",
+          "title": "Agent Continued Ms"
+        },
+        "agent_turn": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agent Turn"
+        },
+        "caller_turn": {
+          "title": "Caller Turn",
+          "type": "integer"
+        },
+        "note": {
+          "default": "expected behavior is judged against the reviewed case, not by this measurement",
+          "title": "Note",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "agent_yielded",
+            "agent_talked_over",
+            "transport_loss",
+            "no_overlap_observed"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "overlap_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Overlap Ms"
+        }
+      },
+      "required": [
+        "caller_turn",
+        "agent_turn",
+        "overlap_ms",
+        "outcome"
+      ],
+      "title": "Interruption",
+      "type": "object"
+    },
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "delta_id": {
+          "title": "Delta Id",
+          "type": "string"
+        },
+        "flipped_to_reference": {
+          "title": "Flipped To Reference",
+          "type": "boolean"
+        },
+        "simulator_after_swap": {
+          "$ref": "#/$defs/SideResult"
+        }
+      },
+      "required": [
+        "delta_id",
+        "simulator_after_swap",
+        "flipped_to_reference"
+      ],
+      "title": "Intervention",
       "type": "object"
     },
     "InvitationIn": {
@@ -4134,6 +5798,112 @@
       "title": "JsonlFrame",
       "type": "object"
     },
+    "LatencyDistribution": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "max_ms": {
+          "title": "Max Ms",
+          "type": "number"
+        },
+        "mean_ms": {
+          "title": "Mean Ms",
+          "type": "number"
+        },
+        "method": {
+          "default": "agent audio start minus preceding caller audio end; nearest-rank percentiles",
+          "title": "Method",
+          "type": "string"
+        },
+        "min_ms": {
+          "title": "Min Ms",
+          "type": "number"
+        },
+        "p50_ms": {
+          "title": "P50 Ms",
+          "type": "number"
+        },
+        "p90_ms": {
+          "title": "P90 Ms",
+          "type": "number"
+        },
+        "p95_ms": {
+          "title": "P95 Ms",
+          "type": "number"
+        },
+        "samples_ms": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Samples Ms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "samples_ms",
+        "count",
+        "min_ms",
+        "p50_ms",
+        "p90_ms",
+        "p95_ms",
+        "max_ms",
+        "mean_ms"
+      ],
+      "title": "LatencyDistribution",
+      "type": "object"
+    },
+    "LayerPins": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_after": {
+          "title": "Agent After",
+          "type": "string"
+        },
+        "agent_commit": {
+          "title": "Agent Commit",
+          "type": "string"
+        },
+        "criteria_after": {
+          "title": "Criteria After",
+          "type": "string"
+        },
+        "criteria_before": {
+          "title": "Criteria Before",
+          "type": "string"
+        },
+        "evaluator_after": {
+          "title": "Evaluator After",
+          "type": "string"
+        },
+        "evaluator_before": {
+          "title": "Evaluator Before",
+          "type": "string"
+        },
+        "simulator_after": {
+          "title": "Simulator After",
+          "type": "string"
+        },
+        "simulator_before": {
+          "title": "Simulator Before",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_commit",
+        "agent_after",
+        "simulator_before",
+        "simulator_after",
+        "evaluator_before",
+        "evaluator_after",
+        "criteria_before",
+        "criteria_after"
+      ],
+      "title": "LayerPins",
+      "type": "object"
+    },
     "LeaseRequest": {
       "additionalProperties": false,
       "properties": {
@@ -4148,6 +5918,127 @@
         "lease_token"
       ],
       "title": "LeaseRequest",
+      "type": "object"
+    },
+    "LedgerObservation": {
+      "additionalProperties": false,
+      "description": "What an independent observer saw after every actor settled.",
+      "properties": {
+        "defects": {
+          "items": {
+            "$ref": "#/$defs/Defect"
+          },
+          "title": "Defects",
+          "type": "array"
+        },
+        "eventual_state": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Eventual State",
+          "type": "object"
+        },
+        "expected_balances": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Expected Balances",
+          "type": "object"
+        },
+        "final_balances": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Final Balances",
+          "type": "object"
+        },
+        "final_owner": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Final Owner",
+          "type": "object"
+        },
+        "lost_update_minor": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Lost Update Minor",
+          "type": "object"
+        },
+        "opening_balances": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Opening Balances",
+          "type": "object"
+        },
+        "owner_history": {
+          "additionalProperties": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Owner History",
+          "type": "object"
+        },
+        "payments_by_ref": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Payments By Ref",
+          "type": "object"
+        },
+        "record_counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Record Counts",
+          "type": "object"
+        },
+        "status_history": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Status History",
+          "type": "object"
+        }
+      },
+      "required": [
+        "record_counts",
+        "payments_by_ref",
+        "opening_balances",
+        "final_balances",
+        "expected_balances",
+        "lost_update_minor",
+        "status_history",
+        "owner_history",
+        "final_owner",
+        "eventual_state"
+      ],
+      "title": "LedgerObservation",
       "type": "object"
     },
     "ManualCheck": {
@@ -4276,6 +6167,48 @@
         "workspaces"
       ],
       "title": "MeResponse",
+      "type": "object"
+    },
+    "MediaReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/AudioMetricsReport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "media",
+          "default": "media",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "MediaReportSubmission",
       "type": "object"
     },
     "MembershipChange": {
@@ -4727,6 +6660,75 @@
       "title": "Page",
       "type": "object"
     },
+    "PairOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution": {
+          "enum": [
+            "none",
+            "association",
+            "discrepancy_induced"
+          ],
+          "title": "Attribution",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "dependencies": {
+          "additionalProperties": {
+            "enum": [
+              "observed_dependency",
+              "declared_dependency",
+              "uncertain",
+              "none"
+            ],
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "object"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/$defs/Intervention"
+          },
+          "title": "Interventions",
+          "type": "array"
+        },
+        "reference": {
+          "$ref": "#/$defs/SideResult"
+        },
+        "relationship": {
+          "enum": [
+            "simulator_pass_reference_fail",
+            "simulator_fail_reference_pass",
+            "no_observed_change",
+            "inconclusive"
+          ],
+          "title": "Relationship",
+          "type": "string"
+        },
+        "repetition": {
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "simulator": {
+          "$ref": "#/$defs/SideResult"
+        }
+      },
+      "required": [
+        "case_id",
+        "repetition",
+        "simulator",
+        "reference",
+        "relationship",
+        "dependencies",
+        "attribution"
+      ],
+      "title": "PairOutcome",
+      "type": "object"
+    },
     "PatchBundle": {
       "additionalProperties": false,
       "properties": {
@@ -4833,6 +6835,43 @@
       "title": "PinnedCase",
       "type": "object"
     },
+    "PlannedAction": {
+      "additionalProperties": false,
+      "properties": {
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotency Key"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "request": {
+          "additionalProperties": true,
+          "title": "Request",
+          "type": "object"
+        },
+        "step": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "operation"
+      ],
+      "title": "PlannedAction",
+      "type": "object"
+    },
     "PolicySpec": {
       "additionalProperties": false,
       "properties": {
@@ -4850,6 +6889,51 @@
         "policy"
       ],
       "title": "PolicySpec",
+      "type": "object"
+    },
+    "Preflight": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "reference_seed_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Seed Digest"
+        },
+        "simulator_seed_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Simulator Seed Digest"
+        }
+      },
+      "required": [
+        "ok"
+      ],
+      "title": "Preflight",
       "type": "object"
     },
     "PreflightResult": {
@@ -4927,6 +7011,523 @@
         "action_kind"
       ],
       "title": "PreparedPayload",
+      "type": "object"
+    },
+    "ProbeAccounting": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_findings": {
+          "title": "Accepted Findings",
+          "type": "integer"
+        },
+        "accepted_per_cost_unit": {
+          "title": "Accepted Per Cost Unit",
+          "type": "number"
+        },
+        "accepted_per_reference_call": {
+          "title": "Accepted Per Reference Call",
+          "type": "number"
+        },
+        "budget_cap": {
+          "title": "Budget Cap",
+          "type": "integer"
+        },
+        "budget_reserved": {
+          "title": "Budget Reserved",
+          "type": "integer"
+        },
+        "checker_digest": {
+          "title": "Checker Digest",
+          "type": "string"
+        },
+        "cleanup_allowance": {
+          "title": "Cleanup Allowance",
+          "type": "integer"
+        },
+        "cost_used": {
+          "title": "Cost Used",
+          "type": "integer"
+        },
+        "pool_digest": {
+          "title": "Pool Digest",
+          "type": "string"
+        },
+        "reference_calls": {
+          "title": "Reference Calls",
+          "type": "integer"
+        },
+        "rejected_findings": {
+          "title": "Rejected Findings",
+          "type": "integer"
+        },
+        "review_effort": {
+          "description": "Findings plus unknowns an owner had to look at",
+          "title": "Review Effort",
+          "type": "integer"
+        },
+        "strategy": {
+          "enum": [
+            "uniform",
+            "priority"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "unknowns": {
+          "title": "Unknowns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "strategy",
+        "pool_digest",
+        "budget_cap",
+        "cleanup_allowance",
+        "checker_digest",
+        "reference_calls",
+        "cost_used",
+        "budget_reserved",
+        "accepted_findings",
+        "rejected_findings",
+        "unknowns",
+        "review_effort",
+        "accepted_per_reference_call",
+        "accepted_per_cost_unit"
+      ],
+      "title": "ProbeAccounting",
+      "type": "object"
+    },
+    "ProbeCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_cost": {
+          "default": 1,
+          "description": "Cost units per reference call",
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Expected Cost",
+          "type": "integer"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "max_retries": {
+          "default": 0,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "recently_changed": {
+          "default": false,
+          "title": "Recently Changed",
+          "type": "boolean"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "times_tested": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Times Tested",
+          "type": "integer"
+        },
+        "transition": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Transition",
+          "type": "string"
+        },
+        "uncertainty": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "transition",
+        "severity"
+      ],
+      "title": "ProbeCandidate",
+      "type": "object"
+    },
+    "ProbeComparisonReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/Comparison"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "probe_comparison",
+          "default": "probe_comparison",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ProbeComparisonReportSubmission",
+      "type": "object"
+    },
+    "ProbeExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "calls": {
+          "title": "Calls",
+          "type": "integer"
+        },
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "cleanup_cost": {
+          "title": "Cleanup Cost",
+          "type": "integer"
+        },
+        "cost": {
+          "title": "Cost",
+          "type": "integer"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "finding_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finding Id"
+        },
+        "reserved": {
+          "title": "Reserved",
+          "type": "integer"
+        },
+        "retries": {
+          "title": "Retries",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "finding",
+            "no_finding",
+            "unknown",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "reserved",
+        "calls",
+        "cost",
+        "cleanup_cost",
+        "retries",
+        "status"
+      ],
+      "title": "ProbeExecution",
+      "type": "object"
+    },
+    "ProbePlan": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_cap": {
+          "title": "Budget Cap",
+          "type": "integer"
+        },
+        "candidate_pool": {
+          "items": {
+            "$ref": "#/$defs/ProbeCandidate"
+          },
+          "title": "Candidate Pool",
+          "type": "array"
+        },
+        "checker_digest": {
+          "title": "Checker Digest",
+          "type": "string"
+        },
+        "cleanup_allowance": {
+          "title": "Cleanup Allowance",
+          "type": "integer"
+        },
+        "exploration_fraction": {
+          "title": "Exploration Fraction",
+          "type": "number"
+        },
+        "exploration_picks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exploration Picks",
+          "type": "array"
+        },
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "pool_digest": {
+          "title": "Pool Digest",
+          "type": "string"
+        },
+        "score_inputs": {
+          "items": {
+            "$ref": "#/$defs/ScoreInputs"
+          },
+          "title": "Score Inputs",
+          "type": "array"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "selected": {
+          "description": "Ranked order in which probes are attempted",
+          "items": {
+            "type": "string"
+          },
+          "title": "Selected",
+          "type": "array"
+        },
+        "strategy": {
+          "enum": [
+            "uniform",
+            "priority"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "weights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Weights",
+          "type": "object"
+        }
+      },
+      "required": [
+        "plan_id",
+        "strategy",
+        "seed",
+        "candidate_pool",
+        "pool_digest",
+        "weights",
+        "score_inputs",
+        "exploration_fraction",
+        "selected",
+        "exploration_picks",
+        "budget_cap",
+        "cleanup_allowance",
+        "checker_digest"
+      ],
+      "title": "ProbePlan",
+      "type": "object"
+    },
+    "ProbePlanReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ProbePlan"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "probe_plan",
+          "default": "probe_plan",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ProbePlanReportSubmission",
+      "type": "object"
+    },
+    "ProbeRun": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_cap": {
+          "title": "Budget Cap",
+          "type": "integer"
+        },
+        "budget_reserved": {
+          "title": "Budget Reserved",
+          "type": "integer"
+        },
+        "cost_used": {
+          "title": "Cost Used",
+          "type": "integer"
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/ProbeExecution"
+          },
+          "title": "Executions",
+          "type": "array"
+        },
+        "not_run": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Not Run",
+          "type": "array"
+        },
+        "plan": {
+          "$ref": "#/$defs/ProbePlan"
+        },
+        "reference_calls": {
+          "title": "Reference Calls",
+          "type": "integer"
+        },
+        "remaining_budget": {
+          "title": "Remaining Budget",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "stopped_reason": {
+          "enum": [
+            "completed",
+            "budget_exhausted"
+          ],
+          "title": "Stopped Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "plan",
+        "scope",
+        "executions",
+        "not_run",
+        "stopped_reason",
+        "budget_cap",
+        "budget_reserved",
+        "remaining_budget",
+        "reference_calls",
+        "cost_used"
+      ],
+      "title": "ProbeRun",
+      "type": "object"
+    },
+    "ProbeRunReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ProbeRun"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "probe_run",
+          "default": "probe_run",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ProbeRunReportSubmission",
       "type": "object"
     },
     "ProbeSpec": {
@@ -5188,6 +7789,109 @@
         "roles"
       ],
       "title": "ProjectRecord",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ],
+          "title": "Completeness",
+          "type": "string"
+        },
+        "first_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Timestamp"
+        },
+        "imported_at": {
+          "format": "date-time",
+          "title": "Imported At",
+          "type": "string"
+        },
+        "last_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Timestamp"
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "canonical field -> source field",
+          "title": "Mapping",
+          "type": "object"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        },
+        "redactions": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Redactions",
+          "type": "integer"
+        },
+        "source_kind": {
+          "enum": [
+            "csv",
+            "jsonl",
+            "normalized",
+            "otlp_protobuf",
+            "otlp_json"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "source_location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "line, row or span range in the source",
+          "title": "Source Location"
+        },
+        "source_name": {
+          "maxLength": 500,
+          "title": "Source Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_kind",
+        "source_name",
+        "imported_at",
+        "completeness"
+      ],
+      "title": "Provenance",
       "type": "object"
     },
     "PublishIn": {
@@ -5603,6 +8307,202 @@
       "title": "ReconciliationPayload",
       "type": "object"
     },
+    "RecordError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_json",
+            "invalid_record",
+            "too_large",
+            "too_many_turns",
+            "invalid_protobuf",
+            "limit"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "location",
+        "code",
+        "message"
+      ],
+      "title": "RecordError",
+      "type": "object"
+    },
+    "ReductionAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "outcome": {
+          "enum": [
+            "reproduced",
+            "not_reproduced",
+            "inconsistent",
+            "invalid_prerequisites",
+            "preflight_blocked"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "runs": {
+          "title": "Runs",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "transformation": {
+          "enum": [
+            "drop_actions",
+            "drop_entity"
+          ],
+          "title": "Transformation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "transformation",
+        "description",
+        "steps",
+        "outcome",
+        "runs"
+      ],
+      "title": "ReductionAttempt",
+      "type": "object"
+    },
+    "ReductionReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ReductionResult"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "reduction",
+          "default": "reduction",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ReductionReportSubmission",
+      "type": "object"
+    },
+    "ReductionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/ReductionAttempt"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "budget": {
+          "title": "Budget",
+          "type": "integer"
+        },
+        "contract_id": {
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "reduced under attempted transformations",
+          "title": "Label",
+          "type": "string"
+        },
+        "original_fixture": {
+          "$ref": "#/$defs/FixtureSeed"
+        },
+        "original_plan": {
+          "$ref": "#/$defs/ActionPlan"
+        },
+        "reduced_fixture": {
+          "$ref": "#/$defs/FixtureSeed"
+        },
+        "reduced_plan": {
+          "$ref": "#/$defs/ActionPlan"
+        },
+        "reproduction": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reproduction",
+          "type": "array"
+        },
+        "runs_used": {
+          "title": "Runs Used",
+          "type": "integer"
+        },
+        "stopped_because": {
+          "enum": [
+            "no_further_reduction",
+            "budget_exhausted",
+            "original_not_reproduced"
+          ],
+          "title": "Stopped Because",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_id",
+        "original_plan",
+        "reduced_plan",
+        "original_fixture",
+        "reduced_fixture",
+        "budget",
+        "runs_used",
+        "stopped_because"
+      ],
+      "title": "ReductionResult",
+      "type": "object"
+    },
     "RelationshipCheck": {
       "additionalProperties": false,
       "description": "Each matching record's ``path`` must reference a record in ``target_observation`` by ``target_path``.",
@@ -5755,6 +8655,149 @@
         "target_observation"
       ],
       "title": "RelationshipCheck",
+      "type": "object"
+    },
+    "RelayConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id_path": {
+          "default": "event_id",
+          "title": "Event Id Path",
+          "type": "string"
+        },
+        "previous_secret_ref": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Secret Ref"
+        },
+        "public_base_url": {
+          "maxLength": 500,
+          "pattern": "^https://[^/?#]+$",
+          "title": "Public Base Url",
+          "type": "string"
+        },
+        "result_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "result",
+          "title": "Result Path"
+        },
+        "sequence_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "sequence",
+          "title": "Sequence Path"
+        },
+        "status_path": {
+          "default": "status",
+          "title": "Status Path",
+          "type": "string"
+        },
+        "task_id_path": {
+          "default": "task_id",
+          "title": "Task Id Path",
+          "type": "string"
+        },
+        "terminal_states": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Terminal States",
+          "type": "array"
+        }
+      },
+      "required": [
+        "public_base_url"
+      ],
+      "title": "RelayConfiguration",
+      "type": "object"
+    },
+    "RelayPoll": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "default": 0,
+          "minimum": 0,
+          "title": "After",
+          "type": "integer"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token"
+      ],
+      "title": "RelayPoll",
+      "type": "object"
+    },
+    "RelayTaskRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "integration_id": {
+          "format": "uuid",
+          "title": "Integration Id",
+          "type": "string"
+        },
+        "invocation_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Invocation Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "integration_id",
+        "task_id",
+        "invocation_id",
+        "operation_id"
+      ],
+      "title": "RelayTaskRegistration",
       "type": "object"
     },
     "RepairContext": {
@@ -6040,6 +9083,118 @@
       "title": "RepairResult",
       "type": "object"
     },
+    "RepetitionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_errors": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Actor Errors",
+          "type": "object"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceEntry"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "fault_profile": {
+          "title": "Fault Profile",
+          "type": "string"
+        },
+        "fixture_digest": {
+          "title": "Fixture Digest",
+          "type": "string"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/LedgerObservation"
+        },
+        "outcome": {
+          "enum": [
+            "settled",
+            "deadline_exceeded",
+            "call_limit_exceeded",
+            "actor_error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "priority": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Priority",
+          "type": "array"
+        },
+        "repetition": {
+          "title": "Repetition",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "repetition",
+        "namespace",
+        "priority",
+        "outcome",
+        "observation",
+        "evidence",
+        "fixture_digest",
+        "fault_profile"
+      ],
+      "title": "RepetitionResult",
+      "type": "object"
+    },
+    "ReportClassificationIn": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "classification": {
+          "enum": [
+            "confirmed_defect",
+            "intentional_simplification",
+            "reference_limitation",
+            "unresolved"
+          ],
+          "title": "Classification",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "classification",
+        "rationale",
+        "evidence_ids"
+      ],
+      "title": "ReportClassificationIn",
+      "type": "object"
+    },
     "ReportResult": {
       "additionalProperties": false,
       "properties": {
@@ -6084,6 +9239,254 @@
         "status"
       ],
       "title": "ReportResult",
+      "type": "object"
+    },
+    "ReportSubmission": {
+      "discriminator": {
+        "mapping": {
+          "agent_repair": "#/$defs/AgentRepairReportSubmission",
+          "calibration": "#/$defs/CalibrationReportSubmission",
+          "capacity": "#/$defs/CapacityReportSubmission",
+          "collision": "#/$defs/CollisionReportSubmission",
+          "comparison": "#/$defs/ComparisonReportSubmission",
+          "conclusion": "#/$defs/ConclusionReportSubmission",
+          "import": "#/$defs/ImportReportSubmission",
+          "incident": "#/$defs/IncidentReportSubmission",
+          "media": "#/$defs/MediaReportSubmission",
+          "probe_comparison": "#/$defs/ProbeComparisonReportSubmission",
+          "probe_plan": "#/$defs/ProbePlanReportSubmission",
+          "probe_run": "#/$defs/ProbeRunReportSubmission",
+          "reduction": "#/$defs/ReductionReportSubmission",
+          "reproduction": "#/$defs/ReproductionReportSubmission",
+          "run_export": "#/$defs/RunExportReportSubmission",
+          "simulator_repair": "#/$defs/SimulatorRepairReportSubmission",
+          "task_impact": "#/$defs/TaskImpactReportSubmission",
+          "two_by_two": "#/$defs/TwoByTwoReportSubmission",
+          "validity": "#/$defs/ValidityReportSubmission"
+        },
+        "propertyName": "report_type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComparisonReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/TaskImpactReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/TwoByTwoReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ReductionReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/SimulatorRepairReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/AgentRepairReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ProbePlanReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ProbeRunReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ProbeComparisonReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/CollisionReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/CalibrationReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/MediaReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ImportReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/IncidentReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ConclusionReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ValidityReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/CapacityReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/RunExportReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/ReproductionReportSubmission"
+        }
+      ]
+    },
+    "ReportedOutcome": {
+      "additionalProperties": false,
+      "description": "An outcome the source *reported* (e.g. a production outcome event). Never an observed verdict.",
+      "properties": {
+        "detail": {
+          "additionalProperties": true,
+          "title": "Detail",
+          "type": "object"
+        },
+        "kind": {
+          "maxLength": 200,
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 100,
+          "title": "Status",
+          "type": "string"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp"
+        }
+      },
+      "required": [
+        "kind",
+        "status"
+      ],
+      "title": "ReportedOutcome",
+      "type": "object"
+    },
+    "ReproductionIngredient": {
+      "additionalProperties": false,
+      "properties": {
+        "adapters": {
+          "additionalProperties": true,
+          "title": "Adapters",
+          "type": "object"
+        },
+        "agent": {
+          "additionalProperties": true,
+          "title": "Agent",
+          "type": "object"
+        },
+        "audience": {
+          "enum": [
+            "operator",
+            "engineer"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "cases": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "maxItems": 500,
+          "title": "Cases",
+          "type": "array"
+        },
+        "command": {
+          "title": "Command",
+          "type": "string"
+        },
+        "evaluator_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Evaluator Digest",
+          "type": "string"
+        },
+        "kind": {
+          "const": "susanoo.reproduction_ingredient",
+          "title": "Kind",
+          "type": "string"
+        },
+        "profile": {
+          "additionalProperties": true,
+          "title": "Profile",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "snapshot_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshot Digest",
+          "type": "string"
+        },
+        "suite": {
+          "additionalProperties": true,
+          "title": "Suite",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "audience",
+        "snapshot_digest",
+        "suite",
+        "agent",
+        "adapters",
+        "evaluator_digest",
+        "profile",
+        "cases",
+        "command"
+      ],
+      "title": "ReproductionIngredient",
+      "type": "object"
+    },
+    "ReproductionReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ReproductionIngredient"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "reproduction",
+          "default": "reproduction",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ReproductionReportSubmission",
       "type": "object"
     },
     "RequirementSpec": {
@@ -6262,6 +9665,37 @@
       "title": "ReviewIn",
       "type": "object"
     },
+    "RiskFlag": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "evaluation_criteria",
+            "test_exclusion",
+            "permissions",
+            "network_access",
+            "dependencies"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "evidence"
+      ],
+      "title": "RiskFlag",
+      "type": "object"
+    },
     "Role": {
       "enum": [
         "owner",
@@ -6363,6 +9797,48 @@
         "environment_version_id"
       ],
       "title": "RunCreate",
+      "type": "object"
+    },
+    "RunExportReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/RuntimeExport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "run_export",
+          "default": "run_export",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "RunExportReportSubmission",
       "type": "object"
     },
     "RunLimits": {
@@ -6890,9 +10366,103 @@
       "title": "RunnerRegistration",
       "type": "object"
     },
+    "RuntimeExport": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "additionalProperties": true,
+          "title": "Acceptance",
+          "type": "object"
+        },
+        "audience": {
+          "enum": [
+            "operator",
+            "engineer"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "compatibility": {
+          "additionalProperties": true,
+          "title": "Compatibility",
+          "type": "object"
+        },
+        "counts_definitions": {
+          "additionalProperties": true,
+          "title": "Counts Definitions",
+          "type": "object"
+        },
+        "exclusions": {
+          "items": {},
+          "title": "Exclusions",
+          "type": "array"
+        },
+        "generated_at": {
+          "title": "Generated At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "susanoo.run_export",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lineage": {
+          "additionalProperties": true,
+          "title": "Lineage",
+          "type": "object"
+        },
+        "machine": {
+          "additionalProperties": true,
+          "title": "Machine",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "snapshot": {
+          "additionalProperties": true,
+          "title": "Snapshot",
+          "type": "object"
+        },
+        "snapshot_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshot Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "audience",
+        "snapshot_digest",
+        "generated_at",
+        "lineage",
+        "machine",
+        "acceptance",
+        "compatibility",
+        "exclusions",
+        "counts_definitions",
+        "snapshot"
+      ],
+      "title": "RuntimeExport",
+      "type": "object"
+    },
     "ScheduleIn": {
       "additionalProperties": false,
       "properties": {
+        "automatic_budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomaticRunBudget"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "enabled": {
           "default": false,
           "title": "Enabled",
@@ -6924,6 +10494,17 @@
     },
     "ScheduleRecord": {
       "properties": {
+        "automatic_budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomaticRunBudget"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "configuration": {
           "$ref": "#/$defs/RunCreate"
         },
@@ -6959,6 +10540,50 @@
         "next_due_at"
       ],
       "title": "ScheduleRecord",
+      "type": "object"
+    },
+    "ScoreInputs": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "expected_cost": {
+          "title": "Expected Cost",
+          "type": "integer"
+        },
+        "recent_change": {
+          "title": "Recent Change",
+          "type": "number"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "number"
+        },
+        "uncertainty": {
+          "title": "Uncertainty",
+          "type": "number"
+        },
+        "untested": {
+          "title": "Untested",
+          "type": "number"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "severity",
+        "untested",
+        "recent_change",
+        "uncertainty",
+        "expected_cost",
+        "score"
+      ],
+      "title": "ScoreInputs",
       "type": "object"
     },
     "ScriptStep": {
@@ -6998,6 +10623,106 @@
         "message"
       ],
       "title": "ScriptStep",
+      "type": "object"
+    },
+    "SemanticCalibration": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "calibration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SplitMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "control_set_hash": {
+          "title": "Control Set Hash",
+          "type": "string"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Errors",
+          "type": "array"
+        },
+        "excluded_self_labeled": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excluded Self Labeled",
+          "type": "array"
+        },
+        "false_fails": {
+          "items": {
+            "type": "string"
+          },
+          "title": "False Fails",
+          "type": "array"
+        },
+        "false_passes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "False Passes",
+          "type": "array"
+        },
+        "grader_version_id": {
+          "title": "Grader Version Id",
+          "type": "string"
+        },
+        "heldout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SplitMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_digest": {
+          "title": "Prompt Digest",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "rubric_digest": {
+          "title": "Rubric Digest",
+          "type": "string"
+        },
+        "thresholds": {
+          "$ref": "#/$defs/SemanticThresholds"
+        }
+      },
+      "required": [
+        "grader_version_id",
+        "model_id",
+        "prompt_digest",
+        "rubric_digest",
+        "control_set_hash",
+        "thresholds",
+        "accepted"
+      ],
+      "title": "SemanticCalibration",
       "type": "object"
     },
     "SemanticCheck": {
@@ -7118,6 +10843,49 @@
       "title": "SemanticCheck",
       "type": "object"
     },
+    "SemanticThresholds": {
+      "additionalProperties": false,
+      "description": "Reviewer-defined error thresholds, applied to the calibration and held-out splits separately.",
+      "properties": {
+        "max_false_fail_rate": {
+          "default": 0.1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max False Fail Rate",
+          "type": "number"
+        },
+        "max_false_pass_rate": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max False Pass Rate",
+          "type": "number"
+        },
+        "min_agreement": {
+          "default": 0.9,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Agreement",
+          "type": "number"
+        },
+        "min_heldout": {
+          "default": 1,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Min Heldout",
+          "type": "integer"
+        },
+        "min_per_label": {
+          "default": 1,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Min Per Label",
+          "type": "integer"
+        }
+      },
+      "title": "SemanticThresholds",
+      "type": "object"
+    },
     "SessionHandle": {
       "additionalProperties": false,
       "properties": {
@@ -7137,6 +10905,120 @@
         "attempt_id"
       ],
       "title": "SessionHandle",
+      "type": "object"
+    },
+    "SideOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "response": {
+          "additionalProperties": true,
+          "title": "Response",
+          "type": "object"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "SideOutcome",
+      "type": "object"
+    },
+    "SideResult": {
+      "additionalProperties": false,
+      "properties": {
+        "business_verdict": {
+          "title": "Business Verdict",
+          "type": "string"
+        },
+        "execution_state": {
+          "title": "Execution State",
+          "type": "string"
+        },
+        "failed_checks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Failed Checks",
+          "type": "array"
+        },
+        "operations": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operations"
+        }
+      },
+      "required": [
+        "business_verdict",
+        "execution_state"
+      ],
+      "title": "SideResult",
+      "type": "object"
+    },
+    "SimulatorRepairReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/susanoo_runner__repair__RepairValidation"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "simulator_repair",
+          "default": "simulator_repair",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "SimulatorRepairReportSubmission",
       "type": "object"
     },
     "SnapshotScope": {
@@ -7288,6 +11170,70 @@
       "title": "SourceSpec",
       "type": "object"
     },
+    "SplitMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "agreement": {
+          "title": "Agreement",
+          "type": "number"
+        },
+        "errors": {
+          "title": "Errors",
+          "type": "integer"
+        },
+        "examples": {
+          "title": "Examples",
+          "type": "integer"
+        },
+        "false_fail_rate": {
+          "title": "False Fail Rate",
+          "type": "number"
+        },
+        "false_pass_rate": {
+          "title": "False Pass Rate",
+          "type": "number"
+        }
+      },
+      "required": [
+        "examples",
+        "agreement",
+        "false_pass_rate",
+        "false_fail_rate",
+        "errors"
+      ],
+      "title": "SplitMetrics",
+      "type": "object"
+    },
+    "StateDifference": {
+      "additionalProperties": false,
+      "properties": {
+        "difference": {
+          "$ref": "#/$defs/Difference"
+        },
+        "entity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "difference"
+      ],
+      "title": "StateDifference",
+      "type": "object"
+    },
     "StateSnapshot": {
       "additionalProperties": false,
       "properties": {
@@ -7318,6 +11264,40 @@
         "state"
       ],
       "title": "StateSnapshot",
+      "type": "object"
+    },
+    "StepComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "differences": {
+          "items": {
+            "$ref": "#/$defs/Difference"
+          },
+          "title": "Differences",
+          "type": "array"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "reference": {
+          "$ref": "#/$defs/SideOutcome"
+        },
+        "simulator": {
+          "$ref": "#/$defs/SideOutcome"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "operation",
+        "simulator",
+        "reference"
+      ],
+      "title": "StepComparison",
       "type": "object"
     },
     "StepDispatchingEvent": {
@@ -7551,6 +11531,48 @@
       "title": "SuiteSpec",
       "type": "object"
     },
+    "TaskImpactReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/PairOutcome"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "task_impact",
+          "default": "task_impact",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "TaskImpactReportSubmission",
+      "type": "object"
+    },
     "ToolEvent": {
       "additionalProperties": false,
       "properties": {
@@ -7637,6 +11659,215 @@
         "token"
       ],
       "title": "ToolRoute",
+      "type": "object"
+    },
+    "TraceRecord": {
+      "additionalProperties": false,
+      "description": "Normalized imported conversation, schema 1.0. Evidence only, by construction.\n\n``record_id`` is the stable content hash of (conversation_id, turns, outcomes) after redaction.\nThe literal flags make the evidence class part of the schema: a record claiming it can prove\nbackend state or authorize replay fails validation.",
+      "properties": {
+        "conversation_id": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "evidence_class": {
+          "const": "evidence_only",
+          "default": "evidence_only",
+          "title": "Evidence Class",
+          "type": "string"
+        },
+        "outcomes": {
+          "items": {
+            "$ref": "#/$defs/ReportedOutcome"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "proves_backend_state": {
+          "const": false,
+          "default": false,
+          "title": "Proves Backend State",
+          "type": "boolean"
+        },
+        "record_id": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Record Id",
+          "type": "string"
+        },
+        "replay_authorized": {
+          "const": false,
+          "default": false,
+          "title": "Replay Authorized",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/TraceTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "record_id",
+        "conversation_id",
+        "provenance"
+      ],
+      "title": "TraceRecord",
+      "type": "object"
+    },
+    "TraceTurn": {
+      "additionalProperties": false,
+      "description": "One message or tool call. ``text`` and ``arguments`` are already redacted.",
+      "properties": {
+        "arguments": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arguments"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "agent",
+            "tool",
+            "system"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "status": {
+          "default": "unset",
+          "enum": [
+            "ok",
+            "error",
+            "unset"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "maxLength": 65536,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Name"
+        }
+      },
+      "required": [
+        "index",
+        "role"
+      ],
+      "title": "TraceTurn",
+      "type": "object"
+    },
+    "TranscriptQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "cer": {
+          "$ref": "#/$defs/EditCounts"
+        },
+        "locale": {
+          "title": "Locale",
+          "type": "string"
+        },
+        "normalization": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Normalization",
+          "type": "object"
+        },
+        "reviewed_by": {
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "wer": {
+          "$ref": "#/$defs/EditCounts"
+        }
+      },
+      "required": [
+        "wer",
+        "cer",
+        "locale",
+        "reviewed_by",
+        "normalization"
+      ],
+      "title": "TranscriptQuality",
       "type": "object"
     },
     "TransitionCheck": {
@@ -7776,6 +12007,102 @@
         "allowed"
       ],
       "title": "TransitionCheck",
+      "type": "object"
+    },
+    "TwoByTwoCell": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "enum": [
+            "old",
+            "new"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "environment": {
+          "enum": [
+            "old",
+            "new"
+          ],
+          "title": "Environment",
+          "type": "string"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/SideResult"
+          },
+          "title": "Results",
+          "type": "array"
+        }
+      },
+      "required": [
+        "agent",
+        "environment",
+        "results"
+      ],
+      "title": "TwoByTwoCell",
+      "type": "object"
+    },
+    "TwoByTwoReport": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/TwoByTwoCell"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Cells",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cells"
+      ],
+      "title": "TwoByTwoReport",
+      "type": "object"
+    },
+    "TwoByTwoReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/TwoByTwoReport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "two_by_two",
+          "default": "two_by_two",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "TwoByTwoReportSubmission",
       "type": "object"
     },
     "Unavailable": {
@@ -7976,6 +12303,97 @@
         }
       },
       "title": "Usage",
+      "type": "object"
+    },
+    "ValidityMark": {
+      "additionalProperties": false,
+      "properties": {
+        "conclusion_id": {
+          "title": "Conclusion Id",
+          "type": "string"
+        },
+        "dependency_path": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Path",
+          "type": "array"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "string"
+        },
+        "marked_at": {
+          "format": "date-time",
+          "title": "Marked At",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "retest_recommended",
+            "scope_changed",
+            "reference_unverified",
+            "coverage_incomplete"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conclusion_id",
+        "status",
+        "reason",
+        "dependency_path",
+        "event_id",
+        "marked_at"
+      ],
+      "title": "ValidityMark",
+      "type": "object"
+    },
+    "ValidityReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ValidityMark"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "validity",
+          "default": "validity",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "ValidityReportSubmission",
       "type": "object"
     },
     "Verdict": {
@@ -8418,6 +12836,136 @@
         "roles"
       ],
       "title": "WorkspaceRecord",
+      "type": "object"
+    },
+    "susanoo_runner__agent_repair__RepairValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "base_commit": {
+          "title": "Base Commit",
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/GateCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "flags": {
+          "items": {
+            "$ref": "#/$defs/RiskFlag"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "heldout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldoutSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "heldout_exposures": {
+          "title": "Heldout Exposures",
+          "type": "integer"
+        },
+        "layer": {
+          "enum": [
+            "agent",
+            "simulator",
+            "evaluator"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "inconclusive"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "patch_digest": {
+          "title": "Patch Digest",
+          "type": "string"
+        },
+        "pins": {
+          "$ref": "#/$defs/LayerPins"
+        }
+      },
+      "required": [
+        "finding_id",
+        "layer",
+        "origin",
+        "base_commit",
+        "patch_digest",
+        "outcome",
+        "checks",
+        "flags",
+        "pins",
+        "heldout",
+        "heldout_exposures"
+      ],
+      "title": "RepairValidation",
+      "type": "object"
+    },
+    "susanoo_runner__repair__RepairValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/GateCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "layer": {
+          "title": "Layer",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "inconclusive"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "pinned": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Pinned",
+          "type": "object"
+        },
+        "proposal_digest": {
+          "title": "Proposal Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proposal_digest",
+        "layer",
+        "pinned",
+        "outcome",
+        "checks"
+      ],
+      "title": "RepairValidation",
       "type": "object"
     }
   },

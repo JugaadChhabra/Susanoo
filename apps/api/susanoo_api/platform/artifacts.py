@@ -266,6 +266,11 @@ def export_snapshot(ctx, run, project, audience):
             )
     if "request" in manifest:
         scoped_manifest["request"] = manifest["request"]
+    if "versions" in manifest:
+        scoped_manifest["versions"] = [value for value in manifest["versions"] if not value["hidden"] or hidden]
+    from .reports import visible_reports
+
+    advanced = visible_reports(ctx, run, project, audience=audience)
     return json_safe(
         {
             "schema_version": "1.0",
@@ -275,6 +280,7 @@ def export_snapshot(ctx, run, project, audience):
             "findings": findings,
             "evidence": evidence,
             "reviews": reviews,
+            "advanced_reports": advanced,
             "audience": audience,
             "hidden_details_omitted": not hidden,
             "local_evidence": "Local-only payloads are not present in this export.",
@@ -311,6 +317,10 @@ def request_export(ctx, run_id, body):
     run, project = get_run(ctx, run_id)
     if body.audience == "reviewers":
         ctx.project(project["id"], REVIEWERS)
+        if body.format == "bundle":
+            raise PlatformError(
+                "FORBIDDEN", "Reproduction bundles use the project audience; held-out content stays withheld.", 403
+            )
     if run["status"] not in {"completed", "interrupted", "cancelled"}:
         raise PlatformError("INVALID_STATE", "Export a settled immutable result snapshot.", 409)
     if body.snapshot_artifact_id:
@@ -390,6 +400,43 @@ def render_export(snapshot, format):
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("result.json", render_export(snapshot, "json"))
             archive.writestr("manifest.json", json.dumps(snapshot["manifest"], ensure_ascii=False, indent=2))
+            for report in snapshot.get("advanced_reports", []):
+                archive.writestr(
+                    f"reports/{report['id']}.json", json.dumps(report, ensure_ascii=False, indent=2)
+                )
+            ingredients = [item["payload"] for item in snapshot.get("advanced_reports", [])
+                           if item["report_type"] == "reproduction"]
+            runtime = [item["payload"] for item in snapshot.get("advanced_reports", [])
+                       if item["report_type"] == "run_export"]
+            for index, ingredient in enumerate(ingredients):
+                if not any(item["snapshot_digest"] == ingredient["snapshot_digest"] for item in runtime):
+                    raise PlatformError(
+                        "INCOMPLETE_EVIDENCE", "Reproduction ingredients need their matching snapshot.", 409
+                    )
+                from .reports import ingredient_case
+
+                cases = [ingredient_case(value).model_dump(mode="json") for value in ingredient["cases"]
+                         if not value.get("content_withheld") and value.get("visibility") != "hidden"]
+                required_ids = {value for case in cases for value in case["requirement_ids"]}
+                suite = {
+                    "schema_version": "1.0", "id": ingredient["suite"]["id"],
+                    "synthetic": ingredient["suite"]["synthetic"], "timezone": ingredient["suite"]["timezone"],
+                    "limits": ingredient["suite"]["limits"], "cases": cases,
+                    "requirements": [item for item in ingredient["suite"].get("requirements", [])
+                                     if item.get("id") in required_ids],
+                }
+                folder = f"reproduction-{index}"
+                archive.writestr(f"{folder}/suite.json", json.dumps(suite, ensure_ascii=False, indent=2))
+                archive.writestr(
+                    f"{folder}/profile.json", json.dumps(ingredient["profile"], ensure_ascii=False, indent=2)
+                )
+                archive.writestr(f"{folder}/reproduction.json", json.dumps({
+                    **ingredient, "cases": [value for value in ingredient["cases"] if
+                                             not value.get("content_withheld") and value.get("visibility") != "hidden"],
+                    "suite": {**ingredient["suite"], "requirements": suite["requirements"]},
+                    "command": ("susanoo-runner run --suite suite.json --profile profile.json "
+                                "--agent-cmd LOCAL_APPROVED_AGENT"),
+                }, ensure_ascii=False, indent=2))
             archive.writestr(
                 "REPRODUCTION.md",
                 (
@@ -472,6 +519,9 @@ def render_export(snapshot, format):
                 styles["BodyText"],
             )
         )
+    from .report_exports import report_story
+
+    story.extend(report_story(snapshot.get("advanced_reports", []), styles))
     story.append(
         Paragraph(
             "Fresh reproduction requires the compatible authorized runner and local materials. "

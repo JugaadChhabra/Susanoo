@@ -76,6 +76,18 @@ def mount_integration_routes(app):
     @app.post("/projects/{project_id}/integrations", status_code=201)
     def integration(project_id: UUID, body: IntegrationIn, ctx: Ctx):
         project = ctx.project(project_id, service.OWNERS)
+        if body.provider == "webhook" and not body.relay:
+            raise PlatformError("INVALID_INPUT", "Webhook integrations require callback configuration.", 422)
+        if body.relay:
+            from susanoo_connectors.webhook import WebhookEventMapping
+
+            WebhookEventMapping.model_validate(
+                body.relay.model_dump(exclude={"public_base_url", "previous_secret_ref"})
+            )
+            if body.provider not in {"webhook", "media"}:
+                raise PlatformError("INVALID_INPUT", "Only webhook/media integrations can enable a relay.", 422)
+        if body.provider in {"webhook", "media"} and body.trigger_run:
+            raise PlatformError("FORBIDDEN", "Runtime callbacks never trigger new customer work.", 403)
         if body.provider == "github" and (not body.repository or not body.installation_id):
             raise PlatformError("INVALID_INPUT", "GitHub installation and repository are required.", 422)
         if body.trigger_run:
@@ -141,6 +153,8 @@ def mount_integration_routes(app):
             ).fetchone()
             if not row:
                 raise PlatformError("NOT_FOUND", "Callback route not found.", 404)
+            if row["provider"] == "webhook" or row["configuration"].get("relay"):
+                raise PlatformError("INVALID_INPUT", "Use the task-correlated runtime callback endpoint.", 422)
             secret = os.environ.get(row["secret_ref"], "")
             if not secret:
                 raise PlatformError("UNAVAILABLE", "The callback verifier is not configured.", 503)

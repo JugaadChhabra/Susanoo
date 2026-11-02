@@ -3,6 +3,17 @@
 Updated 2026-11-02. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
 `73224ee9133133663a7f4df6925b8afac209d88b`.
 
+## Aarav Completion Pass
+
+The owner requested completion of all remaining platform implementation, not just the bridge checkpoint.
+Typed advanced-report persistence/read/classification, domain-specific report screens, snapshot PDF/ZIP
+projection, persistent task-correlated webhook/Twilio relays, project-digest OTLP collection, automatic-run
+budget admission/deduplication, and operations controls are now implemented. The local disposable-PostgreSQL
+suite passed 77 tests; web type/lint checks passed. Publication reconciliation, multilingual PDF qualification,
+expanded browser coverage and final-head hosted CI are being completed; this is not yet a completion claim.
+Runtime imports in the API are existing DTOs and pure ingestion/policy/publication helpers only. The API
+does not instantiate an executor, build customer code, invoke an agent or contact arbitrary customer endpoints.
+
 The hackathon product is preserved. The expanded platform has a working private
 control plane and UI at `/evaluation`. This is **not complete product acceptance**:
 The outcome/preflight runner now connects to the real platform and has passed synthetic

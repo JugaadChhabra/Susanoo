@@ -101,6 +101,11 @@ def main():
     definition = TypeAdapter(checks.Check).json_schema()
     definitions.update(definition.pop("$defs", {}))
     definitions["CheckDefinition"] = definition
+    from susanoo_api.platform.reports import REPORT_ADAPTER
+
+    reports = REPORT_ADAPTER.json_schema()
+    definitions.update(reports.pop("$defs", {}))
+    definitions["ReportSubmission"] = reports
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "protocol_version": "1.0",

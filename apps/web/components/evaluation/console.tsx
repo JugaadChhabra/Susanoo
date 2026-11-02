@@ -58,6 +58,8 @@ import {
 import { initialValue, SchemaForm, schemaDefinitions } from "./schema-form";
 import { ProjectOperations, PublishRepair } from "./project-operations";
 import { EvidenceInspector } from "./evidence-inspector";
+import { AdvancedReports } from "./advanced-reports";
+import { RuntimeOperations } from "./runtime-operations";
 import { ResourceQuarantine } from "./resource-quarantine";
 
 type List<T> = Omit<Page, "items"> & { items: T[] };
@@ -1642,6 +1644,7 @@ export function EvaluationConsole() {
                 </div>
               ))}
               <EvidenceInspector runId={selectedRun.id} key={selectedRun.id} revisionKey={selectedRun.status} />
+              <AdvancedReports runId={selectedRun.id} revisionKey={selectedRun.status} reviewer={reviewer} />
               <Details
                 value={{
                   manifest_hash: selectedRun.manifest_hash,
@@ -2427,6 +2430,12 @@ export function EvaluationConsole() {
                       interval_seconds: Number(form.get("interval")),
                       run: runBody(),
                       enabled: form.get("enabled") === "on",
+                      automatic_budget: {
+                        allowed_suites: [suiteId], max_runs_per_window: Number(form.get("autoRuns")),
+                        window_seconds: Number(form.get("autoWindow")), max_cases_per_run: Number(form.get("autoCases")),
+                        max_agent_invocations: Number(form.get("autoInvocations")),
+                        max_cost_minor: form.get("autoCost") ? Number(form.get("autoCost")) : null,
+                      },
                     });
                     setSuccess("Pinned schedule created.");
                   });
@@ -2474,6 +2483,15 @@ export function EvaluationConsole() {
                     <input name="enabled" type="checkbox" />
                     Enabled
                   </label>
+                  <label>Automatic Runs per Window<input name="autoRuns" type="number" defaultValue={10}
+                    min={0} max={1000} required /></label>
+                  <label>Budget Window (seconds)<input name="autoWindow" type="number" defaultValue={3600}
+                    min={60} max={2592000} required /></label>
+                  <label>Cases per Automatic Run<input name="autoCases" type="number" defaultValue={50}
+                    min={1} max={5000} required /></label>
+                  <label>Agent Invocation Cap<input name="autoInvocations" type="number" defaultValue={400}
+                    min={1} max={100000} required /></label>
+                  <label>Known Cost Cap (minor units)<input name="autoCost" type="number" min={0} /></label>
                 </div>
                 <div className="ev-form-actions">
                   <button className="ev-secondary" disabled={busy || !engineer}>
@@ -2482,6 +2500,7 @@ export function EvaluationConsole() {
                 </div>
               </form>
               <h3>Governance</h3>
+              {(engineer || reviewer || owner) && <RuntimeOperations projectId={projectId} owner={owner} key={projectId} />}
               {reviewer && (
                 <ResourceQuarantine projectId={projectId} key={projectId} />
               )}

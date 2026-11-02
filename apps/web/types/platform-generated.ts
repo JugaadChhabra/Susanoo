@@ -8,10 +8,32 @@ export interface ActionContext {
   deadline: string;
 }
 
+export interface ActionPlan {
+  id: string;
+  actions: Array<PlannedAction>;
+}
+
 export interface ActionResult {
   status: "ok" | "rejected" | "error" | "replayed" | "uncertain";
   code: string | null;
   response?: Record<string, unknown>;
+}
+
+export interface Actor {
+  permissions?: Array<string>;
+  operations?: Array<string>;
+}
+
+export interface AdvancedReportRecord {
+  id: string;
+  run_id: string;
+  attempt_id: string;
+  report_type: string;
+  report_key: string;
+  content_hash: string;
+  payload: Record<string, unknown>;
+  hidden: boolean;
+  created_at: string;
 }
 
 export interface AgentContext {
@@ -23,6 +45,14 @@ export interface AgentContext {
   connection: ConnectionSpec | null;
   script: Array<ScriptStep>;
   tool_route: ToolRoute | null;
+}
+
+export interface AgentRepairReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "agent_repair";
+  payload: susanoo_runner__agent_repair__RepairValidation;
 }
 
 export interface AgentReply {
@@ -82,6 +112,23 @@ export interface AttemptRecord {
   hidden: boolean;
 }
 
+export interface AudioMetricsReport {
+  modality: "audio" | "transcript_only";
+  transcript_quality: TranscriptQuality | Unavailable;
+  response_latency: LatencyDistribution | Unavailable;
+  interruptions: Array<Interruption> | Unavailable;
+  speech_quality?: Unavailable;
+}
+
+export interface AutomaticRunBudget {
+  max_runs_per_window: number;
+  window_seconds: number;
+  max_cases_per_run: number;
+  max_agent_invocations: number;
+  max_cost_minor: number | null;
+  allowed_suites?: Array<string>;
+}
+
 export interface BudgetReservation {
   lease_token: string;
   operation_id: string;
@@ -100,6 +147,14 @@ export interface BuildResult {
 export interface BusinessDate {
   date: string;
   timezone: string;
+}
+
+export interface CalibrationReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "calibration";
+  payload: SemanticCalibration;
 }
 
 export interface CalibrationResult {
@@ -126,6 +181,18 @@ export interface CancelResult {
   acknowledged: boolean;
   remote_cancel_attempted: boolean;
   note: string | null;
+}
+
+export interface Candidate {
+  id: string;
+  category: "access_control" | "duplicate_write" | "validation" | "transport" | "response_value" | "state_value" | "missing_side_effect" | "extra_side_effect";
+  step: string | null;
+  operation: string | null;
+  summary: string;
+  paths?: Array<string>;
+  classification: "unresolved";
+  matches_declared_simplification: boolean;
+  reproduction_steps?: Array<string>;
 }
 
 export interface Capabilities {
@@ -158,6 +225,36 @@ export interface CapabilityReport {
   capabilities: Capabilities;
   checks?: Record<string, boolean>;
   notes?: Array<string>;
+}
+
+export interface CapacityReport {
+  measured_at: string;
+  host: string;
+  python: string;
+  suite_id: string;
+  cases_per_run: number;
+  concurrency: number;
+  repetitions: number;
+  attempts: number;
+  passed: number;
+  not_passed: number;
+  execution_errors: number;
+  wall_seconds: number;
+  attempts_per_second: number;
+  attempt_p50_seconds: number;
+  attempt_p95_seconds: number;
+  attempt_max_seconds: number;
+  peak_rss_mb: number;
+  journal_bytes: number;
+  gates: Array<string>;
+}
+
+export interface CapacityReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "capacity";
+  payload: CapacityReport;
 }
 
 export interface CaseSpec {
@@ -265,6 +362,30 @@ export interface CleanupResult {
   detail: string | null;
 }
 
+export interface CollectorCredentialIn {
+  hours: number;
+}
+
+export interface CollisionReport {
+  schedule_id: string;
+  schedule_digest: string;
+  shared_namespace: boolean;
+  isolated: boolean;
+  seed_digest: string;
+  repetitions: Array<RepetitionResult>;
+  defects_found: Array<"lost_update" | "duplicate_record" | "invalid_transition" | "ownership_conflict" | "write_after_revocation">;
+  caught: boolean;
+  note: string;
+}
+
+export interface CollisionReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "collision";
+  payload: CollisionReport;
+}
+
 export interface CollisionSpec {
   kind: "collision";
   environment_version_id: string;
@@ -272,6 +393,58 @@ export interface CollisionSpec {
   barriers: Array<string>;
   repetitions: number;
   limits?: RunLimits;
+}
+
+export interface Comparison {
+  baseline: ProbeAccounting;
+  priority: ProbeAccounting;
+  accepted_delta: number;
+  note: string;
+}
+
+export interface ComparisonReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "comparison";
+  payload: ComparisonResult;
+}
+
+export interface ComparisonResult {
+  contract_id: string;
+  contract_digest: string;
+  criteria_digest: string;
+  plan_id: string;
+  plan_digest: string;
+  simulator_digest: string;
+  reference_digest: string;
+  status: "compared" | "blocked_preflight";
+  preflight: Preflight;
+  steps?: Array<StepComparison>;
+  state_differences?: Array<StateDifference>;
+  candidates?: Array<Candidate>;
+  normalizers_applied?: Array<string>;
+  simulator_state?: Record<string, Array<Record<string, unknown>>>;
+  reference_state?: Record<string, Array<Record<string, unknown>>>;
+  synthetic: boolean;
+}
+
+export interface Conclusion {
+  conclusion_id: string;
+  run_id: string;
+  case_id: string;
+  verdict: string;
+  recorded_at: string;
+  dependencies: Record<string, string>;
+  covered_kinds: Array<string>;
+}
+
+export interface ConclusionReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "conclusion";
+  payload: Conclusion;
 }
 
 export interface ConnectionSpec {
@@ -319,6 +492,7 @@ export interface DataPolicy {
   external_models_allowed: boolean;
   source_upload_allowed: boolean;
   media_upload_allowed: boolean;
+  report_upload_allowed: boolean;
   allowed_hosts?: Array<string>;
   allowed_operations?: Array<string>;
 }
@@ -338,17 +512,55 @@ export interface DeadlineCheck {
   within_seconds: number;
 }
 
+export interface Defect {
+  kind: "lost_update" | "duplicate_record" | "invalid_transition" | "ownership_conflict" | "write_after_revocation";
+  entity: string;
+  detail: string;
+}
+
 export interface DependencyIn {
   source_version_id: string;
   target_version_id: string;
   relationship: "declared_dependency" | "observed_dependency";
 }
 
+export interface Difference {
+  path: string;
+  simulator: unknown;
+  reference: unknown;
+  kind: "value" | "missing_in_simulator" | "missing_in_reference" | "length";
+}
+
 export interface DispatchPayload {
   operation_id: string;
 }
 
+export interface DraftScenario {
+  status: "draft";
+  requires_approval: true;
+  auto_replay: false;
+  approved_requirement: false;
+  draft_id: string;
+  source_signature: string;
+  source_count: number;
+  title: string;
+  rationale: string;
+  case: Record<string, unknown>;
+  fixture: Record<string, unknown>;
+  alias_digests: Record<string, string>;
+  created_at: string;
+}
+
 export type DslModel = Record<string, never>;
+
+export interface EditCounts {
+  substitutions: number;
+  deletions: number;
+  insertions: number;
+  reference_length: number;
+  hypothesis_length: number;
+  rate: number | null;
+}
 
 export interface EnvironmentSpec {
   kind: "environment";
@@ -404,6 +616,23 @@ export interface EvidenceBatch {
   lease_token: string;
   observations?: Array<Observation>;
   check_results?: Array<CheckResult>;
+}
+
+export interface EvidenceEntry {
+  step: number;
+  repetition: number;
+  actor: string;
+  event: "call" | "router_rejected" | "ack_withheld" | "late_ack" | "revoked" | "fault" | "actor_finished";
+  operation: string | null;
+  mutating: boolean | null;
+  idempotency_key: string | null;
+  status: string | null;
+  code: string | null;
+  sim_seq: number | null;
+  faults?: Array<string>;
+  elapsed_ms: number;
+  sim_clock: string | null;
+  detail: string | null;
 }
 
 export interface ExecutionManifest {
@@ -494,6 +723,15 @@ export interface FixtureHandle {
   prepared_at: string;
 }
 
+export interface FixtureSeed {
+  domain: string;
+  domain_version: string;
+  clock: string;
+  entities?: Record<string, Array<Record<string, unknown>>>;
+  aliases?: Record<string, string>;
+  actors?: Record<string, Actor>;
+}
+
 export interface FixtureSpec {
   kind: "fixture";
   adapter: string;
@@ -522,6 +760,12 @@ export interface ForbiddenChangeCheck {
 
 export type Gate = "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "READY_FOR_ACCEPTANCE";
 
+export interface GateCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
 export interface GraderSpec {
   kind: "grader";
   mode: "deterministic" | "semantic";
@@ -537,19 +781,73 @@ export interface GraderSpec {
   max_false_alarms: number;
 }
 
+export interface HeldoutSummary {
+  split_digest: string;
+  passed: number;
+  failed: number;
+  unknown: number;
+}
+
 export interface IdentityRecord {
   id: string;
   email: string;
 }
 
+export interface ImportBatch {
+  records?: Array<TraceRecord>;
+  errors?: Array<RecordError>;
+  duplicates?: Array<string>;
+  cursor: ImportCursor;
+  truncated: boolean;
+  bytes_read: number;
+}
+
+export interface ImportCursor {
+  source_name: string;
+  position: number;
+}
+
+export interface ImportReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "import";
+  payload: ImportBatch;
+}
+
+export interface IncidentReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "incident";
+  payload: DraftScenario;
+}
+
 export interface IntegrationIn {
-  provider: "github" | "ci" | "media";
+  provider: "github" | "ci" | "media" | "webhook";
   secret_ref: string;
   installation_id: number | null;
   repository: string | null;
   publish_enabled: boolean;
   trigger_run: RunCreate | null;
   approved_branch: string | null;
+  relay: RelayConfiguration | null;
+  automatic_budget: AutomaticRunBudget | null;
+}
+
+export interface Interruption {
+  caller_turn: number;
+  agent_turn: number | null;
+  overlap_ms: number | null;
+  agent_continued_ms: number | null;
+  outcome: "agent_yielded" | "agent_talked_over" | "transport_loss" | "no_overlap_observed";
+  note: string;
+}
+
+export interface Intervention {
+  delta_id: string;
+  simulator_after_swap: SideResult;
+  flipped_to_reference: boolean;
 }
 
 export interface InvitationIn {
@@ -593,8 +891,45 @@ export interface JsonlFrame {
   payload?: Record<string, unknown>;
 }
 
+export interface LatencyDistribution {
+  samples_ms: Array<number>;
+  count: number;
+  min_ms: number;
+  p50_ms: number;
+  p90_ms: number;
+  p95_ms: number;
+  max_ms: number;
+  mean_ms: number;
+  method: string;
+}
+
+export interface LayerPins {
+  agent_commit: string;
+  agent_after: string;
+  simulator_before: string;
+  simulator_after: string;
+  evaluator_before: string;
+  evaluator_after: string;
+  criteria_before: string;
+  criteria_after: string;
+}
+
 export interface LeaseRequest {
   lease_token: string;
+}
+
+export interface LedgerObservation {
+  record_counts: Record<string, number>;
+  payments_by_ref: Record<string, number>;
+  opening_balances: Record<string, number>;
+  final_balances: Record<string, number>;
+  expected_balances: Record<string, number>;
+  lost_update_minor: Record<string, number>;
+  status_history: Record<string, Array<string>>;
+  owner_history: Record<string, Array<string | null>>;
+  final_owner: Record<string, string | null>;
+  eventual_state: Record<string, Array<Record<string, unknown>>>;
+  defects?: Array<Defect>;
 }
 
 export interface ManualCheck {
@@ -614,6 +949,14 @@ export interface ManualCheck {
 export interface MeResponse {
   user: IdentityRecord;
   workspaces: Array<WorkspaceRecord>;
+}
+
+export interface MediaReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "media";
+  payload: AudioMetricsReport;
 }
 
 export interface MembershipChange {
@@ -690,6 +1033,17 @@ export interface Page {
   next_cursor: string | null;
 }
 
+export interface PairOutcome {
+  case_id: string;
+  repetition: number;
+  simulator: SideResult;
+  reference: SideResult;
+  relationship: "simulator_pass_reference_fail" | "simulator_fail_reference_pass" | "no_observed_change" | "inconclusive";
+  dependencies: Record<string, "observed_dependency" | "declared_dependency" | "uncertain" | "none">;
+  attribution: "none" | "association" | "discrepancy_induced";
+  interventions?: Array<Intervention>;
+}
+
 export interface PatchBundle {
   base_commit: string;
   files: Array<PatchFile>;
@@ -709,9 +1063,23 @@ export interface PinnedCase {
   graders?: Array<VersionRecord>;
 }
 
+export interface PlannedAction {
+  step: string;
+  operation: string;
+  request?: Record<string, unknown>;
+  idempotency_key: string | null;
+}
+
 export interface PolicySpec {
   kind: "policy";
   policy: DataPolicy;
+}
+
+export interface Preflight {
+  ok: boolean;
+  problems?: Array<string>;
+  simulator_seed_digest: string | null;
+  reference_seed_digest: string | null;
 }
 
 export interface PreflightResult {
@@ -727,6 +1095,100 @@ export interface PreparedPayload {
   operation_id: string;
   request_digest: string;
   action_kind: "agent_invoke" | "environment_action" | "fixture_prepare" | "observe" | "cleanup" | "reference_call";
+}
+
+export interface ProbeAccounting {
+  strategy: "uniform" | "priority";
+  pool_digest: string;
+  budget_cap: number;
+  cleanup_allowance: number;
+  checker_digest: string;
+  reference_calls: number;
+  cost_used: number;
+  budget_reserved: number;
+  accepted_findings: number;
+  rejected_findings: number;
+  unknowns: number;
+  review_effort: number;
+  accepted_per_reference_call: number;
+  accepted_per_cost_unit: number;
+}
+
+export interface ProbeCandidate {
+  id: string;
+  transition: string;
+  severity: "critical" | "high" | "medium" | "low";
+  times_tested: number;
+  recently_changed: boolean;
+  uncertainty: number;
+  expected_cost: number;
+  max_retries: number;
+}
+
+export interface ProbeComparisonReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "probe_comparison";
+  payload: Comparison;
+}
+
+export interface ProbeExecution {
+  candidate_id: string;
+  reserved: number;
+  calls: number;
+  cost: number;
+  cleanup_cost: number;
+  retries: number;
+  status: "finding" | "no_finding" | "unknown" | "error";
+  finding_id: string | null;
+  detail: string | null;
+}
+
+export interface ProbePlan {
+  plan_id: string;
+  strategy: "uniform" | "priority";
+  seed: number;
+  candidate_pool: Array<ProbeCandidate>;
+  pool_digest: string;
+  weights: Record<string, number>;
+  score_inputs: Array<ScoreInputs>;
+  exploration_fraction: number;
+  selected: Array<string>;
+  exploration_picks: Array<string>;
+  budget_cap: number;
+  cleanup_allowance: number;
+  checker_digest: string;
+}
+
+export interface ProbePlanReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "probe_plan";
+  payload: ProbePlan;
+}
+
+export interface ProbeRun {
+  run_id: string;
+  plan: ProbePlan;
+  scope: string;
+  executions: Array<ProbeExecution>;
+  not_run: Array<string>;
+  stopped_reason: "completed" | "budget_exhausted";
+  budget_cap: number;
+  budget_reserved: number;
+  remaining_budget: number;
+  reference_calls: number;
+  cost_used: number;
+}
+
+export interface ProbeRunReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "probe_run";
+  payload: ProbeRun;
 }
 
 export interface ProbeSpec {
@@ -775,6 +1237,19 @@ export interface ProjectRecord {
   policy: DataPolicy;
   roles: Array<Role>;
   hidden_access: boolean;
+}
+
+export interface Provenance {
+  source_kind: "csv" | "jsonl" | "normalized" | "otlp_protobuf" | "otlp_json";
+  source_name: string;
+  imported_at: string;
+  first_timestamp: string | null;
+  last_timestamp: string | null;
+  mapping?: Record<string, string>;
+  completeness: "complete" | "partial" | "unknown";
+  missing?: Array<string>;
+  redactions: number;
+  source_location: string | null;
 }
 
 export interface PublishIn {
@@ -830,6 +1305,43 @@ export interface ReconciliationPayload {
   evidence_id: string;
 }
 
+export interface RecordError {
+  location: string;
+  code: "invalid_json" | "invalid_record" | "too_large" | "too_many_turns" | "invalid_protobuf" | "limit";
+  message: string;
+}
+
+export interface ReductionAttempt {
+  index: number;
+  transformation: "drop_actions" | "drop_entity";
+  description: string;
+  steps: Array<string>;
+  outcome: "reproduced" | "not_reproduced" | "inconsistent" | "invalid_prerequisites" | "preflight_blocked";
+  runs: number;
+}
+
+export interface ReductionReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "reduction";
+  payload: ReductionResult;
+}
+
+export interface ReductionResult {
+  label: string;
+  contract_id: string;
+  original_plan: ActionPlan;
+  reduced_plan: ActionPlan;
+  original_fixture: FixtureSeed;
+  reduced_fixture: FixtureSeed;
+  attempts?: Array<ReductionAttempt>;
+  budget: number;
+  runs_used: number;
+  stopped_because: "no_further_reduction" | "budget_exhausted" | "original_not_reproduced";
+  reproduction?: Array<string>;
+}
+
 export interface RelationshipCheck {
   schema_version: "1.0";
   id: string;
@@ -845,6 +1357,30 @@ export interface RelationshipCheck {
   target_observation: string;
   target_path: string;
   target_filter?: Record<string, unknown>;
+}
+
+export interface RelayConfiguration {
+  public_base_url: string;
+  event_id_path: string;
+  task_id_path: string;
+  status_path: string;
+  sequence_path: string | null;
+  result_path: string | null;
+  terminal_states?: Array<string>;
+  previous_secret_ref: string | null;
+}
+
+export interface RelayPoll {
+  lease_token: string;
+  after: number;
+}
+
+export interface RelayTaskRegistration {
+  lease_token: string;
+  integration_id: string;
+  task_id: string;
+  invocation_id: string;
+  operation_id: string;
 }
 
 export interface RepairContext {
@@ -891,10 +1427,60 @@ export interface RepairResult {
   criteria_unchanged: boolean;
 }
 
+export interface RepetitionResult {
+  repetition: number;
+  namespace: string;
+  priority: Array<string>;
+  outcome: "settled" | "deadline_exceeded" | "call_limit_exceeded" | "actor_error";
+  actor_errors?: Record<string, string>;
+  observation: LedgerObservation;
+  evidence: Array<EvidenceEntry>;
+  fixture_digest: string;
+  fault_profile: string;
+}
+
+export interface ReportClassificationIn {
+  candidate_id: string;
+  classification: "confirmed_defect" | "intentional_simplification" | "reference_limitation" | "unresolved";
+  rationale: string;
+  evidence_ids: Array<string>;
+}
+
 export interface ReportResult {
   job_kind: "action_comparison" | "fresh_agent_pair" | "reduce_reproduction" | "simulator_inspect" | "simulator_reset" | "trace_import" | "incident_draft" | "collision" | "probe" | "voice";
   status: "succeeded" | "failed" | "unknown" | "unavailable";
   artifact_ids?: Array<string>;
+}
+
+export type ReportSubmission = ComparisonReportSubmission | TaskImpactReportSubmission | TwoByTwoReportSubmission | ReductionReportSubmission | SimulatorRepairReportSubmission | AgentRepairReportSubmission | ProbePlanReportSubmission | ProbeRunReportSubmission | ProbeComparisonReportSubmission | CollisionReportSubmission | CalibrationReportSubmission | MediaReportSubmission | ImportReportSubmission | IncidentReportSubmission | ConclusionReportSubmission | ValidityReportSubmission | CapacityReportSubmission | RunExportReportSubmission | ReproductionReportSubmission;
+
+export interface ReportedOutcome {
+  kind: string;
+  status: string;
+  detail?: Record<string, unknown>;
+  timestamp: string | null;
+}
+
+export interface ReproductionIngredient {
+  schema_version: "1.0";
+  kind: "susanoo.reproduction_ingredient";
+  audience: "operator" | "engineer";
+  snapshot_digest: string;
+  suite: Record<string, unknown>;
+  agent: Record<string, unknown>;
+  adapters: Record<string, unknown>;
+  evaluator_digest: string;
+  profile: Record<string, unknown>;
+  cases: Array<Record<string, unknown>>;
+  command: string;
+}
+
+export interface ReproductionReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "reproduction";
+  payload: ReproductionIngredient;
 }
 
 export interface RequirementSpec {
@@ -925,6 +1511,12 @@ export interface ReviewIn {
   evidence_ids?: Array<string>;
 }
 
+export interface RiskFlag {
+  kind: "evaluation_criteria" | "test_exclusion" | "permissions" | "network_access" | "dependencies";
+  path: string;
+  evidence: string;
+}
+
 export type Role = "owner" | "engineer" | "reviewer" | "viewer";
 
 export interface RunCounts {
@@ -945,6 +1537,14 @@ export interface RunCreate {
   environment_version_id: string;
   repetitions: number;
   limits?: RunLimits;
+}
+
+export interface RunExportReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "run_export";
+  payload: RuntimeExport;
 }
 
 export interface RunLimits {
@@ -1032,11 +1632,27 @@ export interface RunnerRegistration {
   capabilities: Array<string>;
 }
 
+export interface RuntimeExport {
+  schema_version: "1.0";
+  kind: "susanoo.run_export";
+  audience: "operator" | "engineer";
+  snapshot_digest: string;
+  generated_at: string;
+  lineage: Record<string, unknown>;
+  machine: Record<string, unknown>;
+  acceptance: Record<string, unknown>;
+  compatibility: Record<string, unknown>;
+  exclusions: Array<unknown>;
+  counts_definitions: Record<string, unknown>;
+  snapshot: Record<string, unknown>;
+}
+
 export interface ScheduleIn {
   name: string;
   interval_seconds: number;
   run: RunCreate;
   enabled: boolean;
+  automatic_budget: AutomaticRunBudget | null;
 }
 
 export interface ScheduleRecord {
@@ -1046,12 +1662,40 @@ export interface ScheduleRecord {
   configuration: RunCreate;
   enabled: boolean;
   next_due_at: string;
+  automatic_budget: AutomaticRunBudget | null;
+}
+
+export interface ScoreInputs {
+  candidate_id: string;
+  severity: number;
+  untested: number;
+  recent_change: number;
+  uncertainty: number;
+  expected_cost: number;
+  score: number;
 }
 
 export interface ScriptStep {
   message: string;
   when: "always" | "reply_contains" | "reply_equals";
   value: string | null;
+}
+
+export interface SemanticCalibration {
+  grader_version_id: string;
+  model_id: string;
+  prompt_digest: string;
+  rubric_digest: string;
+  control_set_hash: string;
+  thresholds: SemanticThresholds;
+  calibration: SplitMetrics | null;
+  heldout: SplitMetrics | null;
+  excluded_self_labeled?: Array<string>;
+  false_passes?: Array<string>;
+  false_fails?: Array<string>;
+  errors?: Array<string>;
+  accepted: boolean;
+  reasons?: Array<string>;
 }
 
 export interface SemanticCheck {
@@ -1069,9 +1713,38 @@ export interface SemanticCheck {
   grader_version_id: string | null;
 }
 
+export interface SemanticThresholds {
+  min_agreement: number;
+  max_false_pass_rate: number;
+  max_false_fail_rate: number;
+  min_per_label: number;
+  min_heldout: number;
+}
+
 export interface SessionHandle {
   session_id: string;
   attempt_id: string;
+}
+
+export interface SideOutcome {
+  status: string;
+  code: string | null;
+  response?: Record<string, unknown>;
+}
+
+export interface SideResult {
+  business_verdict: string;
+  execution_state: string;
+  failed_checks?: Array<string>;
+  operations: Array<string> | null;
+}
+
+export interface SimulatorRepairReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "simulator_repair";
+  payload: susanoo_runner__repair__RepairValidation;
 }
 
 export interface SnapshotScope {
@@ -1103,10 +1776,32 @@ export interface SourceSpec {
   allowed_patch_paths?: Array<string>;
 }
 
+export interface SplitMetrics {
+  examples: number;
+  agreement: number;
+  false_pass_rate: number;
+  false_fail_rate: number;
+  errors: number;
+}
+
+export interface StateDifference {
+  kind: string;
+  entity: string | null;
+  difference: Difference;
+}
+
 export interface StateSnapshot {
   captured_at: string;
   digest: string;
   state: Record<string, Array<Record<string, unknown>>>;
+}
+
+export interface StepComparison {
+  step: string;
+  operation: string;
+  simulator: SideOutcome;
+  reference: SideOutcome;
+  differences?: Array<Difference>;
 }
 
 export interface StepDispatchingEvent {
@@ -1151,6 +1846,14 @@ export interface SuiteSpec {
   limits?: RunLimits;
 }
 
+export interface TaskImpactReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "task_impact";
+  payload: PairOutcome;
+}
+
 export interface ToolEvent {
   operation: string;
   status: string;
@@ -1164,6 +1867,37 @@ export interface ToolRoute {
   token: string;
   operations?: Array<string>;
   operation_id: string | null;
+}
+
+export interface TraceRecord {
+  schema_version: "1.0";
+  record_id: string;
+  conversation_id: string;
+  turns?: Array<TraceTurn>;
+  outcomes?: Array<ReportedOutcome>;
+  provenance: Provenance;
+  evidence_class: "evidence_only";
+  proves_backend_state: false;
+  replay_authorized: false;
+}
+
+export interface TraceTurn {
+  index: number;
+  role: "user" | "agent" | "tool" | "system";
+  text: string | null;
+  timestamp: string | null;
+  tool_name: string | null;
+  arguments: Record<string, unknown> | null;
+  status: "ok" | "error" | "unset";
+  error: string | null;
+}
+
+export interface TranscriptQuality {
+  wer: EditCounts;
+  cer: EditCounts;
+  locale: string;
+  reviewed_by: string;
+  normalization: Record<string, string | boolean>;
 }
 
 export interface TransitionCheck {
@@ -1181,6 +1915,24 @@ export interface TransitionCheck {
   key: string;
   allowed: Array<Array<unknown>>;
   allow_unchanged: boolean;
+}
+
+export interface TwoByTwoCell {
+  agent: "old" | "new";
+  environment: "old" | "new";
+  results: Array<SideResult>;
+}
+
+export interface TwoByTwoReport {
+  cells: Array<TwoByTwoCell>;
+}
+
+export interface TwoByTwoReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "two_by_two";
+  payload: TwoByTwoReport;
 }
 
 export interface Unavailable {
@@ -1208,6 +1960,23 @@ export interface Usage {
   output_tokens: number | null;
   cost_minor: number | null;
   currency: string | null;
+}
+
+export interface ValidityMark {
+  conclusion_id: string;
+  status: "retest_recommended" | "scope_changed" | "reference_unverified" | "coverage_incomplete";
+  reason: string;
+  dependency_path: Array<string>;
+  event_id: string;
+  marked_at: string;
+}
+
+export interface ValidityReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "validity";
+  payload: ValidityMark;
 }
 
 export type Verdict = "PASS" | "FAIL" | "UNKNOWN";
@@ -1270,4 +2039,26 @@ export interface WorkspaceRecord {
   id: string;
   name: string;
   roles: Array<Role>;
+}
+
+export interface susanoo_runner__agent_repair__RepairValidation {
+  finding_id: string;
+  layer: "agent" | "simulator" | "evaluator";
+  origin: string;
+  base_commit: string;
+  patch_digest: string;
+  outcome: "accepted" | "rejected" | "inconclusive";
+  checks: Array<GateCheck>;
+  flags: Array<RiskFlag>;
+  pins: LayerPins;
+  heldout: HeldoutSummary | null;
+  heldout_exposures: number;
+}
+
+export interface susanoo_runner__repair__RepairValidation {
+  proposal_digest: string;
+  layer: string;
+  pinned: Record<string, string>;
+  outcome: "accepted" | "rejected" | "inconclusive";
+  checks: Array<GateCheck>;
 }

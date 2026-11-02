@@ -331,14 +331,16 @@ def comparison(ctx, baseline_id, candidate_id):
 
 
 def create_schedule(ctx, project_id, body):
+    from susanoo_contracts import AutomaticRunBudget
+
     project = ctx.project(project_id, ENGINEERS)
     ctx.version(body.run.suite_version_id, project, "suite", True)
     ctx.version(body.run.connection_version_id, project, "connection")
     ctx.version(body.run.environment_version_id, project, "environment", True)
     result = ctx.db.execute(
         """insert into platform.schedules(workspace_id,project_id,name,interval_seconds,configuration,
-        enabled,next_due_at,created_by)
-        values(%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s),%s) returning *""",
+        enabled,next_due_at,created_by,automatic_budget)
+        values(%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s),%s,%s) returning *""",
         (
             project["workspace_id"],
             project_id,
@@ -348,6 +350,9 @@ def create_schedule(ctx, project_id, body):
             body.enabled,
             body.interval_seconds,
             ctx.actor["user_id"],
+            Jsonb((body.automatic_budget or AutomaticRunBudget(
+                allowed_suites=[str(body.run.suite_version_id)]
+            )).model_dump(mode="json")),
         ),
     ).fetchone()
     ctx.audit("schedule.created", result["id"], project)

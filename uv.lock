@@ -3392,6 +3392,7 @@ dependencies = [
     { name = "susanoo-contracts" },
     { name = "susanoo-core" },
     { name = "susanoo-evaluator" },
+    { name = "susanoo-runner" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -3406,6 +3407,7 @@ requires-dist = [
     { name = "susanoo-contracts", editable = "packages/contracts" },
     { name = "susanoo-core", editable = "packages/core" },
     { name = "susanoo-evaluator", editable = "packages/evaluator" },
+    { name = "susanoo-runner", editable = "packages/runner" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 

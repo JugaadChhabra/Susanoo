@@ -770,8 +770,12 @@ def create_platform_app():
     from .integration_routes import mount_integration_routes
     from .runner_io import mount_runner_io
     from .source_access import mount_source_access
+    from .relay import mount_relay_routes
+    from .reports import mount_report_routes
 
     mount_integration_routes(app)
     mount_runner_io(app)
     mount_source_access(app)
+    mount_relay_routes(app)
+    mount_report_routes(app)
     return app

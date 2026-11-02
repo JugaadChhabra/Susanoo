@@ -23,6 +23,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY packages/core packages/core
 COPY packages/contracts packages/contracts
 COPY packages/evaluator packages/evaluator
+COPY packages/sdk-python packages/sdk-python
+COPY packages/simulator packages/simulator
+COPY packages/connectors packages/connectors
+COPY packages/runner packages/runner
 COPY apps/api apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package susanoo-api

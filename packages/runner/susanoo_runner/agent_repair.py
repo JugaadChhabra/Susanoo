@@ -17,7 +17,10 @@ from __future__ import annotations
 import json
 import os
 import re
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import shutil
 import subprocess
 import tempfile
@@ -590,6 +593,8 @@ class UnitTestCommand(Model):
 def run_unit_tests(command: UnitTestCommand, tree: Path, *, approved_digest: str) -> tuple[bool, str]:
     if approved_digest != command.digest:
         raise RepairError("command_not_approved", "The unit-test command differs from the approved digest")
+    if resource is None:
+        raise RepairError("unsupported_host", "Repair execution requires the approved Linux resource-limit boundary")
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8", "HOME": str(tree), **command.env}
 
     def limits() -> None:
