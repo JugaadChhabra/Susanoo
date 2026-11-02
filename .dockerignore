@@ -1,6 +1,10 @@
 .git
 .github
 .venv
+.platform
+.susanoo
+promo
+**/node_modules
 **/__pycache__
 **/.pytest_cache
 **/.ruff_cache

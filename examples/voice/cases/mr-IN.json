@@ -1,0 +1,68 @@
+{
+  "schema": "susanoo-voice-case-draft/1",
+  "status": "draft — requires fluent review",
+  "validated": false,
+  "locale": "mr-IN",
+  "language": "Marathi",
+  "provenance": "machine-drafted for structure only; not a validated translation or speech coverage",
+  "review": {
+    "required_reviewer": "fluent Marathi speaker",
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "audio": {
+    "fixtures": [
+      "../fixtures/caller_turn_short.wav",
+      "../fixtures/caller_turn_long.wav",
+      "../fixtures/barge_in.wav"
+    ],
+    "note": "synthetic tones/silence stand in for speech; real recordings need consent and the voice profile's recording policy"
+  },
+  "cases": [
+    {
+      "id": "V-MR-01",
+      "title": "पैसे भरण्याचे आश्वासन",
+      "code_switched": false,
+      "facts": {
+        "amount_minor": 12500000,
+        "currency": "INR",
+        "amount_display": "₹१,२५,०००.००",
+        "due_date": "2026-11-15",
+        "due_date_display": "१५ नोव्हेंबर २०२६",
+        "timezone": "Asia/Kolkata"
+      },
+      "caller_script": [
+        "नमस्कार, मी १५ नोव्हेंबर २०२६ रोजी ₹१,२५,०००.०० भरेन.",
+        "हो, कृपया नोंद करा."
+      ],
+      "expected_behavior": "Agent confirms amount and date in Marathi and records exactly one promise.",
+      "reference_transcript": {
+        "text": "नमस्कार, मी १५ नोव्हेंबर २०२६ रोजी ₹१,२५,०००.०० भरेन.",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    },
+    {
+      "id": "V-MR-02",
+      "title": "Marathi-English code-switching",
+      "code_switched": true,
+      "facts": {
+        "amount_minor": 450000,
+        "currency": "INR",
+        "amount_display": "₹4,500.00",
+        "due_date": "2026-12-01",
+        "due_date_display": "1 डिसेंबर 2026",
+        "timezone": "Asia/Kolkata"
+      },
+      "caller_script": [
+        "माझं payment 1 December 2026 ला होईल, ₹4,500.00 confirm करा."
+      ],
+      "expected_behavior": "Agent confirms the amount in the caller's language mix without altering it.",
+      "reference_transcript": {
+        "text": "माझं payment 1 December 2026 ला होईल, ₹4,500.00 confirm करा.",
+        "review_status": "draft",
+        "reviewed_by": null
+      }
+    }
+  ]
+}

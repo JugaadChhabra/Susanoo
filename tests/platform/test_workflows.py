@@ -1,5 +1,6 @@
 import hashlib
 import json
+import pytest
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from conftest import approve, launch, result, version
 from susanoo_api.platform import jobs
 from susanoo_api.platform import workflows
 from susanoo_api.platform.cli import migrate
-from susanoo_api.platform.database import transaction
+from susanoo_api.platform.database import PlatformError, transaction
 
 
 def failed_run(suite):
@@ -84,6 +85,7 @@ def test_default_deny_rls_and_repeat_migrations(world):
     role = "susanoo_test_rls_" + uuid4().hex
     with transaction() as db:
         db.execute(sql.SQL("create role {} nologin nosuperuser nobypassrls").format(sql.Identifier(role)))
+        db.execute(sql.SQL("grant {} to current_user").format(sql.Identifier(role)))
         db.execute(sql.SQL("grant usage on schema platform to {}").format(sql.Identifier(role)))
         db.execute(sql.SQL("grant select on platform.projects to {}").format(sql.Identifier(role)))
         db.execute(sql.SQL("set local role {}").format(sql.Identifier(role)))
@@ -93,7 +95,8 @@ def test_default_deny_rls_and_repeat_migrations(world):
         db.execute(sql.SQL("drop role {}").format(sql.Identifier(role)))
 
 
-def test_repair_validation_pins_artifact_and_separate_approval(suite):
+@pytest.mark.parametrize("publication", ["recovered", "stale_race", "corrupt_artifact"])
+def test_repair_validation_pins_artifact_and_separate_approval(suite, monkeypatch, publication):
     _, finding = failed_run(suite)
     suite["owner"].ok(
         "POST",
@@ -157,6 +160,32 @@ def test_repair_validation_pins_artifact_and_separate_approval(suite):
         f"/attempts/{claim['attempt_id']}/artifacts/{artifact['id']}/download", {"lease_token": claim["lease_token"]}
     )
     assert response.content == patch
+    typed = {
+        "finding_id": finding["id"], "layer": "agent", "origin": "manual_upload", "base_commit": "a" * 40,
+        "patch_digest": repair["validation_patch_digest"], "outcome": "accepted", "flags": [],
+        "checks": [{"name": name, "passed": True, "detail": "Synthetic protocol assertion"} for name in (
+            "reproduction_before_repair", "criteria_not_weakened", "unit_tests", "reduced_reproduction_fixed",
+            "valid_controls_preserved", "heldout_matches",
+        )],
+        "pins": {"agent_commit": "a"*40, "agent_after": "d"*40, "simulator_before": "e"*64,
+                 "simulator_after": "e"*64, "evaluator_before": "f"*64, "evaluator_after": "f"*64,
+                 "criteria_before": "b"*64, "criteria_after": "b"*64},
+        "heldout": {"split_digest": "c"*64, "passed": 1, "failed": 0, "unknown": 0}, "heldout_exposures": 1,
+    }
+    report = runner.ok(f"/attempts/{claim['attempt_id']}/reports", {
+        "lease_token": claim["lease_token"], "report_type": "agent_repair", "payload": typed,
+    })
+    for index in range(1, 5):
+        body = {"lease_token": claim["lease_token"], "report_type": "agent_repair", "payload": typed,
+                "report_key": f"feedback-{index}"}
+        assert not runner.ok(f"/attempts/{claim['attempt_id']}/reports", body)["duplicate"]
+        assert runner.ok(f"/attempts/{claim['attempt_id']}/reports", body)["duplicate"]
+    assert runner.send(f"/attempts/{claim['attempt_id']}/reports", {
+        "lease_token": claim["lease_token"], "report_type": "agent_repair", "payload": typed,
+        "report_key": "sixth-feedback",
+    }).status_code == 409
+    with transaction() as db:
+        assert db.execute("select exposures from platform.heldout_exposure_counts").fetchone()["exposures"] == 5
     runner.event(
         claim,
         1,
@@ -168,11 +197,57 @@ def test_repair_validation_pins_artifact_and_separate_approval(suite):
             "heldout_passed": True,
             "controls_passed": True,
             "criteria_unchanged": True,
+            "report_id": report["id"],
         },
     )
     runner.finalize(claim)
+    detail = suite["reviewer"].ok("GET", f"/repairs/{repair['id']}")
+    assert detail["available_validation_report_id"] == report["id"]
+    approval["evidence_digest"] = "0"*64
+    assert suite["reviewer"].send("POST", f"/repairs/{repair['id']}/approve", approval).status_code == 409
+    approval["evidence_digest"] = report["content_hash"]
     assert suite["owner"].send("POST", f"/repairs/{repair['id']}/approve", approval).status_code == 403
     assert suite["reviewer"].ok("POST", f"/repairs/{repair['id']}/approve", approval)["state"] == "approved"
+    integration = suite["owner"].ok("POST", f"/projects/{suite['project']['id']}/integrations", {
+        "provider": "github", "repository": "synthetic/agent", "installation_id": 101,
+        "secret_ref": "TEST_APP_SECRET", "publish_enabled": True,
+    })
+    class ProviderDouble:
+        def installation_token(self, *args, **kwargs):
+            assert kwargs == {"write": True}
+            return "synthetic-not-a-provider-token"
+        def find_publication(self, *args):
+            return "https://github.com/synthetic/agent/pull/7" if publication == "recovered" else None
+        def request(self, method, path, token):
+            assert publication != "recovered", "Marker recovery must precede base reads"
+            assert method == "GET"
+            return {"default_branch": "main"} if path == "/repos/synthetic/agent" else {"object": {"sha": "a"*40}}
+        def draft_pr(self, *args):
+            assert publication == "stale_race"
+            raise PlatformError("STALE_BASE", "Synthetic moved-base race", 409)
+        def close(self):
+            pass
+    monkeypatch.setattr(jobs, "GitHubApp", ProviderDouble)
+    suite["reviewer"].ok("POST", f"/repairs/{repair['id']}/publish", {
+        "integration_id": integration["id"], "proposal_hash": repair["proposal_hash"],
+    })
+    with transaction() as db:
+        job = db.execute("select * from platform.jobs where kind='publish'").fetchone()
+    if publication == "corrupt_artifact":
+        from susanoo_api.platform.artifacts import ObjectStore
+        monkeypatch.setattr(ObjectStore, "get", lambda self, key: b"corrupt")
+        with pytest.raises(PlatformError, match="digest"):
+            jobs.publish_job(job)
+    elif publication == "stale_race":
+        with pytest.raises(PlatformError, match="moved-base"):
+            jobs.publish_job(job)
+        with transaction() as db:
+            row = db.execute("select * from platform.repairs where id=%s", (repair["id"],)).fetchone()
+            assert row["state"] == "stale" and row["approved_by"] is None and row["pr_url"] is None
+    else:
+        jobs.publish_job(job)
+        jobs.publish_job(job)
+        assert suite["reviewer"].ok("GET", f"/repairs/{repair['id']}")["pr_url"].endswith("/7")
 
 
 def test_exclusive_fixture_remains_quarantined_after_expired_lease(suite):
@@ -217,6 +292,7 @@ def test_exclusive_fixture_remains_quarantined_after_expired_lease(suite):
 
     observation = {
         "observation_id": str(uuid4()),
+        "name": "promises",
         "source": "synthetic_post_expiry_readback_not_business_backend",
         "captured_at": datetime.now(UTC).isoformat(),
         "availability": "available",

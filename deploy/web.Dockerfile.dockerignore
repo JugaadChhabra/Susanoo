@@ -1,5 +1,7 @@
 .git
 .platform
+.susanoo
+promo
 .venv
 .env*
 **/node_modules

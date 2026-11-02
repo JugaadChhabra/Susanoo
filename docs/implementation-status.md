@@ -1,12 +1,100 @@
 # Expanded Build Implementation Status
 
-Updated 2026-10-30. Branch: `codex/aarav-platform`; preserved baseline:
+Updated 2026-11-03. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
 `73224ee9133133663a7f4df6925b8afac209d88b`.
+
+## Aarav Completion Pass
+
+### Submission integration, 2026-11-03
+
+The advanced worker now dispatches pinned source import/build, repair retest, collision, probing,
+calibration and synthetic WebSocket voice jobs in addition to the seven earlier handlers. Secure
+connection bindings select typed adapters by the exact approved connection hash; HTTP, MCP, gRPC,
+WebSocket and Chromium use numeric DNS pins rather than a resolution-only SSRF check. Connection
+claims cannot override local commands, drivers, secrets or endpoint configuration. Real loopback
+HTTP/MCP/gRPC/WebSocket/Chromium binding checks pass, independently from live-provider qualification.
+
+Real API/PostgreSQL/journal/simulator checks now cover all four old/new impact cells, seeded duplicate
+and permission discrepancies followed by budgeted reduction, equal-budget probing, shared-state lost
+updates, deterministic calibration and actual synthetic media chunks/timestamps/recordings. Directory
+and archive source imports persist their true snapshot identity without inventing Git commits. Source
+and recipe/lockfile pins, bounded logs, process-group teardown and cancellation are enforced locally.
+
+The Linux code-repair integration passed the actual workflow: independent backend failure, exact
+downloaded patch, isolated Git worktree, original reproduction, valid control, separately held-out case,
+immutable typed report and separate reviewer approval. It does not publish a customer PR automatically.
+Repair launch inherits the original evaluation graph and exposes additional approved revisions and
+explicit aggregate limits in the UI. Reference/control label overlap is deduplicated at the graph edge,
+not by dropping a control from evaluation. Invalid negative controls cannot certify a grader.
+
+`scripts/platform_acceptance.py` now resolves T01-T40 against executed JUnit evidence and refuses
+missing/skipped requirements; the old blanket "pending Muaz" response is removed. Full software
+acceptance is still a qualification result, not a consequence of advertising a worker kind. Current
+checks and remaining release boundaries are recorded in `parallel/aarav/INTEGRATION_HANDOFF.md`.
+
+The follow-up source credential consumer now obtains attempt-scoped, read-only GitHub App grants for
+the exact approved repository and commit, passes headers through URL-scoped Git environment configuration
+only, and queues revocation before builds. Private repair uses a verified local mirror after revocation.
+Git's actual URL-scope matching and the API-to-worker broker path pass focused tests with an explicit
+GitHub transport double; this is not a live GitHub App qualification. Windows read-only Git object
+cleanup is handled within the runner-owned tree without suppressing cleanup failures.
+
+Open software/release boundaries: advanced hosted workers currently admit synthetic policy only;
+Twilio platform-worker activation needs completion; CrewAI
+and AutoGen native recipes remain explicitly untested; arbitrary OCI/Dockerfile builds need a dedicated
+rootless builder rather than resource-limiting the Docker client; simulator-configuration repair is not
+the same as validated simulator-source PR publication. Mixed unspaced Latin/Devanagari PDF words still
+fail explicitly instead of rendering wrong glyphs. Live customer/provider checks, production configuration,
+fluent Hindi/Marathi review and independent contract approval remain separate external qualification.
+
+External hosted semantic providers also remain disabled until each outbound model request is bound
+to live authority, budgets and connect-time egress enforcement. Offline recorded calibration does not
+need permission to send data externally and cannot be labeled a live model validation.
+
+The sections below describe earlier checkpoints and must not be read as current missing-worker counts.
+
+### Full-build continuation, 2026-11-03
+
+The owner authorized continuing both lanes against the original full PRD/build plan. The customer
+platform worker now has real handlers for simulator inspection/reset, fixed-action comparison,
+reduction, fresh task-impact pairs, JSONL/CSV evidence import and incident drafting. These use existing
+runtime algorithms, not report-producing protocol doubles. A local profile approves exact immutable
+job-version graphs and inputs; each environment HTTP request is journaled and budget/lease checked.
+Parent authority also gates nested agent calls. Conditional scripts preserve their canonical conditions;
+skipped steps never dispatch, and truncated replies cannot authorize a conditional branch.
+
+These are implemented slices, NOT full software acceptance. Still outstanding: source/build and repair
+worker integration, 2x2 platform execution, collision/probe/calibration/voice workers, complete connector
+binding, resource/output sandbox hardening and the combined T01-T40 acceptance command. Existing local
+algorithms and green core tests must not be used to silently mark those application paths complete.
+
+The owner requested completion of all remaining platform implementation, not just the bridge checkpoint.
+Typed advanced-report persistence/read/classification, domain-specific report screens, snapshot PDF/ZIP
+projection, persistent task-correlated webhook/Twilio relays, project-digest OTLP collection, automatic-run
+budget admission/deduplication, and operations controls are now implemented. The local disposable-PostgreSQL
+suite initially passed 77 tests. The completion follow-up implements exact typed repair validation/evidence
+approval, marker-first publication recovery, stale-base races, artifact integrity and held-out caps. Embedded
+offline Latin/Devanagari fonts and shaping are rendered/inspected; six expanded desktop/mobile platform
+browser checks, 121 web tests and production build pass. The final full-suite/hosted publication record is
+maintained on PR #45; see `parallel/aarav/PLATFORM_COMPLETION.md` for the implementation checklist.
+Runtime imports in the API are existing DTOs and pure ingestion/policy/publication helpers only. The API
+does not instantiate an executor, build customer code, invoke an agent or contact arbitrary customer endpoints.
 
 The hackathon product is preserved. The expanded platform has a working private
 control plane and UI at `/evaluation`. This is **not complete product acceptance**:
-Muaz's new runner, evaluator, simulator and connectors have not been integrated.
-Canonical protocol `1.0` is a proposal pending his review, not an agreed freeze.
+The outcome/preflight runner now connects to the real platform and has passed synthetic
+PASS/FAIL/UNKNOWN service integration. Advanced worker handlers and live-provider qualification remain
+incomplete; platform typed report storage, domain views and upload contracts now exist. Canonical wire
+major `1.0`, revision `1.1-proposed`,
+is pending peer review, not an agreed freeze. See the current
+[integration handoff](parallel/aarav/INTEGRATION_HANDOFF.md) and
+[Muaz continuation prompt](parallel/aarav/MUAZ_NEXT_PROMPT.md) for the complete remaining split.
+Draft integration review: [PR #45](https://github.com/JugaadChhabra/Susanoo/pull/45), stacked on
+the platform review. First integration commit `da1d896` passed all reported hosted PR checks;
+follow-up changes require their own exact-head verification. Nothing has been merged into main.
+
+The matrix below preserves the original platform checkpoint. The completion ledger and integration handoff
+supersede its old platform-gap descriptions; they do not turn pending joint milestones into release acceptance.
 
 | Milestone | Aarav platform implementation | Remaining shared/runtime exit gate |
 |---|---|---|

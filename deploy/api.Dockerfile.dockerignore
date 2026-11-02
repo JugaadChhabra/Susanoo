@@ -1,5 +1,6 @@
 .git
 .platform
+.susanoo
 .venv
 .env*
 **/node_modules
@@ -7,3 +8,4 @@
 apps/web
 tests
 docs
+promo

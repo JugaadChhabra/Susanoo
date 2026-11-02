@@ -1,0 +1,21 @@
+{
+  "name": "@susanoo/sdk",
+  "version": "0.1.0",
+  "description": "Susanoo agent SDK for Node: JSONL bridge (protocol 1.0) and approved tool-route client. No runtime dependencies.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

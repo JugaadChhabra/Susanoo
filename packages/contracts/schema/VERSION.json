@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
-  "digest": "c774ab3513ac8b629da1b8bfd5ed79b81bbcfcd1c6cc4289a975c2b50b1b32ac",
+  "contract_revision": "1.1-proposed",
+  "digest": "35a1472b7f925b5a8dc2bfcd1429b5f019f519f1b1bfe9a38b60d7c76a273f23",
   "agreement": "pending_muaz_review"
 }

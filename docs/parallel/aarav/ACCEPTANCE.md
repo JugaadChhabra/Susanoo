@@ -1,9 +1,55 @@
 # T01-T40 Evidence Matrix
 
-Updated 2026-10-30. **None of these rows is declared complete shared product
+Updated 2026-11-02. **None of these rows is declared complete shared product
 acceptance.** Platform evidence uses actual PostgreSQL/storage/HTTP, but declared
-observations and reports come from explicit protocol test doubles. Muaz's real
-runtime, consumer conformance and matching end-to-end evidence are pending.
+observations in the original matrix below came from explicit protocol test doubles.
+The integration branch now also has a real customer-side runtime bridge. Its narrower
+new evidence is listed separately; this does not qualify every adapter or advanced job.
+
+## Current Integration Evidence
+
+- T01/T02/T04: `tests/platform/test_runtime_integration.py` runs the actual HTTP API,
+  PostgreSQL, durable journal, separate JSONL process and independent HTTP simulator.
+  Correct-write PASS, false-completion FAIL and observer-outage UNKNOWN are covered.
+- T03/T05: `tests/runtime/test_runner_local.py` covers wrong amount/account, duplicates,
+  forbidden changes and timeout-after-write read-back locally. Full platform equivalents
+  and every crash boundary are still required.
+- T06/T07: component-bound claims, append-only late events and reconciliation idempotency
+  are covered in `tests/platform/test_contract_bridge.py`. These are not all process-kill gates.
+- T06/T10: the real-platform regression also expires the lease after an actual agent write,
+  verifies no observer-clock mutation or cleanup dispatch afterward, and uploads late evidence
+  idempotently without restoring dispatch authority. Uncertain fixture creation and evidence
+  processing errors have separate local cleanup regressions.
+- T39: first integration commit `da1d896` passed hosted container build, private stack
+  startup with real PostgreSQL and encrypted backup. Target restore/restart and complete
+  product qualification remain distinct. Final-head CI is recorded separately.
+
+## Original Platform Matrix
+
+### Completion overlay (2026-11-02)
+
+- T12/T13/T14: typed reports enforce assigned attempt, policy, hidden audience and scoped review;
+  callback tasks are pinned to an integration and dispatched operation. Tokens are hashed/revocable.
+- T17: actual runtime projection helpers feed typed API persistence and a public-only ZIP validated
+  as LocalSuite; matching snapshot digests are required. Offline English/Hindi/Marathi PDF proof is
+  rendered and visually inspected with embedded fonts/HarfBuzz. Fresh execution of the resulting ZIP
+  on a separately authorized target runner remains a joint acceptance gate.
+- T22/T37: PostgreSQL-persistent signed relay covers dedupe/conflict/order/terminal/read-only expiry;
+  Twilio configured-public-URL signatures are tested without calls. Transcript-only reports cannot
+  assert audio metrics. Real media provider execution remains unqualified.
+- T25-T31/T35/T36/T38: specialized typed domain views/persistence/PDF projections are implemented.
+  Protocol producer tests and UI tests do not qualify the advanced customer-side worker handlers.
+- T31/T32: exact typed validation evidence/patch/base binds separate approval, marker-first recovery,
+  stale-base races and corrupted artifact refusal. Hosted held-out counters are monotonic per split.
+  A live GitHub App draft publication still needs explicit authorized credentials/provider verification.
+- T33/T34: automatic budget/dedupe policy is connected to schedules/triggers with retained reasons;
+  project-token OTLP JSON/protobuf/gzip collection and policy minimization persist across requests.
+  These are no longer missing platform code. Production SDK and advanced runtime integration remain separate.
+
+The table below is historical; these overlays supersede its outdated platform-gap descriptions.
+
+The following rows retain the 2026-10-30 platform-only checkpoint. Consult the overlay
+above and `INTEGRATION_HANDOFF.md` before interpreting an item as still wholly absent.
 
 Test references are under `tests/platform`, `tests/contract/platform` and
 `tests/e2e/platform`. Provider calls in focused boundary tests are mocked, not live.

@@ -182,7 +182,7 @@ def test_cancel_stops_dispatch_after_acknowledgement(suite):
                     "type": "step_dispatching",
                     "step_id": "write",
                     "occurred_at": datetime.now(UTC).isoformat(),
-                    "payload": {},
+                    "payload": {"operation_id": "forbidden-after-cancel"},
                 }
             ],
         },
@@ -217,7 +217,16 @@ def test_budget_reservation_atomic_and_idempotent(suite):
     assert suite["runner"].send(url, body).status_code == 409
 
 
-def test_waiver_preserves_verdict_and_four_exports_agree(suite):
+def test_waiver_preserves_verdict_and_four_exports_agree(suite, monkeypatch):
+    export_errors = []
+    original_export = jobs.export_job
+    def checked_export(*args):
+        try:
+            return original_export(*args)
+        except Exception as error:
+            export_errors.append(error)
+            raise
+    monkeypatch.setattr(jobs, "export_job", checked_export)
     run = launch(suite)
     claim = suite["runner"].claim("outcome_suite")
     assert result(suite, claim, "FAIL")[0].is_success
@@ -243,6 +252,8 @@ def test_waiver_preserves_verdict_and_four_exports_agree(suite):
         )
         snapshot_id = snapshot_id or record["id"]
         assert jobs.process_one()
+        if export_errors:
+            raise export_errors[0]
         response = suite["owner"].send("GET", f"/artifacts/{record['id']}/download")
         assert response.status_code == 200, response.text
         exports[format] = response.content

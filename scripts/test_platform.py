@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    arguments = sys.argv[1:]
+    full = "--full" in arguments
+    arguments = [argument for argument in arguments if argument != "--full"]
     load_dotenv(ROOT / ".env.platform")
     url = os.environ.get("PLATFORM_TEST_ADMIN_URL") or os.environ.get("PLATFORM_DATABASE_URL", "")
     config = conninfo_to_dict(url)
@@ -34,7 +37,8 @@ def main():
     }
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", "tests/platform", "tests/contract/platform", *sys.argv[1:]],
+            [sys.executable, "-m", "pytest", *(["tests"] if full else ["tests/platform", "tests/contract/platform"]),
+             *arguments],
             cwd=ROOT,
             env=env,
             check=False,

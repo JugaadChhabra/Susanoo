@@ -84,11 +84,15 @@ def create_job(ctx, project_id, body, key, *, repair=None):
         if (
             version["kind"] == "grader"
             and version["data"]["mode"] == "semantic"
+            and version["data"].get("provider") != "recorded_replay"
             and not project["policy"]["external_models_allowed"]
         ):
             raise PlatformError("FORBIDDEN", "External semantic grading is disabled by the current policy.", 403)
         approved_limits = version["data"].get("limits")
-        if approved_limits and any(value > approved_limits[key] for key, value in dump(body.limits).items()):
+        aggregate = {"max_agent_invocations", "max_reference_calls", "cleanup_reserve"} if body.kind in {
+            "repair_retest", "fresh_agent_pair"} else set()
+        if approved_limits and any(value > approved_limits[key] for key, value in dump(body.limits).items()
+                                   if key not in aggregate):
             raise PlatformError("BUDGET_EXCEEDED", "Job limits exceed a pinned plan's approved limits.", 422)
     if body.kind == "repair_retest" and repair is None:
         raise PlatformError("INVALID_INPUT", "Launch repair validation from the exact proposal.", 422)
@@ -331,14 +335,16 @@ def comparison(ctx, baseline_id, candidate_id):
 
 
 def create_schedule(ctx, project_id, body):
+    from susanoo_contracts import AutomaticRunBudget
+
     project = ctx.project(project_id, ENGINEERS)
     ctx.version(body.run.suite_version_id, project, "suite", True)
     ctx.version(body.run.connection_version_id, project, "connection")
     ctx.version(body.run.environment_version_id, project, "environment", True)
     result = ctx.db.execute(
         """insert into platform.schedules(workspace_id,project_id,name,interval_seconds,configuration,
-        enabled,next_due_at,created_by)
-        values(%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s),%s) returning *""",
+        enabled,next_due_at,created_by,automatic_budget)
+        values(%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s),%s,%s) returning *""",
         (
             project["workspace_id"],
             project_id,
@@ -348,6 +354,9 @@ def create_schedule(ctx, project_id, body):
             body.enabled,
             body.interval_seconds,
             ctx.actor["user_id"],
+            Jsonb((body.automatic_budget or AutomaticRunBudget(
+                allowed_suites=[str(body.run.suite_version_id)]
+            )).model_dump(mode="json")),
         ),
     ).fetchone()
     ctx.audit("schedule.created", result["id"], project)

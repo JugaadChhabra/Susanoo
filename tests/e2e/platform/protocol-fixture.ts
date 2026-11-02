@@ -39,13 +39,13 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
   }
   const requirement = await revision({ kind: "requirement", source_clause: "UI-PROTOCOL-001", expected: "Exactly one synthetic record", owner: "Synthetic reviewer" }, "Browser Requirement");
   const check = await revision({ kind: "check", requirement_version_id: requirement.id, operator: "count", observation: "synthetic_records", expected: 1 }, "Browser Check");
-  const fixture = await revision({ kind: "fixture", adapter: "protocol_fixture_no_business_backend", digest: "a".repeat(64), compatibility_key: "browser-protocol-v1" }, "Browser Fixture");
+  const fixture = await revision({ kind: "fixture", adapter: "protocol_fixture_no_business_backend", digest: createHash("sha256").update("{}").digest("hex"), compatibility_key: "browser-protocol-v1" }, "Browser Fixture");
   const caseVersion = await revision({ kind: "case", fixture_version_id: fixture.id, check_version_ids: [check.id], script: [{ message: "Protocol test only" }] }, "Browser Case");
   const suite = await revision({ kind: "suite", case_version_ids: [caseVersion.id] }, "Browser Suite");
   const environment = await revision({ kind: "environment", adapter: "protocol_fixture_no_business_backend", version: "test-only", allowed_operations: ["synthetic_write"], identity_profile: "synthetic", fixture_version_id: fixture.id }, "Browser Environment");
   const connection = await revision({ kind: "connection", family: "I03", adapter: "protocol_fixture_no_business_backend", capabilities: { invoke: true, observe: true } }, "Browser Connection");
   const registration = await owner.call("POST", `/projects/${project.id}/runner-registration`);
-  const token = (await owner.call("POST", "/runner/register", { registration_token: registration.token, name: "Browser protocol test double", version: "not-a-business-runtime", capabilities: ["preflight", "outcome_suite"] })).token;
+  const token = (await owner.call("POST", "/runner/register", { registration_token: registration.token, name: "Browser protocol test double", version: "not-a-business-runtime", capabilities: ["preflight", "outcome_suite", "action_comparison", "fresh_agent_pair"] })).token;
   const runner = (path: string, body: unknown) => owner.call("POST", `/runner${path}`, body, token);
   const claim = (kind: string) => runner("/claims", { supported_job_kinds: [kind] });
   const event = (attempt: { attempt_id: string; lease_token: string }, sequence: number, type: string, payload = {}) => runner(`/attempts/${attempt.attempt_id}/events`, { lease_token: attempt.lease_token,
@@ -54,6 +54,29 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
     lease_token: attempt.lease_token, execution_state: execution, business_verdict: verdict, final_sequence: 1, cleanup_state: "succeeded", reconciliation_state: "not_needed",
   });
   return { project, requirement, check, suite, environment, connection, accounts, owner, reviewer, runner, claim, event, finalize,
+    async comparison() {
+      await approve(requirement); await approve(environment); await approve(suite);
+      const reference = await revision({ ...environment.data, version: "reference-test-only" }, "Browser Reference");
+      await approve(reference);
+      const fidelity = await revision({ kind: "fidelity", simulator_version_id: environment.id,
+        reference_version_id: reference.id, operations: ["synthetic_write"], identity_profile: "synthetic" }, "Browser Fidelity");
+      await approve(fidelity);
+      const run = await owner.call("POST", `/projects/${project.id}/jobs`, {
+        kind: "action_comparison", version_ids: [fidelity.id],
+      });
+      const attempt = await claim("action_comparison");
+      const report = await runner(`/attempts/${attempt.attempt_id}/reports`, {
+        lease_token: attempt.lease_token, report_type: "comparison", audience: "project", payload: {
+          contract_id: "synthetic", contract_digest: "a".repeat(64), criteria_digest: "b".repeat(64),
+          plan_id: "synthetic-plan", plan_digest: "c".repeat(64), simulator_digest: "d".repeat(64),
+          reference_digest: "e".repeat(64), status: "compared", preflight: { ok: true },
+          candidates: [{ id: "synthetic-duplicate", category: "duplicate_write", summary: "Synthetic duplicate state" }],
+        },
+      });
+      await event(attempt, 1, "job_result", { job_kind: "action_comparison", status: "succeeded", report_ids: [report.id] });
+      await finalize(attempt, "FAIL");
+      return { run, report };
+    },
     async ready() {
       await approve(environment); await approve(suite);
       await owner.call("POST", `/projects/${project.id}/jobs`, { kind: "preflight", version_ids: [connection.id] });
@@ -65,7 +88,7 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
       const attempt = await claim("outcome_suite");
       const id = randomUUID(); const values = { count: 0 };
       await runner(`/attempts/${attempt.attempt_id}/evidence`, { lease_token: attempt.lease_token,
-        observations: [{ observation_id: id, source: "protocol_test_double_not_business_backend", captured_at: new Date().toISOString(), availability: "available", completeness: "complete_for_scope", namespace: attempt.namespace,
+        observations: [{ observation_id: id, name: "synthetic_records", source: "protocol_test_double_not_business_backend", captured_at: new Date().toISOString(), availability: "available", completeness: "complete_for_scope", namespace: attempt.namespace,
           window_seconds: 10, window_elapsed: true, storage_mode: "redacted_hosted", values, redaction_version: "synthetic-test", digest: createHash("sha256").update(JSON.stringify(values)).digest("hex") }],
         check_results: [{ check_version_id: check.id, evaluator_digest: "b".repeat(64), verdict: "FAIL", reason: "Synthetic protocol fixture failure; no business evaluator executed", observation_ids: [id] }],
       });

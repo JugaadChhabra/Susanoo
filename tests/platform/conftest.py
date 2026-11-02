@@ -128,14 +128,14 @@ def approve(world, row):
 
 
 class ProtocolRunner:
-    def __init__(self, world):
+    def __init__(self, world, capabilities=None):
         self.world = world
         token = world["owner"].ok("POST", f"/projects/{world['project']['id']}/runner-registration")["token"]
         self.register_body = {
             "registration_token": token,
             "name": "Explicit protocol test double",
             "version": "test-only",
-            "capabilities": ["preflight", "outcome_suite", "calibration", "repair_retest", "build"],
+            "capabilities": capabilities or ["preflight", "outcome_suite", "calibration", "repair_retest", "build"],
         }
         self.token = world["owner"].ok("POST", "/runner/register", self.register_body)["token"]
 
@@ -286,6 +286,7 @@ def result(suite, claim, verdict="PASS", availability="available", completeness=
         "observations": [
             {
                 "observation_id": observation_id,
+                "name": suite["check"]["data"]["observation"],
                 "source": "protocol_test_double_not_business_backend",
                 "captured_at": datetime.now(UTC).isoformat(),
                 "availability": availability,

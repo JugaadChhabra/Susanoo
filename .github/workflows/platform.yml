@@ -53,7 +53,7 @@ jobs:
           sudo apt-get install -y postgresql-client-17
       - run: uv run ruff check .
       - run: uv run pytest -q tests/api tests/scripts tests/scoring tests/guards
-      - run: uv run python scripts/test_platform.py -q
+      - run: uv run python scripts/test_platform.py -q --junitxml=.platform/qualification-platform.xml
       - name: Canonical packet has no drift
         run: |
           uv run python scripts/export_platform_contracts.py
@@ -87,11 +87,16 @@ jobs:
         with:
           name: platform-capacity-and-screenshots
           path: |
+            .platform/qualification-platform.xml
             .platform/capacity-report.json
             .platform/console-desktop.png
             .platform/console-mobile.png
             .platform/workflow-desktop.png
             .platform/workflow-mobile.png
+            .platform/advanced-desktop.png
+            .platform/advanced-mobile.png
+            .platform/operations-desktop.png
+            .platform/operations-mobile.png
           retention-days: 7
           include-hidden-files: true
   containers:
@@ -105,6 +110,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: docker compose -f deploy/platform.compose.yml config --quiet
       - run: docker compose -f deploy/platform.compose.yml build
+      - name: Preserved hackathon images still resolve the expanded workspace
+        run: |
+          docker build -f apps/api/Dockerfile -t susanoo-legacy-api-ci .
+          docker build -f apps/worker/Dockerfile -t susanoo-legacy-worker-ci .
+          docker run --rm --entrypoint python susanoo-legacy-api-ci -c "import susanoo_api.main; import susanoo_contracts; import susanoo_evaluator"
+          docker run --rm --entrypoint python susanoo-legacy-worker-ci -c "import susanoo_worker.main"
       - name: Private control plane starts with real PostgreSQL
         shell: bash
         run: |

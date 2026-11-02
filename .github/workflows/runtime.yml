@@ -1,0 +1,32 @@
+name: expanded-runtime
+on:
+  pull_request:
+  push:
+    branches: [codex/aarav-runtime-integration, codex/muaz-runtime]
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SUSANOO_BROWSER_TESTS: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        with:
+          version: "0.11.19"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - run: uv sync --frozen --all-packages --group providers
+      - run: uv run --no-sync python -m playwright install --with-deps chromium
+      - run: uv run --no-sync pytest tests/runtime tests/runner tests/contract -q --junitxml=.platform/qualification-runtime.xml
+      - run: node --test "packages/sdk-typescript/test/*.test.ts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: runtime-qualification-${{ github.event_name }}
+          path: .platform/qualification-runtime.xml
+          include-hidden-files: true
+          retention-days: 7

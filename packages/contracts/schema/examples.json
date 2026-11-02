@@ -24,9 +24,9 @@
         "events": [
           {
             "event_id": "00000000-0000-4000-8000-000000000003",
-            "occurred_at": "2026-10-30T00:00:00Z",
+            "occurred_at": "2026-10-30T00:00:00.000000Z",
             "payload": {
-              "action_kind": "agent",
+              "action_kind": "agent_invoke",
               "operation_id": "synthetic-step-001",
               "request_digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
             },
@@ -51,6 +51,7 @@
               "00000000-0000-4000-8000-000000000002"
             ],
             "reason": "Wire example only; not evidence of a real backend",
+            "reason_code": null,
             "verdict": "PASS"
           }
         ],
@@ -59,9 +60,11 @@
           {
             "artifact_ids": [],
             "availability": "available",
-            "captured_at": "2026-10-30T00:00:00Z",
+            "captured_at": "2026-10-30T00:00:00.000000Z",
             "completeness": "complete_for_scope",
             "digest": "6aea6dfe6561984cdc5c54ead84d47d2cf29e48253ae282aef237404adad4661",
+            "entity": null,
+            "name": "promises",
             "namespace": "synthetic-attempt-001",
             "observation_id": "00000000-0000-4000-8000-000000000002",
             "redaction_version": "synthetic-v1",

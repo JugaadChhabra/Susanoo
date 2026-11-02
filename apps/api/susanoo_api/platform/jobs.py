@@ -1,12 +1,14 @@
 """Retry only safe internal jobs. Expired customer attempts are interrupted, never redispatched."""
 
 import hashlib
+import asyncio
 import logging
 import os
 import smtplib
 import time
 from email.message import EmailMessage
 from uuid import uuid4
+from psycopg.types.json import Jsonb
 
 from susanoo_contracts import PatchBundle, RunCreate
 
@@ -56,11 +58,12 @@ def tick():
             ctx = Context(db, {"user_id": schedule["created_by"]}, str(uuid4()))
             try:
                 with db.transaction():
-                    service.create_run(
-                        ctx,
-                        schedule["project_id"],
-                        RunCreate.model_validate(schedule["configuration"]),
-                        f"schedule:{schedule['id']}:{schedule['next_due_at'].isoformat()}",
+                    from .automation import dispatch_automatic
+
+                    dispatch_automatic(
+                        ctx, schedule["project_id"], RunCreate.model_validate(schedule["configuration"]),
+                        trigger_kind="schedule", trigger_key=str(schedule["id"]),
+                        version_key=schedule["next_due_at"].isoformat(), budget=schedule["automatic_budget"],
                     )
             except PlatformError as exc:
                 ctx.audit("schedule.dispatch_blocked", schedule["id"], details={"code": exc.code})
@@ -79,6 +82,7 @@ def tick():
     revoke_settled_grants()
     expire_artifacts()
     expire_evidence()
+    expire_runtime_ingestion()
     purge_deleted()
     if time.monotonic() - _last_orphan_sweep > 3600:
         with transaction() as db:
@@ -200,17 +204,54 @@ def publish_job(job):
         project = ctx.project(repair["project_id"], service.REVIEWERS)
         source = ctx.version(repair["source_version_id"], project, "source", True)
         artifact, _ = artifacts.authorized_artifact(ctx, repair["patch_artifact_id"])
-    bundle = PatchBundle.model_validate_json(artifacts.ObjectStore().get(artifact["object_key"]))
+        from .reports import authorized_report
+
+        if not repair["validation_report_id"]:
+            raise PlatformError("VALIDATION_REQUIRED", "Publication requires retained typed validation evidence.", 409)
+        validation_report, _ = authorized_report(ctx, repair["validation_report_id"], reviewer=True)
+    patch_bytes = artifacts.ObjectStore().get(artifact["object_key"])
+    if hashlib.sha256(patch_bytes).hexdigest() != artifact["digest"]:
+        raise PlatformError("INTEGRITY_ERROR", "Patch artifact digest differs from its approved bytes.", 409)
+    bundle = PatchBundle.model_validate_json(patch_bytes)
+    from .publication import reconcile_before_publish, validate_report
+    from susanoo_runner.agent_repair import StaleProposal
+
+    validation = validate_report(repair, bundle, validation_report)
+    if repair["validation_evidence_digest"] != validation.evidence_digest:
+        raise PlatformError("VALIDATION_REQUIRED", "Publication approval does not bind this evidence.", 409)
     client = GitHubApp()
     try:
         token = client.installation_token(integration["installation_id"], integration["repository"], write=True)
-        url = client.draft_pr(integration["repository"], token, repair, bundle, source["data"]["allowed_patch_paths"])
+        resolution, request = asyncio.run(reconcile_before_publish(
+            client, integration["repository"], token, repair, bundle, validation
+        ))
+        if isinstance(resolution, StaleProposal):
+            with transaction() as db:
+                db.execute(
+                    "update platform.repairs set state='stale',approved_by=null,approved_at=null,"
+                    "publication_record=%s where id=%s", (Jsonb(resolution.model_dump(mode="json")), repair["id"])
+                )
+            return
+        url = resolution or client.draft_pr(
+            integration["repository"], token, repair, bundle, source["data"]["allowed_patch_paths"]
+        )
+    except PlatformError as exc:
+        if exc.code == "STALE_BASE":
+            with transaction() as db:
+                db.execute(
+                    "update platform.repairs set state='stale',approved_by=null,approved_at=null,"
+                    "publication_record=%s where id=%s",
+                    (Jsonb({"status": "stale", "reason": "base_moved_during_publication",
+                            "validated_base": repair["base_commit"]}), repair["id"]),
+                )
+        raise
     finally:
         client.close()
     with transaction() as db:
         db.execute(
-            "update platform.repairs set state='published',pr_url=%s where id=%s and publication_key=%s",
-            (url, repair["id"], repair["publication_key"]),
+            "update platform.repairs set state='published',pr_url=%s,publication_record=%s "
+            "where id=%s and publication_key=%s",
+            (url, Jsonb(request.model_dump(mode="json", exclude={"patch"})), repair["id"], repair["publication_key"]),
         )
         ctx = Context(db, {"user_id": repair["approved_by"]}, str(uuid4()))
         ctx.audit("repair.published", repair["id"], project)
@@ -229,8 +270,6 @@ def trigger_job(job):
             "select payload from platform.deliveries where integration_id=%s and delivery_id=%s",
             (integration["id"], job["payload"]["delivery_id"]),
         ).fetchone()["payload"]
-        if configuration.get("approved_branch") and payload.get("branch") != configuration["approved_branch"]:
-            raise PlatformError("FORBIDDEN", "Trigger branch not approved.", 403)
         project = db.execute(
             "select * from platform.projects where id=%s and deleted_at is null", (integration["project_id"],)
         ).fetchone()
@@ -239,13 +278,19 @@ def trigger_job(job):
         ctx = Context(db, {"user_id": integration["created_by"]}, str(uuid4()))
         ctx.project(project["id"], service.OWNERS)
         body = RunCreate.model_validate(configuration["trigger_run"])
+        from .automation import dispatch_automatic, record_trigger_block
+
+        if configuration.get("approved_branch") and payload.get("branch") != configuration["approved_branch"]:
+            record_trigger_block(ctx, project, body, integration["id"], payload, "Trigger branch not approved")
+            return
         connection = ctx.version(body.connection_version_id, ctx.project(project["id"]), "connection")
         if connection["data"].get("source_commit") != payload.get("revision"):
-            raise PlatformError(
-                "STALE_BASE", "Trigger revision requires a new approved pinned connection version.", 409
-            )
-        service.create_run(
-            ctx, project["id"], body, f"trigger:{integration['id']}:{payload.get('revision')}:{body.suite_version_id}"
+            record_trigger_block(ctx, project, body, integration["id"], payload,
+                                 "STALE_BASE: Trigger revision requires a new approved pinned connection version")
+            return
+        dispatch_automatic(
+            ctx, project["id"], body, trigger_kind="webhook", trigger_key=str(integration["id"]),
+            version_key=str(payload.get("revision")), budget=configuration.get("automatic_budget"),
         )
 
 
@@ -316,7 +361,19 @@ def expire_evidence():
             order by r.created_at for update of r skip locked limit 50"""
         ).fetchall()
         for run in runs:
-            for table in ("evidence", "runner_events"):
+            db.execute(
+                """update platform.repairs set validation_report_id=null,
+                state=case when state='published' then state else 'validation_expired' end,
+                approved_by=case when state='published' then approved_by else null end
+                where validation_report_id in (select id from platform.advanced_reports where run_id=%s)""",
+                (run["id"],),
+            )
+            db.execute(
+                "delete from platform.report_reviews where report_id in "
+                "(select id from platform.advanced_reports where run_id=%s)", (run["id"],),
+            )
+            db.execute("delete from platform.advanced_reports where run_id=%s", (run["id"],))
+            for table in ("evidence", "runner_events", "late_runner_events"):
                 from psycopg import sql
 
                 db.execute(
@@ -375,12 +432,20 @@ def purge_deleted():
             )
             # This fixed order follows the private-schema FK graph; no user-provided table names.
             for table in (
+                "report_reviews",
+                "repairs",
+                "advanced_reports",
+                "relay_events",
+                "relay_tasks",
+                "passive_records",
+                "automatic_decisions",
+                "heldout_exposure_counts",
                 "retention_receipts",
                 "source_grants",
                 "resource_leases",
+                "late_runner_events",
                 "reconciliations",
                 "budget_reservations",
-                "repairs",
                 "deliveries",
                 "integrations",
                 "jobs",
@@ -407,3 +472,21 @@ def purge_deleted():
                     sql.SQL("delete from platform.{} where project_id=%s").format(sql.Identifier(table)), (project_id,)
                 )
             db.execute("update platform.deletion_tombstones set purged_at=now() where project_id=%s", (project_id,))
+
+
+def expire_runtime_ingestion():
+    with transaction() as db:
+        expired = db.execute(
+            "select id from platform.relay_tasks where expires_at<=now() order by expires_at limit 1000 for update"
+        ).fetchall()
+        identifiers = [row["id"] for row in expired]
+        if identifiers:
+            db.execute("delete from platform.relay_events where task_id=any(%s::uuid[])", (identifiers,))
+            db.execute("delete from platform.relay_tasks where id=any(%s::uuid[])", (identifiers,))
+        db.execute(
+            """delete from platform.passive_records where (project_id,record_id) in (
+            select e.project_id,e.record_id from platform.passive_records e
+            join platform.projects p on p.id=e.project_id
+            where e.created_at+make_interval(days=>(p.policy->>'hosted_retention_days')::int)<=now()
+            limit 1000)"""
+        )

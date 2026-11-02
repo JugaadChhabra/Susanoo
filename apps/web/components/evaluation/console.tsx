@@ -58,6 +58,8 @@ import {
 import { initialValue, SchemaForm, schemaDefinitions } from "./schema-form";
 import { ProjectOperations, PublishRepair } from "./project-operations";
 import { EvidenceInspector } from "./evidence-inspector";
+import { AdvancedReports } from "./advanced-reports";
+import { RuntimeOperations } from "./runtime-operations";
 import { ResourceQuarantine } from "./resource-quarantine";
 
 type List<T> = Omit<Page, "items"> & { items: T[] };
@@ -277,6 +279,11 @@ export function EvaluationConsole() {
     (RepairRecord & { patch: PatchBundle }) | null
   >(null);
   const [jobForm, setJobForm] = useState(false);
+  const [repairVersions, setRepairVersions] = useState<string[]>([]);
+  const [repairLimits, setRepairLimits] = useState<RunLimits>(() => ({
+    ...initialValue(schemaDefinitions.RunLimits) as RunLimits,
+    cleanup_reserve: 100, max_reference_calls: 160,
+  }));
   const [jobKind, setJobKind] = useState<JobCreate["kind"]>("preflight");
   const [jobVersions, setJobVersions] = useState<string[]>([]);
   const [token, setToken] = useState("");
@@ -1642,6 +1649,7 @@ export function EvaluationConsole() {
                 </div>
               ))}
               <EvidenceInspector runId={selectedRun.id} key={selectedRun.id} revisionKey={selectedRun.status} />
+              <AdvancedReports runId={selectedRun.id} revisionKey={selectedRun.status} reviewer={reviewer} />
               <Details
                 value={{
                   manifest_hash: selectedRun.manifest_hash,
@@ -1997,6 +2005,21 @@ export function EvaluationConsole() {
                   </div>
                 </details>
               ))}
+              <details className="ev-details">
+                <summary>Validation Scope And Limits</summary>
+                <fieldset>
+                  <legend>Additional Approved Revisions</legend>
+                  {versions.filter((version) => version.approved && ["suite", "fidelity"].includes(version.kind))
+                    .map((version) => <label key={version.id} className="ev-checkbox-row">
+                      <input type="checkbox" checked={repairVersions.includes(version.id)}
+                        onChange={(event) => setRepairVersions((current) => event.target.checked
+                          ? [...current, version.id] : current.filter((id) => id !== version.id))} />
+                      {version.title} · {version.kind} · r{version.revision}
+                    </label>)}
+                </fieldset>
+                <SchemaForm root name="limits" schema={schemaDefinitions.RunLimits} value={repairLimits}
+                  onChange={(value) => setRepairLimits(value as RunLimits)} />
+              </details>
               <div className="ev-toolbar">
                 <button
                   className="ev-secondary"
@@ -2006,7 +2029,7 @@ export function EvaluationConsole() {
                       await platform(
                         `/repairs/${selectedRepair.id}/validate`,
                         "POST",
-                        undefined,
+                        { version_ids: repairVersions, limits: repairLimits },
                         launchKey(),
                       );
                       setSelectedRepair(
@@ -2020,7 +2043,7 @@ export function EvaluationConsole() {
                 </button>
                 <button
                   className="ev-primary"
-                  disabled={busy || !reviewer || !rationale.trim()}
+                  disabled={busy || !reviewer || !rationale.trim() || !selectedRepair.available_validation_digest}
                   onClick={() =>
                     void act(async () => {
                       await platform(
@@ -2028,6 +2051,7 @@ export function EvaluationConsole() {
                         "POST",
                         {
                           content_hash: selectedRepair.proposal_hash,
+                          evidence_digest: selectedRepair.available_validation_digest,
                           rationale,
                         },
                       );
@@ -2072,6 +2096,8 @@ export function EvaluationConsole() {
                   )
                 }
               />
+              {selectedRepair.validation_run_id && <AdvancedReports runId={selectedRepair.validation_run_id}
+                revisionKey={selectedRepair.state} reviewer={reviewer} />}
             </section>
           )}
 
@@ -2427,6 +2453,12 @@ export function EvaluationConsole() {
                       interval_seconds: Number(form.get("interval")),
                       run: runBody(),
                       enabled: form.get("enabled") === "on",
+                      automatic_budget: {
+                        allowed_suites: [suiteId], max_runs_per_window: Number(form.get("autoRuns")),
+                        window_seconds: Number(form.get("autoWindow")), max_cases_per_run: Number(form.get("autoCases")),
+                        max_agent_invocations: Number(form.get("autoInvocations")),
+                        max_cost_minor: form.get("autoCost") ? Number(form.get("autoCost")) : null,
+                      },
                     });
                     setSuccess("Pinned schedule created.");
                   });
@@ -2474,6 +2506,15 @@ export function EvaluationConsole() {
                     <input name="enabled" type="checkbox" />
                     Enabled
                   </label>
+                  <label>Automatic Runs per Window<input name="autoRuns" type="number" defaultValue={10}
+                    min={0} max={1000} required /></label>
+                  <label>Budget Window (seconds)<input name="autoWindow" type="number" defaultValue={3600}
+                    min={60} max={2592000} required /></label>
+                  <label>Cases per Automatic Run<input name="autoCases" type="number" defaultValue={50}
+                    min={1} max={5000} required /></label>
+                  <label>Agent Invocation Cap<input name="autoInvocations" type="number" defaultValue={400}
+                    min={1} max={100000} required /></label>
+                  <label>Known Cost Cap (minor units)<input name="autoCost" type="number" min={0} /></label>
                 </div>
                 <div className="ev-form-actions">
                   <button className="ev-secondary" disabled={busy || !engineer}>
@@ -2482,6 +2523,7 @@ export function EvaluationConsole() {
                 </div>
               </form>
               <h3>Governance</h3>
+              {(engineer || reviewer || owner) && <RuntimeOperations projectId={projectId} owner={owner} key={projectId} />}
               {reviewer && (
                 <ResourceQuarantine projectId={projectId} key={projectId} />
               )}

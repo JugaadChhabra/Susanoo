@@ -1,5 +1,10 @@
 # Platform Publication and Runtime Handoff
 
+2026-11-02 update: the active continuation is now
+[INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md). It includes Muaz's published runtime and
+the new real outcome/preflight platform bridge. The remainder of this file records the
+2026-10-30 checkpoint, not the current integration status.
+
 Prepared 2026-10-30 for Aarav and Muaz. This is a platform integration checkpoint,
 **not a fully working/accepted business bot**. No new runtime/evaluator/simulator
 has been substituted for Muaz's work.

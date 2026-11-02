@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, field_validator, model_validator
+from pydantic import create_model, model_serializer
 import rfc8785
 
+from .checks import Alias as Alias, BusinessDate as BusinessDate, Check, Money as Money, Operand
+
 PROTOCOL_VERSION = "1.0"
+CONTRACT_REVISION = "1.1-proposed"
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Digest = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 SecretRef = Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,127}$")]
@@ -20,6 +25,18 @@ SecretRef = Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,127}$")
 
 class WireModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    @model_serializer(mode="wrap")
+    def normalized_wire(self, handler, info):
+        result = handler(self)
+        if info.mode == "json":
+            for name, value in self.__dict__.items():
+                if isinstance(value, datetime):
+                    if value.tzinfo is None:
+                        raise ValueError("Wire timestamps must be timezone-aware")
+                    key = type(self).model_fields[name].alias or name
+                    result[key] = value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        return result
 
     @model_validator(mode="after")
     def finite_json(self):
@@ -87,6 +104,8 @@ class Capabilities(WireModel):
     local_evidence: bool = True
     idempotent_submission: bool = False
     isolation_tested: bool = False
+    observer_consistency: Literal["bounded", "immediate", "unbounded", "unknown"] = "unknown"
+    retry_semantics: Literal["idempotent", "never", "unknown"] = "unknown"
     max_concurrency: int = Field(default=1, ge=1, le=3)
     modalities: list[Literal["text", "audio", "browser", "tool"]] = Field(default_factory=lambda: ["text"])
 
@@ -100,6 +119,8 @@ class RunLimits(WireModel):
     max_agent_invocations: int = Field(default=160, ge=1, le=100000)
     max_reference_calls: int = Field(default=0, ge=0, le=100000)
     max_output_bytes: int = Field(default=262144, ge=1, le=1048576)
+    max_storage_bytes: int = Field(default=10485760, ge=1, le=1073741824)
+    cleanup_reserve: int = Field(default=3, ge=0, le=1000)
 
 
 class DataPolicy(WireModel):
@@ -109,6 +130,8 @@ class DataPolicy(WireModel):
     external_models_allowed: bool = False
     source_upload_allowed: bool = False
     media_upload_allowed: bool = False
+    report_upload_allowed: bool = False
+    max_heldout_exposures: int = Field(default=5, ge=1, le=100)
     allowed_hosts: list[Name] = Field(default_factory=list, max_length=100)
     allowed_operations: list[Name] = Field(default_factory=list, max_length=100)
 
@@ -209,17 +232,55 @@ class CheckSpec(WireModel):
         "semantic",
     ]
     observation: Name
+    entity: Name | None = None
     path: (
         Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\])*$")]
         | None
     ) = None
-    expected: Any = None
+    expected: Operand | None = None
+    filter: dict[str, Operand] = Field(default_factory=dict, max_length=20)
+    min: Operand | None = None
+    max: Operand | None = None
+    target_observation: Name | None = None
+    target_path: str | None = None
+    target_filter: dict[str, Operand] = Field(default_factory=dict, max_length=20)
+    key: str | None = None
+    allowed: list[tuple[str, str]] | None = None
+    allow_unchanged: bool | None = None
+    paths: list[str] | None = None
+    forbid_create: bool | None = None
+    forbid_delete: bool | None = None
+    within_seconds: int | None = Field(default=None, ge=0, le=86400)
+    instructions: str | None = Field(default=None, min_length=1, max_length=4000)
+    rubric_id: str | None = None
     required: bool = True
     severity: Literal["critical", "high", "medium", "low"] = "high"
     requires_complete_observation: bool = True
     window_seconds: int = Field(default=10, ge=0, le=3600)
     grader_version_id: UUID | None = None
     control_set_hash: Digest | None = None
+
+    @model_validator(mode="after")
+    def typed_definition(self):
+        TypeAdapter(Check).validate_python(self.evaluator_definition())
+        return self
+
+    def evaluator_definition(self, check_id=None):
+        excluded = {"kind", "requirement_version_id", "grader_version_id", "control_set_hash", "entity"}
+        data = {
+            key: value
+            for key, value in self.model_dump(mode="json").items()
+            if key not in excluded and value is not None
+        }
+        if not data["filter"]:
+            data.pop("filter")
+        if not data["target_filter"]:
+            data.pop("target_filter")
+        data["id"] = str(check_id or self.requirement_version_id)
+        data["requirement_id"] = str(self.requirement_version_id)
+        if self.grader_version_id and self.operator == "semantic":
+            data["grader_version_id"] = str(self.grader_version_id)
+        return data
 
 
 class FixtureSpec(WireModel):
@@ -229,6 +290,12 @@ class FixtureSpec(WireModel):
     digest: Digest
     synthetic: bool = True
     compatibility_key: Name
+
+    @model_validator(mode="after")
+    def recipe_digest(self):
+        if self.digest != content_hash(self.recipe):
+            raise ValueError("Fixture digest must equal the canonical recipe hash")
+        return self
 
 
 class ScriptStep(WireModel):
@@ -292,6 +359,11 @@ class ResourceReleaseIn(WireModel):
     reconciliation_id: UUID
 
 
+class DeclaredSimplification(WireModel):
+    path: str = Field(min_length=1, max_length=500)
+    rationale: str = Field(min_length=1, max_length=4000)
+
+
 class FidelitySpec(WireModel):
     kind: Literal["fidelity"] = "fidelity"
     simulator_version_id: UUID
@@ -300,6 +372,7 @@ class FidelitySpec(WireModel):
     identity_profile: Name
     normalizers: list[dict[str, Any]] = Field(default_factory=list)
     intentional_omissions: list[str] = Field(default_factory=list)
+    intentional_simplifications: list[DeclaredSimplification] = Field(default_factory=list, max_length=100)
     reference_limitations: list[str] = Field(default_factory=list)
     consistency_window_seconds: int = Field(default=10, ge=0, le=3600)
 
@@ -311,6 +384,7 @@ class GraderSpec(WireModel):
     control_set_hash: Digest
     positive_control_ids: list[UUID] = Field(min_length=1)
     negative_control_ids: list[UUID] = Field(min_length=1)
+    ambiguous_control_ids: list[UUID] = Field(default_factory=list)
     heldout_control_ids: list[UUID] = Field(default_factory=list)
     rubric: str | None = Field(default=None, max_length=10000)
     provider: Name | None = None
@@ -322,12 +396,24 @@ class GraderSpec(WireModel):
 class SourceSpec(WireModel):
     kind: Literal["source"] = "source"
     repository: Name
-    commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")]
+    source_kind: Literal["git", "directory", "archive"] = "git"
+    commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")] | None = None
+    snapshot_digest: Digest | None = None
     recipe_hash: Digest
     lockfile_hash: Digest
     installation_id: int | None = Field(default=None, ge=1)
     trusted: bool = False
     allowed_patch_paths: list[Name] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def pinned_source_identity(self):
+        if self.source_kind == "git" and self.commit is None:
+            raise ValueError("Git sources require a pinned full commit")
+        if self.source_kind != "git" and (self.snapshot_digest is None or self.commit is not None):
+            raise ValueError("Local/archive sources require a snapshot digest, not a fabricated Git commit")
+        if self.source_kind != "git" and self.installation_id is not None:
+            raise ValueError("Only Git sources may request GitHub installation access")
+        return self
 
 
 class VoiceSpec(WireModel):
@@ -394,6 +480,7 @@ class VersionCreate(WireModel):
 class ApprovalIn(WireModel):
     content_hash: Digest
     rationale: str = Field(min_length=1, max_length=4000)
+    evidence_digest: Digest | None = None
 
 
 class RunCreate(WireModel):
@@ -421,6 +508,147 @@ class RunnerClaim(WireModel):
 
 class LeaseRequest(WireModel):
     lease_token: str = Field(min_length=32, max_length=200)
+
+
+ActionKind = Literal["agent_invoke", "environment_action", "fixture_prepare", "observe", "cleanup", "reference_call"]
+DispatchState = Literal["acknowledged", "rejected_before_effect", "uncertain", "not_dispatched"]
+SideEffectState = Literal["none_expected", "requires_observation", "confirmed_by_readback", "unresolved"]
+CleanupState = Literal["succeeded", "failed", "not_required"]
+
+
+class PreparedPayload(WireModel):
+    operation_id: Name
+    request_digest: Digest
+    action_kind: ActionKind
+
+
+class DispatchPayload(WireModel):
+    operation_id: Name
+
+
+class ResponsePayload(DispatchPayload):
+    dispatch_state: DispatchState
+    side_effect_state: SideEffectState
+    response_artifact_id: UUID | None = None
+
+
+class ObservationPayload(WireModel):
+    observation_id: UUID
+
+
+class CheckPayload(WireModel):
+    check_version_id: UUID
+
+
+class CleanupPayload(WireModel):
+    state: CleanupState
+    reason_code: str | None = Field(default=None, max_length=200)
+
+
+class ReconciliationPayload(WireModel):
+    state: Literal["resolved", "unresolved"]
+    evidence_id: UUID
+
+
+class CancelPayload(WireModel):
+    pass
+
+
+class ProgressPayload(WireModel):
+    code: Name
+
+
+class PreflightResult(WireModel):
+    job_kind: Literal["preflight"] = "preflight"
+    invocation_ok: bool = Field(strict=True)
+    observer_ok: bool = Field(strict=True)
+    cleanup_ok: bool = Field(strict=True)
+    isolation_verified: bool = False
+    max_concurrency: int = Field(default=1, ge=1, le=3, strict=True)
+
+
+class CalibrationResult(WireModel):
+    job_kind: Literal["calibration"] = "calibration"
+    control_set_hash: Digest
+    controls_verified: bool = Field(strict=True)
+    missed_defects: int = Field(ge=0, strict=True)
+    false_alarms: int = Field(ge=0, strict=True)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class BuildResult(WireModel):
+    job_kind: Literal["build", "source_import"] = "build"
+    status: Literal["succeeded", "failed", "unavailable"]
+    source_commit: str | None = None
+    image_digest: str | None = None
+    snapshot_digest: Digest | None = None
+    artifact_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class SourceBuildReport(WireModel):
+    source_kind: Literal["git", "directory", "archive"]
+    status: Literal["succeeded", "failed", "unavailable"]
+    source_commit: str | None = None
+    snapshot_digest: Digest
+    recipe_digest: Digest
+    files: int = Field(ge=0)
+    runtime: Literal["python", "node", "container"]
+    log_tail: str = Field(default="", max_length=4096)
+    exit_code: int | None = None
+
+
+class RepairResult(WireModel):
+    job_kind: Literal["repair_retest", "patch_proposal"] = "repair_retest"
+    tested_version: UUID | None = None
+    source_commit: str | None = None
+    patch_artifact_id: UUID | None = None
+    base_commit: str | None = None
+    validation_passed: bool = Field(strict=True)
+    heldout_passed: bool = Field(strict=True)
+    controls_passed: bool = Field(strict=True)
+    criteria_unchanged: bool = Field(strict=True)
+    report_id: UUID | None = None
+
+
+class ReportResult(WireModel):
+    job_kind: Literal[
+        "action_comparison",
+        "fresh_agent_pair",
+        "reduce_reproduction",
+        "simulator_inspect",
+        "simulator_reset",
+        "trace_import",
+        "incident_draft",
+        "collision",
+        "probe",
+        "voice",
+    ]
+    status: Literal["succeeded", "failed", "unknown", "unavailable"]
+    artifact_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+JobResult = Annotated[
+    PreflightResult | CalibrationResult | BuildResult | RepairResult | ReportResult, Field(discriminator="job_kind")
+]
+
+
+def typed_job_result(value):
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
+    value = dict(value)
+    if "job_kind" not in value:
+        # Preserve existing 1.0 producers only where the result shape is unambiguous.
+        if "invocation_ok" in value:
+            value["job_kind"] = "preflight"
+        elif "control_set_hash" in value:
+            value["job_kind"] = "calibration"
+        elif "validation_passed" in value:
+            value["job_kind"] = "repair_retest"
+        elif "source_commit" in value:
+            value["job_kind"] = "build"
+    return TypeAdapter(JobResult).validate_python(value)
 
 
 class SourceCredentialIn(LeaseRequest):
@@ -454,6 +682,30 @@ class RunnerEvent(WireModel):
     occurred_at: datetime
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def typed_payload(cls, value):
+        if not isinstance(value, dict):
+            return value
+        models = {
+            "step_prepared": PreparedPayload,
+            "step_dispatching": DispatchPayload,
+            "step_response_recorded": ResponsePayload,
+            "observation_recorded": ObservationPayload,
+            "check_recorded": CheckPayload,
+            "cleanup_recorded": CleanupPayload,
+            "reconciliation_recorded": ReconciliationPayload,
+            "cancel_acknowledged": CancelPayload,
+            "progress": ProgressPayload,
+        }
+        event_type = value.get("type")
+        payload = value.get("payload", {})
+        if event_type == "job_result":
+            payload = typed_job_result(payload).model_dump(mode="json")
+        elif event_type in models:
+            payload = models[event_type].model_validate(payload).model_dump(mode="json")
+        return {**value, "payload": payload}
+
     @field_validator("occurred_at")
     @classmethod
     def aware_time(cls, value: datetime) -> datetime:
@@ -462,13 +714,93 @@ class RunnerEvent(WireModel):
         return value
 
 
+# Concrete variants keep both Python construction and generated wire schemas typed.
+StepPreparedEvent = create_model(
+    "StepPreparedEvent",
+    __base__=RunnerEvent,
+    type=(Literal["step_prepared"], "step_prepared"),
+    payload=(PreparedPayload, ...),
+)
+StepDispatchingEvent = create_model(
+    "StepDispatchingEvent",
+    __base__=RunnerEvent,
+    type=(Literal["step_dispatching"], "step_dispatching"),
+    payload=(DispatchPayload, ...),
+)
+StepResponseEvent = create_model(
+    "StepResponseEvent",
+    __base__=RunnerEvent,
+    type=(Literal["step_response_recorded"], "step_response_recorded"),
+    payload=(ResponsePayload, ...),
+)
+ObservationEvent = create_model(
+    "ObservationEvent",
+    __base__=RunnerEvent,
+    type=(Literal["observation_recorded"], "observation_recorded"),
+    payload=(ObservationPayload, ...),
+)
+CheckEvent = create_model(
+    "CheckEvent", __base__=RunnerEvent, type=(Literal["check_recorded"], "check_recorded"), payload=(CheckPayload, ...)
+)
+CleanupEvent = create_model(
+    "CleanupEvent",
+    __base__=RunnerEvent,
+    type=(Literal["cleanup_recorded"], "cleanup_recorded"),
+    payload=(CleanupPayload, ...),
+)
+ReconciliationEvent = create_model(
+    "ReconciliationEvent",
+    __base__=RunnerEvent,
+    type=(Literal["reconciliation_recorded"], "reconciliation_recorded"),
+    payload=(ReconciliationPayload, ...),
+)
+CancelEvent = create_model(
+    "CancelEvent",
+    __base__=RunnerEvent,
+    type=(Literal["cancel_acknowledged"], "cancel_acknowledged"),
+    payload=(CancelPayload, Field(default_factory=CancelPayload)),
+)
+ProgressEvent = create_model(
+    "ProgressEvent", __base__=RunnerEvent, type=(Literal["progress"], "progress"), payload=(ProgressPayload, ...)
+)
+JobResultEvent = create_model(
+    "JobResultEvent", __base__=RunnerEvent, type=(Literal["job_result"], "job_result"), payload=(JobResult, ...)
+)
+TypedRunnerEvent = Annotated[
+    StepPreparedEvent
+    | StepDispatchingEvent
+    | StepResponseEvent
+    | ObservationEvent
+    | CheckEvent
+    | CleanupEvent
+    | ReconciliationEvent
+    | CancelEvent
+    | ProgressEvent
+    | JobResultEvent,
+    Field(discriminator="type"),
+]
+
+
 class EventBatch(LeaseRequest):
     protocol_version: Literal["1.0"] = PROTOCOL_VERSION
-    events: list[RunnerEvent] = Field(min_length=1, max_length=100)
+    events: list[TypedRunnerEvent] = Field(min_length=1, max_length=100)
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def event_instances(cls, value):
+        return [item.model_dump(mode="json") if isinstance(item, BaseModel) else item for item in value]
+
+    @model_validator(mode="after")
+    def bounded_bytes(self):
+        if len(canonical_json(self).encode()) > 1048576:
+            raise ValueError("Event batches cannot exceed 1 MiB")
+        return self
 
 
 class Observation(WireModel):
     observation_id: UUID
+    name: Name
+    entity: Name | None = None
     source: Name
     captured_at: datetime
     availability: Literal["available", "unavailable"]
@@ -495,6 +827,7 @@ class CheckResult(WireModel):
     evaluator_digest: Digest
     verdict: Verdict
     reason: str = Field(min_length=1, max_length=4000)
+    reason_code: str | None = Field(default=None, max_length=200)
     observation_ids: list[UUID] = Field(default_factory=list)
     measured: dict[str, Any] = Field(default_factory=dict)
 
@@ -508,6 +841,8 @@ class ReconciliationIn(LeaseRequest):
     state: Literal["resolved", "unresolved"]
     rationale: str = Field(min_length=1, max_length=4000)
     observations: list[Observation] = Field(default_factory=list, max_length=100)
+    late_events: list[TypedRunnerEvent] = Field(default_factory=list, max_length=100)
+    cleanup_state: Literal["succeeded", "failed", "not_required"] | None = None
 
 
 class Finalize(LeaseRequest):
@@ -578,11 +913,21 @@ class JobCreate(WireModel):
     limits: RunLimits = Field(default_factory=RunLimits)
 
 
+class AutomaticRunBudget(WireModel):
+    max_runs_per_window: int = Field(default=10, ge=0, le=1000)
+    window_seconds: int = Field(default=3600, ge=60, le=2592000)
+    max_cases_per_run: int = Field(default=50, ge=1, le=5000)
+    max_agent_invocations: int = Field(default=400, ge=1, le=100000)
+    max_cost_minor: int | None = Field(default=None, ge=0)
+    allowed_suites: list[str] = Field(default_factory=list, max_length=100)
+
+
 class ScheduleIn(WireModel):
     name: Name
     interval_seconds: int = Field(ge=60, le=2592000)
     run: RunCreate
     enabled: bool = False
+    automatic_budget: AutomaticRunBudget | None = None
 
 
 class DependencyIn(WireModel):
@@ -623,8 +968,40 @@ class RunnerArtifactCreate(LeaseRequest):
     artifact: ArtifactCreate
 
 
+class ErrorCode(StrEnum):
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    BUDGET_EXCEEDED = "BUDGET_EXCEEDED"
+    BUDGET_REQUIRED = "BUDGET_REQUIRED"
+    CALIBRATION_REQUIRED = "CALIBRATION_REQUIRED"
+    CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
+    CSRF_FAILED = "CSRF_FAILED"
+    EXPIRED_BACKUP = "EXPIRED_BACKUP"
+    EXPORT_TOO_LARGE = "EXPORT_TOO_LARGE"
+    FORBIDDEN = "FORBIDDEN"
+    IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
+    INCOMPATIBLE_VERSION = "INCOMPATIBLE_VERSION"
+    INCOMPLETE_EVIDENCE = "INCOMPLETE_EVIDENCE"
+    INTEGRITY_ERROR = "INTEGRITY_ERROR"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    INVALID_INPUT = "INVALID_INPUT"
+    INVALID_STATE = "INVALID_STATE"
+    LEASE_EXPIRED = "LEASE_EXPIRED"
+    MISSING_CAPABILITY = "MISSING_CAPABILITY"
+    NOT_FOUND = "NOT_FOUND"
+    POLICY_CHANGED = "POLICY_CHANGED"
+    PREFLIGHT_REQUIRED = "PREFLIGHT_REQUIRED"
+    PROVIDER_ERROR = "PROVIDER_ERROR"
+    PUBLICATION_CONFLICT = "PUBLICATION_CONFLICT"
+    RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
+    STALE_BASE = "STALE_BASE"
+    UNAUTHENTICATED = "UNAUTHENTICATED"
+    UNAVAILABLE = "UNAVAILABLE"
+    UNSUPPORTED_JOB = "UNSUPPORTED_JOB"
+    VALIDATION_REQUIRED = "VALIDATION_REQUIRED"
+
+
 class ErrorDetail(WireModel):
-    code: str
+    code: ErrorCode
     message: str
     details: dict[str, str] = Field(default_factory=dict)
     correlation_id: UUID
@@ -649,14 +1026,85 @@ class RepairIn(WireModel):
     layer: Literal["agent", "simulator", "evaluator"]
 
 
+class RepairValidationIn(WireModel):
+    version_ids: list[UUID] = Field(default_factory=list, max_length=20)
+    limits: RunLimits | None = None
+
+
+class RelayConfiguration(WireModel):
+    public_base_url: str = Field(pattern=r"^https://[^/?#]+$", max_length=500)
+    event_id_path: str = "event_id"
+    task_id_path: str = "task_id"
+    status_path: str = "status"
+    sequence_path: str | None = "sequence"
+    result_path: str | None = "result"
+    terminal_states: list[Name] = Field(default_factory=lambda: ["completed", "failed", "cancelled"], min_length=1)
+    previous_secret_ref: SecretRef | None = None
+
+    @field_validator("public_base_url")
+    @classmethod
+    def public_origin(cls, value):
+        parsed = urlsplit(value)
+        if not parsed.hostname or parsed.username or parsed.password or any(ord(c) < 33 for c in value):
+            raise ValueError("Use an HTTPS public origin without credentials or whitespace")
+        return value
+
+    @field_validator("event_id_path", "task_id_path", "status_path", "sequence_path", "result_path")
+    @classmethod
+    def mapping_path(cls, value):
+        import re
+        from .checks import PATH_PATTERN
+
+        if value is not None and not re.fullmatch(PATH_PATTERN, value):
+            raise ValueError("Use a bounded typed field path")
+        return value
+
+
 class IntegrationIn(WireModel):
-    provider: Literal["github", "ci", "media"]
+    provider: Literal["github", "ci", "media", "webhook"]
     secret_ref: SecretRef
     installation_id: int | None = Field(default=None, ge=1)
     repository: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")] | None = None
     publish_enabled: bool = False
     trigger_run: RunCreate | None = None
     approved_branch: Name | None = None
+    relay: RelayConfiguration | None = None
+    automatic_budget: AutomaticRunBudget | None = None
+
+
+class RelayTaskRegistration(LeaseRequest):
+    integration_id: UUID
+    task_id: Name
+    invocation_id: Name
+    operation_id: Name
+
+
+class RelayPoll(LeaseRequest):
+    after: int = Field(default=0, ge=0)
+
+
+class CollectorCredentialIn(WireModel):
+    hours: int = Field(default=24, ge=1, le=720)
+
+
+class ReportClassificationIn(WireModel):
+    candidate_id: Name
+    classification: Literal["confirmed_defect", "intentional_simplification", "reference_limitation", "unresolved"]
+    rationale: str = Field(min_length=1, max_length=4000)
+    evidence_ids: list[UUID] = Field(min_length=1, max_length=30)
+
+
+class AdvancedReportRecord(WireModel):
+    id: UUID
+    run_id: UUID
+    attempt_id: UUID
+    report_type: Name
+    report_key: Name
+    content_hash: Digest
+    payload: dict[str, Any]
+    hidden: bool
+    hosted_heldout_exposures: int | None = Field(default=None, ge=1)
+    created_at: datetime
 
 
 class PatchFile(WireModel):
@@ -669,6 +1117,22 @@ class PatchBundle(WireModel):
     base_commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")]
     files: list[PatchFile] = Field(min_length=1, max_length=20)
 
+    def validation_diff(self) -> str:
+        """Canonical data-only unified diff used by the runtime validation digest."""
+        import difflib
+
+        parts = []
+        for file in self.files:
+            parts.append(f"diff --git a/{file.path} b/{file.path}\n")
+            lines = difflib.unified_diff(
+                (file.before or "").splitlines(keepends=True), (file.after or "").splitlines(keepends=True),
+                fromfile="a/" + file.path if file.before is not None else "/dev/null",
+                tofile="b/" + file.path if file.after is not None else "/dev/null", lineterm="\n",
+            )
+            for line in lines:
+                parts.append(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n")
+        return "".join(parts)
+
 
 class PublishIn(WireModel):
     proposal_hash: Digest
@@ -677,11 +1141,11 @@ class PublishIn(WireModel):
 
 class BudgetReservation(LeaseRequest):
     operation_id: Name
-    budget_kind: Literal["agent", "reference"]
+    budget_kind: Literal["agent", "reference", "cleanup"]
     amount: int = Field(default=1, ge=1, le=1000)
 
 
-class ReadModel(BaseModel):
+class ReadModel(WireModel):
     model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
 
 
@@ -798,6 +1262,11 @@ class RepairRecord(ReadModel):
     base_commit: str
     proposal_hash: Digest
     validation_run_id: UUID | None
+    validation_report_id: UUID | None = None
+    validation_evidence_digest: Digest | None = None
+    publication_record: dict[str, Any] | None = None
+    available_validation_digest: Digest | None = None
+    available_validation_report_id: UUID | None = None
     approved_by: UUID | None
     approved_at: datetime | None
     state: str
@@ -812,6 +1281,7 @@ class ScheduleRecord(ReadModel):
     configuration: RunCreate
     enabled: bool
     next_due_at: datetime
+    automatic_budget: AutomaticRunBudget | None = None
 
 
 class RunnerRecord(ReadModel):
@@ -839,6 +1309,7 @@ class AgentContext(WireModel):
     case_id: UUID | None
     connection: ConnectionSpec | None
     script: list[ScriptStep]
+    tool_route: ToolRoute | None = None
 
 
 class RepairContext(WireModel):
@@ -848,12 +1319,16 @@ class RepairContext(WireModel):
     base_commit: str
     layer: Literal["agent", "simulator", "evaluator"]
     finding_id: UUID
+    validation_patch_digest: Digest | None = None
 
 
 class ExecutionManifest(WireModel):
     schema_version: Literal["1.0"] = PROTOCOL_VERSION
     kind: Name | None = None
     environment: VersionRecord | None = None
+    connection: VersionRecord | None = None
+    suite: VersionRecord | None = None
+    request: RunCreate | None = None
     versions: list[VersionRecord] = Field(default_factory=list)
     version_ids: list[UUID] = Field(default_factory=list)
     input_artifacts: list[ArtifactRecord] = Field(default_factory=list)
@@ -871,6 +1346,8 @@ class RunnerClaimResponse(WireModel):
     kind: Name
     lease_token: str = Field(min_length=32, max_length=200)
     manifest_hash: Digest
+    component_hashes: dict[str, Digest] = Field(default_factory=dict)
+    run_manifest_hash: Digest
     lease_expires_at: datetime
     fencing_generation: int = Field(ge=1)
     deadline: datetime
@@ -878,6 +1355,32 @@ class RunnerClaimResponse(WireModel):
     agent_context: AgentContext
     evaluator_context: PinnedCase | None
     execution_manifest: ExecutionManifest
+
+
+def claim_component_hashes(execution_manifest, evaluator_context):
+    execution = ExecutionManifest.model_validate(execution_manifest).model_dump(mode="json")
+    components = {
+        name: execution[name]
+        for name in (
+            "environment",
+            "connection",
+            "suite",
+            "request",
+            "policy",
+            "limits",
+            "timezone",
+            "versions",
+            "version_ids",
+            "input_artifacts",
+            "finding_id",
+            "repair",
+            "kind",
+        )
+    }
+    if evaluator_context:
+        case = PinnedCase.model_validate(evaluator_context).model_dump(mode="json")
+        components.update(case)
+    return {name: content_hash(value) for name, value in components.items()}
 
 
 class ControlResponse(WireModel):
@@ -897,3 +1400,31 @@ class EventAcknowledgement(WireModel):
 class FinalizeResponse(WireModel):
     attempt_id: UUID
     gate: Gate
+
+
+from .adapters import (  # noqa: E402,F401
+    ActionContext,
+    ActionResult,
+    AgentReply,
+    ApprovedAction,
+    CancelResult,
+    CapabilityReport,
+    CleanupResult,
+    FixtureContext,
+    FixtureHandle,
+    InvocationContext,
+    JsonlFrame,
+    Message,
+    ObservationQuery,
+    Reconciliation,
+    SessionHandle,
+    SnapshotScope,
+    StateSnapshot,
+    StepIntent,
+    ToolEvent,
+    ToolRoute,
+    Unavailable,
+    Usage,
+)
+
+AgentContext.model_rebuild()

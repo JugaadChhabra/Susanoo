@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GitPullRequest, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ClipboardCopy, GitPullRequest, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { platform } from "@/lib/platform-api";
 import { initialValue, SchemaForm, schemaDefinitions } from "./schema-form";
 import type { IntegrationIn, VersionRecord } from "@/types/platform-generated";
@@ -92,7 +92,13 @@ export function ProjectOperations({
                   {integrations.map((row) => (
                     <tr key={row.id}>
                       <td>{row.provider}</td>
-                      <td>{row.repository ?? row.id}</td>
+                      <td>{row.repository ?? row.id}
+                        {row.configuration.relay && <button className="ev-icon" type="button"
+                          title="Copy task callback URL" aria-label="Copy task callback URL"
+                          onClick={() => void navigator.clipboard.writeText(
+                            `${row.configuration.relay?.public_base_url}/api/v1/callbacks/runtime/${row.id}`
+                          )}><ClipboardCopy size={15} /></button>}
+                      </td>
                       <td>
                         {row.configuration.publish_enabled
                           ? "Draft PR publication"

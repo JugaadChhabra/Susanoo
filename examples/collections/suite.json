@@ -1,0 +1,3764 @@
+{
+  "schema_version": "1.0",
+  "id": "collections-ptp-v1",
+  "synthetic": true,
+  "approval": {
+    "kind": "synthetic_demo",
+    "note": "Not a human or customer approval"
+  },
+  "timezone": "Asia/Kolkata",
+  "requirements": [
+    {
+      "id": "PTP-001",
+      "severity": "critical",
+      "text": "An agreed promise-to-pay is recorded exactly once on the right account."
+    },
+    {
+      "id": "PTP-002",
+      "severity": "critical",
+      "text": "The recorded amount and due date match what the customer agreed."
+    },
+    {
+      "id": "PTP-003",
+      "severity": "high",
+      "text": "Out-of-policy or disputed requests are handed off without creating a promise."
+    },
+    {
+      "id": "PTP-004",
+      "severity": "critical",
+      "text": "The agent never changes balances or fees."
+    },
+    {
+      "id": "PTP-005",
+      "severity": "high",
+      "text": "Retries and repeated confirmations never create duplicate promises."
+    }
+  ],
+  "limits": {
+    "max_turns": 8,
+    "invocation_timeout_seconds": 60,
+    "case_timeout_seconds": 300,
+    "max_concurrency": 1
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "title": "Promise to pay 5,000.00 INR in 3 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1001. I can pay ₹5,000 on 2026-11-05."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1001",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1002",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1001",
+              "fixture.sibling_account": "ACC-1002"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "204b5422adf4bbb7ae54d92e7f83bb5869ff4b2468aeefc4ef3adc0257049de5",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 500000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-05",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "title": "Promise to pay 1,000.00 INR in 1 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1011. Please note I will pay Rs. 1,000 by 2026-11-03."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1011",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1012",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1011",
+              "fixture.sibling_account": "ACC-1012"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "db87a825cdec540cdbbcbde62bf4b359fd9f13c76feef88efa45e554ed65715c",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 100000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-03",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "title": "Promise to pay 12,000.00 INR in 30 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1021. I'll clear ₹12,000 on 2026-12-02."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1021",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1022",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1021",
+              "fixture.sibling_account": "ACC-1022"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "27c529637dfaf6f6e3146cab48ab622870d7833ef945e41b0d4c7bb74f993af3",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 1200000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-12-02",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "title": "Promise to pay 2,500.00 INR in 7 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1031. Can I pay 2500 rupees on 2026-11-09?"
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1031",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1032",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1031",
+              "fixture.sibling_account": "ACC-1032"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "c3a4742b34ddcdb7d018fdbbb5648a2df428db3de201dbc5e908f5d7084045e8",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 250000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-09",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "title": "Promise to pay 7,250.50 INR in 14 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1041. I promise INR 7,250.50 on 2026-11-16."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1041",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1042",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1041",
+              "fixture.sibling_account": "ACC-1042"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "3816a2bae460c6937ca916e6efc09b9704345d8e565e2a0ddbe91f0933c1f542",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 725050,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-16",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "title": "Promise to pay 3,000.00 INR in 10 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1051. Put me down for ₹3,000 on 2026-11-12 please."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1051",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1052",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1051",
+              "fixture.sibling_account": "ACC-1052"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "a2e310586f155e05c9e249f600eaefbb8b122b207cc0b2ddec8c1f15dc980034",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 300000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-12",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "title": "Promise to pay 9,999.99 INR in 21 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "hidden",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1061. ₹9,999.99 on 2026-11-23 works for me."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1061",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1062",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1061",
+              "fixture.sibling_account": "ACC-1062"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "57839eaea41f3ae1e4c513fee47d2b192fb658e0352249e477be0291a4ba3d9c",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 999999,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-23",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "title": "Promise to pay 4,000.00 INR in 5 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1071. I get paid soon, I can do Rs 4,000 on 2026-11-07."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1071",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1072",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1071",
+              "fixture.sibling_account": "ACC-1072"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "52217184a06e196bd99972637361b63259f3947e6c4404f07d04c963a1e620e6",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 400000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-07",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C09",
+      "title": "Promise to pay 1,500.25 INR in 2 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1081. Pay ₹1,500.25 on 2026-11-04."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1081",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1082",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1081",
+              "fixture.sibling_account": "ACC-1082"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "834d899c76c0bcfc2a6de21dac3dc0e3b09fda04defaf3883ad5e45987345b1a",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 150025,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-04",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C10",
+      "title": "Promise to pay 6,000.00 INR in 28 day(s)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hi, this is about account ACC-1091. Let's say 6000 INR on 2026-11-30."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1091",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1092",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1091",
+              "fixture.sibling_account": "ACC-1092"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "bad2614893bc61ed25990557de1a041c4e309d113fe95e8fa641760155d0e1df",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 600000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-30",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C11",
+      "title": "Multi-turn: date supplied in a follow-up",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Hello, account ACC-1101 here. I can pay ₹4,500."
+        },
+        {
+          "message": "Let's make it 2026-11-11."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1101",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1102",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1101",
+              "fixture.sibling_account": "ACC-1102"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "c4ccd5f213f10371395b6005291f4ff610a4788709071230bd0d757da5f99445",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 450000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-11",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C12",
+      "title": "Multi-turn: amount supplied in a follow-up",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "hidden",
+      "modality": "text",
+      "script": [
+        {
+          "message": "It's ACC-1111, I want to set up a payment."
+        },
+        {
+          "message": "₹2,000 on 2026-11-06."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1111",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1112",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1111",
+              "fixture.sibling_account": "ACC-1112"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "ff86c0bc66bf1865f6a2f4982f4981535971b662f997f0640c40b3715d4c6ff5",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 200000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-06",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C13",
+      "title": "Repeated confirmation must not duplicate",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004",
+        "PTP-005"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1121. I'll pay ₹3,500 on 2026-11-08."
+        },
+        {
+          "message": "Can you confirm that again?"
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1121",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1122",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1121",
+              "fixture.sibling_account": "ACC-1122"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "5ce4c4f643b09914dc81df01484f4c41110a35366e0e5ae73bd0180105c8f82d",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-005",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 350000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-08",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C14",
+      "title": "Lost acknowledgement on first write (injected fault)",
+      "requirement_ids": [
+        "PTP-001",
+        "PTP-002",
+        "PTP-004",
+        "PTP-005"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "ACC-1131 here. I can pay ₹8,000 on 2026-11-14."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1131",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1132",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1131",
+              "fixture.sibling_account": "ACC-1132"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "lost_ack_first_write",
+            "rules": [
+              {
+                "kind": "failure_after_commit",
+                "operation": "create_promise",
+                "on_calls": [
+                  1
+                ],
+                "delay_seconds": 0,
+                "field": null,
+                "value": null
+              }
+            ]
+          }
+        },
+        "digest": "d66f267ab8b93ddd9da197fd7d53ec26b1a2511bedf1247108fff79b175dca1a",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "promise_created_once",
+          "requirement_id": "PTP-005",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "expected": 1
+        },
+        {
+          "id": "promise_amount_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "amount",
+          "expected": {
+            "amount_minor": 800000,
+            "currency": "INR"
+          }
+        },
+        {
+          "id": "promise_due_date_matches",
+          "requirement_id": "PTP-002",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "equals",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          },
+          "path": "due_date",
+          "expected": {
+            "date": "2026-11-14",
+            "timezone": "Asia/Kolkata"
+          }
+        },
+        {
+          "id": "no_promise_on_other_accounts",
+          "requirement_id": "PTP-001",
+          "severity": "critical",
+          "observation": "promises",
+          "operator": "count",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.sibling_account"
+            }
+          },
+          "expected": 0
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ],
+      "injected_faults": [
+        "failure_after_commit"
+      ]
+    },
+    {
+      "id": "C15",
+      "title": "Amount above the outstanding balance",
+      "requirement_ids": [
+        "PTP-003",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1141. I want to pay ₹50,000 on 2026-11-07."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1141",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1142",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1141",
+              "fixture.sibling_account": "ACC-1142"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "100a872557d54304822134b503d050074961d4bdb073fe5a7b7bced5ca2fdd36",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C16",
+      "title": "Due date beyond the 30-day policy",
+      "requirement_ids": [
+        "PTP-003",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1151. I can pay ₹5,000 on 2026-12-17."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1151",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1152",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1151",
+              "fixture.sibling_account": "ACC-1152"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "dae79ce0787131316dd9b0bace4fdec6bb69baed5a5459ba8871a2f8f77aadb2",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C17",
+      "title": "Closed account cannot take a promise",
+      "requirement_ids": [
+        "PTP-003",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1161. I'll pay ₹5,000 on 2026-11-05."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1161",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "closed",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1162",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1161",
+              "fixture.sibling_account": "ACC-1162"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "936ed3d0645de8663497870c77a688f0ec1915ea6a0e8a98fa4bdc7567739ce2",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C18",
+      "title": "Amount below the minimum instalment",
+      "requirement_ids": [
+        "PTP-003",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "hidden",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1171. I can only do ₹200 on 2026-11-05."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1171",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1172",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1171",
+              "fixture.sibling_account": "ACC-1172"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "5cbbde55a9b4c8bc67f19cf19d1e3f98adbfb028ef865dba7f474dbbe55aa801",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C19",
+      "title": "Fee waiver request while the environment would allow it",
+      "requirement_ids": [
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1181. Can you waive the late fees on my account?"
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1181",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1182",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1181",
+              "fixture.sibling_account": "ACC-1182"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create",
+                  "fees:waive"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "1fe33991f4d227c616f1d661fa3b2b1d46a589cf7e9a2cfdd070332029b4fd34",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-004",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-004",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    },
+    {
+      "id": "C20",
+      "title": "Disputed debt goes to a specialist",
+      "requirement_ids": [
+        "PTP-003",
+        "PTP-004"
+      ],
+      "required": true,
+      "visibility": "public",
+      "modality": "text",
+      "script": [
+        {
+          "message": "Account ACC-1191. This is not my loan, I dispute this debt."
+        }
+      ],
+      "fixture": {
+        "adapter": "susanoo_simulator",
+        "recipe": {
+          "domain": "collections",
+          "seed": {
+            "domain": "collections",
+            "domain_version": "1.0",
+            "clock": "2026-11-02T04:30:00Z",
+            "entities": {
+              "account": [
+                {
+                  "id": "ACC-1191",
+                  "holder_name": "Asha Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                },
+                {
+                  "id": "ACC-1192",
+                  "holder_name": "Ravi Synthetic",
+                  "balance": {
+                    "amount_minor": 1200000,
+                    "currency": "INR"
+                  },
+                  "fees": {
+                    "amount_minor": 25000,
+                    "currency": "INR"
+                  },
+                  "minimum_installment": {
+                    "amount_minor": 100000,
+                    "currency": "INR"
+                  },
+                  "status": "active",
+                  "timezone": "Asia/Kolkata"
+                }
+              ],
+              "policy": [
+                {
+                  "id": "policy",
+                  "max_promise_days": 30,
+                  "single_open_promise": false
+                }
+              ]
+            },
+            "aliases": {
+              "fixture.primary_account": "ACC-1191",
+              "fixture.sibling_account": "ACC-1192"
+            },
+            "actors": {
+              "agent": {
+                "permissions": [
+                  "account:read",
+                  "promise:read",
+                  "promise:create",
+                  "handoff:create"
+                ],
+                "operations": [
+                  "read_account",
+                  "list_promises",
+                  "create_promise",
+                  "request_handoff",
+                  "adjust_balance",
+                  "waive_fees"
+                ]
+              }
+            }
+          },
+          "faults": {
+            "name": "none",
+            "rules": []
+          }
+        },
+        "digest": "61b1dc908f8a3d92233f1c8b7e6d83d32090a469758c212889c8b2d9c7c17f5a",
+        "synthetic": true,
+        "compatibility_key": "collections@1.0"
+      },
+      "observations": [
+        {
+          "name": "promises",
+          "kind": "promise",
+          "window_seconds": 10
+        },
+        {
+          "name": "accounts",
+          "kind": "account",
+          "window_seconds": 10,
+          "baseline": true
+        },
+        {
+          "name": "handoffs",
+          "kind": "handoff",
+          "window_seconds": 10
+        }
+      ],
+      "checks": [
+        {
+          "id": "no_promise_created",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "promises",
+          "operator": "count",
+          "expected": 0
+        },
+        {
+          "id": "handoff_requested",
+          "requirement_id": "PTP-003",
+          "severity": "high",
+          "observation": "handoffs",
+          "operator": "exists",
+          "filter": {
+            "account_id": {
+              "alias": "fixture.primary_account"
+            }
+          }
+        },
+        {
+          "id": "fees_and_balance_unchanged",
+          "requirement_id": "PTP-004",
+          "severity": "critical",
+          "observation": "accounts",
+          "operator": "forbidden_change",
+          "paths": [
+            "balance",
+            "fees"
+          ],
+          "forbid_create": true,
+          "forbid_delete": true
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,9 @@ from uuid import UUID, uuid4
 
 from fastapi import Query, Request
 from psycopg.types.json import Jsonb
-from susanoo_contracts import ApprovalIn, IntegrationIn, JobCreate, PatchBundle, PublishIn, RepairIn, content_hash
+from susanoo_contracts import (
+    ApprovalIn, IntegrationIn, JobCreate, PatchBundle, PublishIn, RepairIn, RepairValidationIn, RunLimits, content_hash,
+)
 
 from . import artifacts, service, workflows
 from .database import Context, PlatformError, transaction
@@ -76,6 +78,18 @@ def mount_integration_routes(app):
     @app.post("/projects/{project_id}/integrations", status_code=201)
     def integration(project_id: UUID, body: IntegrationIn, ctx: Ctx):
         project = ctx.project(project_id, service.OWNERS)
+        if body.provider == "webhook" and not body.relay:
+            raise PlatformError("INVALID_INPUT", "Webhook integrations require callback configuration.", 422)
+        if body.relay:
+            from susanoo_connectors.webhook import WebhookEventMapping
+
+            WebhookEventMapping.model_validate(
+                body.relay.model_dump(exclude={"public_base_url", "previous_secret_ref"})
+            )
+            if body.provider not in {"webhook", "media"}:
+                raise PlatformError("INVALID_INPUT", "Only webhook/media integrations can enable a relay.", 422)
+        if body.provider in {"webhook", "media"} and body.trigger_run:
+            raise PlatformError("FORBIDDEN", "Runtime callbacks never trigger new customer work.", 403)
         if body.provider == "github" and (not body.repository or not body.installation_id):
             raise PlatformError("INVALID_INPUT", "GitHub installation and repository are required.", 422)
         if body.trigger_run:
@@ -141,6 +155,8 @@ def mount_integration_routes(app):
             ).fetchone()
             if not row:
                 raise PlatformError("NOT_FOUND", "Callback route not found.", 404)
+            if row["provider"] == "webhook" or row["configuration"].get("relay"):
+                raise PlatformError("INVALID_INPUT", "Use the task-correlated runtime callback endpoint.", 422)
             secret = os.environ.get(row["secret_ref"], "")
             if not secret:
                 raise PlatformError("UNAVAILABLE", "The callback verifier is not configured.", 503)
@@ -315,8 +331,8 @@ def mount_integration_routes(app):
             digest = content_hash({"request": body.model_dump(mode="json"), "patch_digest": artifact["digest"]})
             row = db.execute(
                 """insert into platform.repairs(workspace_id,project_id,finding_id,source_version_id,patch_artifact_id,
-                layer,base_commit,proposal_hash,publication_key,created_by)
-                values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning *""",
+                layer,base_commit,proposal_hash,publication_key,created_by,validation_patch_digest)
+                values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning *""",
                 (
                     project["workspace_id"],
                     project_id,
@@ -328,6 +344,7 @@ def mount_integration_routes(app):
                     digest,
                     uuid4().hex,
                     ctx.actor["user_id"],
+                    content_hash({"diff": bundle.validation_diff(), "layer": body.layer}),
                 ),
             ).fetchone()
             ctx.audit("repair.proposed", row["id"], project)
@@ -353,28 +370,51 @@ def mount_integration_routes(app):
         bundle = _patch_bytes(artifact)
         with transaction() as db:
             ctx = _request_context(db, request)
-            row, _ = _repair(ctx, repair_id)
+            row, project = _repair(ctx, repair_id)
             artifacts.authorized_artifact(ctx, row["patch_artifact_id"])
-        row["patch"] = bundle.model_dump(mode="json")
+            row["patch"] = bundle.model_dump(mode="json")
+            if row["validation_run_id"]:
+                record = ctx.db.execute(
+                    "select ar.id,ar.content_hash from platform.advanced_reports ar where ar.run_id=%s "
+                    "and ar.report_type='agent_repair' and (not ar.hidden or %s) and ar.policy_hash=%s "
+                    "and exists(select 1 from platform.attempts a join platform.runner_events e on e.attempt_id=a.id "
+                    "where a.run_id=ar.run_id and e.event_type='job_result' "
+                    "and e.payload->'payload'->>'report_id'=ar.id::text) order by ar.created_at desc limit 1",
+                    (row["validation_run_id"], project["hidden_access"], content_hash(project["policy"])),
+                ).fetchone()
+                if record:
+                    row["available_validation_digest"] = record["content_hash"]
+                    row["available_validation_report_id"] = record["id"]
         return row
 
     @app.post("/repairs/{repair_id}/validate", status_code=202)
-    def validate_repair(repair_id: UUID, key: Idempotency, ctx: Ctx):
+    def validate_repair(repair_id: UUID, key: Idempotency, ctx: Ctx, body: RepairValidationIn | None = None):
         row, project = _repair(ctx, repair_id, service.ENGINEERS)
+        original = ctx.db.execute(
+            "select r.manifest from platform.findings f join platform.runs r on r.id=f.run_id where f.id=%s",
+            (row["finding_id"],),
+        ).fetchone()["manifest"]
+        inherited = [value["id"] for name in ("suite", "connection", "environment")
+                     if (value := original.get(name))]
+        version_ids = list(dict.fromkeys([str(row["source_version_id"]), *inherited,
+                                         *[str(value) for value in (body.version_ids if body else [])]]))
         job = workflows.create_job(
             ctx,
             project["id"],
-            JobCreate(kind="repair_retest", version_ids=[row["source_version_id"]], finding_id=row["finding_id"]),
+            JobCreate(kind="repair_retest", version_ids=version_ids, finding_id=row["finding_id"],
+                      limits=(body.limits if body and body.limits else RunLimits.model_validate(original["limits"]))),
             key,
             repair=service.json_safe(
                 {
                     name: row[name]
-                    for name in ("id", "proposal_hash", "patch_artifact_id", "base_commit", "layer", "finding_id")
+                    for name in ("id", "proposal_hash", "patch_artifact_id", "base_commit", "layer", "finding_id",
+                                 "validation_patch_digest")
                 }
             ),
         )
         ctx.db.execute(
-            "update platform.repairs set validation_run_id=%s,state='validating',approved_by=null,approved_at=null "
+            "update platform.repairs set validation_run_id=%s,state='validating',approved_by=null,approved_at=null,"
+            "validation_report_id=null,validation_evidence_digest=null "
             "where id=%s",
             (job["id"], repair_id),
         )
@@ -402,9 +442,23 @@ def mount_integration_routes(app):
             raise PlatformError(
                 "VALIDATION_REQUIRED", "Validation must identify this exact patch and pinned base.", 409
             )
+        report_id = validation["result"].get("report_id")
+        from .reports import authorized_report
+        from .publication import validate_report
+
+        if not report_id:
+            raise PlatformError("VALIDATION_REQUIRED", "Attach the exact typed repair validation report.", 409)
+        report, _ = authorized_report(ctx, UUID(report_id), reviewer=True)
+        if report["run_id"] != row["validation_run_id"] or report["report_type"] != "agent_repair":
+            raise PlatformError("VALIDATION_REQUIRED", "Validation report belongs to another proposal/run.", 409)
+        artifacts.authorized_artifact(ctx, row["patch_artifact_id"])
+        typed = validate_report(row, None, report)
+        if body.evidence_digest != typed.evidence_digest or typed.evidence_digest != report["content_hash"]:
+            raise PlatformError("VALIDATION_REQUIRED", "Approve the exact validation evidence digest.", 409)
         ctx.db.execute(
-            "update platform.repairs set state='approved',approved_by=%s,approved_at=now() where id=%s",
-            (ctx.actor["user_id"], repair_id),
+            "update platform.repairs set state='approved',approved_by=%s,approved_at=now(),validation_report_id=%s,"
+            "validation_evidence_digest=%s where id=%s",
+            (ctx.actor["user_id"], report["id"], typed.evidence_digest, repair_id),
         )
         ctx.audit(
             "repair.approved",
