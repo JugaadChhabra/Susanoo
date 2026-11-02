@@ -38,6 +38,7 @@ test("typed comparison review and collector controls use the actual platform", a
     await expect(reports.getByRole("cell", { name: "unresolved", exact: true })).toBeVisible();
     await page.screenshot({ path: resolve(`../../.platform/advanced-${info.project.name}.png`), fullPage: true });
     await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByRole("heading", { name: "Sign In", exact: true })).toBeVisible();
     await login("owner");
     await navigate("Settings");
     await page.getByRole("button", { name: "Issue Collector Credential", exact: true }).click();

@@ -43,6 +43,11 @@ Tests are overlapping evidence, never summed into a fictional independent accept
   it is not green full-suite evidence. Test invocation deadlines now refresh per test and the test proxy
   manager uses spawn rather than forking active service threads. Slow WSL semantic timing remained
   unqualified; native tests and exact-head hosted Linux checks are separate evidence.
+- Hosted `ff495e7`: full Python 2492 passed/136 skipped, provider runtime 411 passed/7 skipped,
+  SDK 13 passed, legacy browser 23 passed and actual container builds/startup/backup passed.
+  PostgreSQL 90 tests, web 121 tests/build/schema also passed. Its platform browser stage caught
+  a mobile test navigating before logout finished; the follow-up awaits the Sign In state before
+  switching identities. This failed head is retained as history, not relabelled wholly green.
 
 Remaining external/joint gates: Muaz's semantic contract review and advanced report-producing worker
 handlers, actual authorized provider identities/endpoints, fluent voice review, and authorized target
