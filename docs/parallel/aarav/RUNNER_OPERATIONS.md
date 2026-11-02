@@ -143,6 +143,13 @@ Current handlers: `simulator_inspect`, `simulator_reset`, `action_comparison`, `
 `collision`, `probe`, `voice`. Advanced hosted handlers currently require a synthetic profile and project
 policy. Registration alone is not activation: each graph still requires its local inputs and usable adapters.
 
+Private GitHub sources additionally require local `use_source_broker: true`, a matching HTTPS GitHub
+`source_url`, and an approved trusted source revision with its repository/installation/commit pins.
+The current owner-authorized GitHub integration must grant read access. Tokens are scoped to the exact
+repository, never written to argv/config or passed into a build, and revocation is queued after fetching.
+No token issuance or fetch is retried after an uncertain acknowledgement. Repair validation consumes
+the verified local mirror, not a still-live remote credential. Missing App credentials disable this path.
+
 - Simulator jobs require locally approved `entity_kinds` and consume the pinned fixture/environment.
 - Comparison/reduction require `entity_kinds` and an `ActionPlan` in `plan`; reduction additionally uses
   `violation_category` and optional `reduction_budget`. The contract comes from pinned platform revisions.

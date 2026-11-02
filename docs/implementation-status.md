@@ -32,8 +32,15 @@ missing/skipped requirements; the old blanket "pending Muaz" response is removed
 acceptance is still a qualification result, not a consequence of advertising a worker kind. Current
 checks and remaining release boundaries are recorded in `parallel/aarav/INTEGRATION_HANDOFF.md`.
 
+The follow-up source credential consumer now obtains attempt-scoped, read-only GitHub App grants for
+the exact approved repository and commit, passes headers through URL-scoped Git environment configuration
+only, and queues revocation before builds. Private repair uses a verified local mirror after revocation.
+Git's actual URL-scope matching and the API-to-worker broker path pass focused tests with an explicit
+GitHub transport double; this is not a live GitHub App qualification. Windows read-only Git object
+cleanup is handled within the runner-owned tree without suppressing cleanup failures.
+
 Open software/release boundaries: advanced hosted workers currently admit synthetic policy only;
-Twilio platform-worker activation and private GitHub credential consumption need completion; CrewAI
+Twilio platform-worker activation needs completion; CrewAI
 and AutoGen native recipes remain explicitly untested; arbitrary OCI/Dockerfile builds need a dedicated
 rootless builder rather than resource-limiting the Docker client; simulator-configuration repair is not
 the same as validated simulator-source PR publication. Mixed unspaced Latin/Devanagari PDF words still

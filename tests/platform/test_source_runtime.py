@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 import zipfile
+import base64
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from susanoo_connectors.source import BuildRecipe, tree_digest
@@ -15,6 +17,133 @@ from susanoo_runner.platform import PlatformClient, PlatformProfile
 from susanoo_runner.platform_jobs import approval_key, execute_advanced
 
 from conftest import approve, version
+
+
+def test_private_git_broker_is_consumed_and_revocation_is_queued(world, tmp_path, monkeypatch):
+    from susanoo_api.platform import source_access
+    from susanoo_api.platform.database import transaction
+    from susanoo_connectors.source import GitSource
+    from susanoo_runner import platform_source_jobs
+
+    repo = tmp_path / "private-source"
+    repo.mkdir()
+    (repo / "agent.py").write_text("print('private synthetic source')\n", encoding="utf-8")
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "Synthetic",
+        "GIT_AUTHOR_EMAIL": "synthetic@example.invalid",
+        "GIT_COMMITTER_NAME": "Synthetic",
+        "GIT_COMMITTER_EMAIL": "synthetic@example.invalid",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=repo, env=env, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git("init", "--quiet")
+    git("add", ".")
+    git("commit", "--quiet", "-m", "Synthetic private source transport fixture")
+    commit = git("rev-parse", "HEAD")
+    canary = "synthetic-private-source-canary"
+
+    class Provider:
+        def installation_token_info(self, installation, repository, *, write):
+            assert (installation, repository, write) == (101, "synthetic/private-agent", False)
+            return {"token": canary, "expires_at": (datetime.now(UTC) + timedelta(minutes=5)).isoformat()}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(source_access, "GitHubApp", Provider)
+    original_acquire = platform_source_jobs.acquire_git
+
+    def github_transport_double(source, destination, **kwargs):
+        assert source.url == "https://github.com/synthetic/private-agent.git"
+        header = kwargs.pop("auth_header")
+        assert base64.b64decode(header.split(" ")[-1]).decode() == "x-access-token:" + canary
+        return original_acquire(GitSource(url=repo.as_uri(), commit=commit, allow_local=True), destination, **kwargs)
+
+    monkeypatch.setattr(platform_source_jobs, "acquire_git", github_transport_double)
+    recipe = BuildRecipe(runtime="python", steps=[[sys.executable, "agent.py"]])
+    source_version = version(
+        world,
+        {
+            "kind": "source",
+            "repository": "synthetic/private-agent",
+            "commit": commit,
+            "installation_id": 101,
+            "trusted": True,
+            "recipe_hash": recipe.digest,
+            "lockfile_hash": content_hash({}),
+        },
+    )
+    approve(world, source_version)
+    world["owner"].ok(
+        "POST",
+        f"/projects/{world['project']['id']}/integrations",
+        {
+            "provider": "github",
+            "repository": "synthetic/private-agent",
+            "installation_id": 101,
+            "secret_ref": "SYNTHETIC_PRIVATE_APP",
+        },
+    )
+    registration = world["owner"].ok("POST", f"/projects/{world['project']['id']}/runner-registration")
+    token = world["owner"].ok(
+        "POST",
+        "/runner/register",
+        {
+            "registration_token": registration["token"],
+            "name": "Private Git credential consumer",
+            "version": "test",
+            "capabilities": ["source_import"],
+        },
+    )["token"]
+    world["owner"].ok(
+        "POST",
+        f"/projects/{world['project']['id']}/jobs",
+        {"kind": "source_import", "version_ids": [source_version["id"]]},
+        headers={"Idempotency-Key": "private-source-consumer"},
+    )
+    journal = tmp_path / "private.sqlite"
+    with AppServer(world["app"]) as api, SimulatorServer() as simulator:
+        client = PlatformClient(api.base_url + "/api/v1", token)
+        try:
+            claim = client.claim(["source_import"])
+            profile = PlatformProfile(
+                allowed_connection_adapters=["unused"],
+                allowed_connection_hashes=["a" * 64],
+                advanced_inputs={
+                    approval_key(claim): {
+                        "job_kind": "source_import",
+                        "source_url": "https://github.com/synthetic/private-agent.git",
+                        "use_source_broker": True,
+                        "recipe": recipe.model_dump(mode="json"),
+                    }
+                },
+            )
+            result = asyncio.run(
+                execute_advanced(
+                    client,
+                    claim,
+                    profile=profile,
+                    journal_path=journal,
+                    simulator_url=simulator.base_url,
+                    simulator_key=simulator.admin_key,
+                )
+            )
+            assert result.execution_state == "completed", result
+        finally:
+            client.close()
+    with transaction() as db:
+        grant = db.execute(
+            "select state,token_cipher from platform.source_grants where attempt_id=%s", (claim.attempt_id,)
+        ).fetchone()
+    assert grant["state"] == "revoking" and canary not in grant["token_cipher"]
+    assert canary.encode() not in journal.read_bytes()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Customer code repair uses the supported Linux execution boundary")

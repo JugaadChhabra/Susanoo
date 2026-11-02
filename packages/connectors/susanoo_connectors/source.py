@@ -264,7 +264,7 @@ def tree_digest(root: Path, *, max_files: int = 10000, max_file_bytes: int = 25 
 
 def acquire_git(source: GitSource, destination: Path, *, cancelled: threading.Event | None = None,
                 max_files: int = 10000, max_file_bytes: int = 25 * 1024 * 1024,
-                max_total_bytes: int = 500 * 1024 * 1024) -> Snapshot:
+                max_total_bytes: int = 500 * 1024 * 1024, auth_header: str | None = None) -> Snapshot:
     validate_git_url(source)
     destination = Path(destination)
     if destination.exists() and any(destination.iterdir()):
@@ -272,6 +272,15 @@ def acquire_git(source: GitSource, destination: Path, *, cancelled: threading.Ev
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="susanoo-git-home-") as home:
         env = _git_env(Path(home))
+        if auth_header is not None:
+            parsed = urlsplit(source.url)
+            if (parsed.scheme != "https" or parsed.hostname != "github.com" or parsed.username or parsed.password
+                    or "\r" in auth_header or "\n" in auth_header or len(auth_header) > 8192):
+                raise SourceError("unsafe_auth_scope", "Credential headers require a scoped HTTPS GitHub URL")
+            # Environment-only config is inherited by Git helpers, never persisted or passed in argv.
+            env.update({"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": f"http.{source.url}.extraHeader",
+                        "GIT_CONFIG_VALUE_0": auth_header, "GIT_CONFIG_KEY_1": "http.followRedirects",
+                        "GIT_CONFIG_VALUE_1": "false"})
         _git(["init", "--quiet"], destination, env, cancelled=cancelled)
         # Disable every external filter/diff/merge driver before any file is checked out.
         (destination / ".git" / "info").mkdir(parents=True, exist_ok=True)

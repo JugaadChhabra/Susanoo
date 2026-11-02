@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 import threading
@@ -53,6 +54,7 @@ class _LocalApproval(BaseModel):
     recipe: dict
     allowed_hosts: list[str] = Field(default_factory=lambda: ["github.com"])
     allow_local_source: bool = False
+    use_source_broker: bool = False
     secrets: dict[str, str] = Field(default_factory=dict)
 
 
@@ -70,6 +72,7 @@ class _ApprovedSourceInputs(_JobInputs):
     recipe: dict
     allowed_hosts: list[str] = Field(default_factory=lambda: ["github.com"])
     allow_local_source: bool = False
+    use_source_broker: bool = False
     secrets: dict[str, str] = Field(default_factory=dict)
 
 
@@ -118,6 +121,7 @@ def _source(claim, inputs):
                 "recipe",
                 "allowed_hosts",
                 "allow_local_source",
+                "use_source_broker",
                 "secrets",
             )
             if key in inputs
@@ -184,9 +188,12 @@ def _acquire(
     source_kind="git",
     expected_digest=None,
     max_source_bytes=500 * 1024 * 1024,
+    auth_header=None,
 ):
     if source_kind == "git":
-        snapshot = acquire_git(source, destination, cancelled=cancelled, max_total_bytes=max_source_bytes)
+        snapshot = acquire_git(
+            source, destination, cancelled=cancelled, max_total_bytes=max_source_bytes, auth_header=auth_header
+        )
     elif source_kind == "directory":
         if cancelled and cancelled.is_set():
             raise SourceError("cancelled", "Source acquisition was cancelled")
@@ -235,6 +242,17 @@ def lockfile_digest(root):
             raise SourceError("unsafe_lockfile", "Dependency lockfiles must be regular snapshot files")
         files[relative.as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     return content_hash(files)
+
+
+def remove_owned_tree(root):
+    root = Path(root).resolve()
+    def readonly(function, name, error):
+        target = Path(name)
+        if not isinstance(error, PermissionError) or target.is_symlink() or not target.resolve().is_relative_to(root):
+            raise error
+        target.chmod(stat.S_IRUSR | stat.S_IWUSR | (stat.S_IXUSR if target.is_dir() else 0))
+        function(name)
+    shutil.rmtree(root, onexc=readonly)
 
 
 def _bounded_build(
@@ -518,6 +536,29 @@ async def produce(kind, claim, inputs, *, journal, profile, agent_factory=None, 
     approved_inputs = _job_inputs(kind, inputs)
     payload = approved_inputs.model_dump(mode="json")
     if kind == "repair_retest":
+        if approved_inputs.use_source_broker:
+            spec, source, _, approval = _source(claim, payload)
+            mirror = Path(str(journal.path) + ".source")
+            if mirror.exists():
+                raise JournalError("snapshot_exists", "A previous source mirror requires reconciliation")
+            mirror.mkdir(mode=0o700)
+            try:
+                snapshot = await _approved_acquisition(
+                    claim, journal, profile, spec, source, approval, mirror / "checkout", threading.Event()
+                )
+                if lockfile_digest(snapshot.path) != spec.lockfile_hash:
+                    raise JournalError("lockfile_mismatch", "Private source dependency locks differ from the pin")
+                local = {
+                    **payload,
+                    "source_url": Path(snapshot.path).as_uri(),
+                    "allow_local_source": True,
+                    "use_source_broker": False,
+                }
+                return await _repair(
+                    claim, local, journal=journal, profile=profile, agent_factory=agent_factory, environment=environment
+                )
+            finally:
+                remove_owned_tree(mirror)
         return await _repair(
             claim, payload, journal=journal, profile=profile, agent_factory=agent_factory, environment=environment
         )
@@ -530,24 +571,8 @@ async def produce(kind, claim, inputs, *, journal, profile, agent_factory=None, 
     root.mkdir(mode=0o700, parents=True)
     cancelled = threading.Event()
     try:
-        max_source_bytes = min(profile.max_storage_bytes, claim.execution_manifest.limits.max_storage_bytes)
-        acquisition = partial(
-            _acquire,
-            source,
-            root / "checkout",
-            source_kind=spec.source_kind,
-            expected_digest=spec.snapshot_digest,
-            max_source_bytes=max_source_bytes,
-        )
-        snapshot = await _dispatch_local(
-            journal,
-            {
-                "operation": "source_acquire",
-                "source_kind": spec.source_kind,
-                "commit": spec.commit,
-                "snapshot_digest": spec.snapshot_digest,
-            },
-            lambda: _thread_with_cancellation(acquisition, cancelled=cancelled),
+        snapshot = await _approved_acquisition(
+            claim, journal, profile, spec, source, approval, root / "checkout", cancelled
         )
         if lockfile_digest(snapshot.path) != spec.lockfile_hash:
             raise JournalError("lockfile_mismatch", "Snapshot dependency lockfiles differ from the pinned source")
@@ -599,7 +624,35 @@ async def produce(kind, claim, inputs, *, journal, profile, agent_factory=None, 
         raise JournalError(exc.code, str(exc)) from exc
     finally:
         if root.exists():
-            shutil.rmtree(root)
+            remove_owned_tree(root)
+
+
+async def _approved_acquisition(claim, journal, profile, spec, source, approval, destination, cancelled):
+    from .platform_source_auth import source_auth
+
+    async def acquire():
+        async with source_auth(claim, journal, source, enabled=approval.use_source_broker) as header:
+            acquisition = partial(
+                _acquire,
+                source,
+                destination,
+                source_kind=spec.source_kind,
+                expected_digest=spec.snapshot_digest,
+                max_source_bytes=min(profile.max_storage_bytes, claim.execution_manifest.limits.max_storage_bytes),
+                auth_header=header,
+            )
+            return await _thread_with_cancellation(acquisition, cancelled=cancelled)
+
+    return await _dispatch_local(
+        journal,
+        {
+            "operation": "source_acquire",
+            "source_kind": spec.source_kind,
+            "commit": spec.commit,
+            "snapshot_digest": spec.snapshot_digest,
+        },
+        acquire,
+    )
 
 
 class _GuardedToolProxy:
@@ -1073,7 +1126,7 @@ async def _repair(claim, inputs, *, journal, profile, agent_factory, environment
                 )
             finally:
                 await harness.close()
-                shutil.rmtree(work_root)
+                remove_owned_tree(work_root)
             checks = {check.name: check.passed for check in validation.checks}
             summary = RepairResult(
                 job_kind="repair_retest",

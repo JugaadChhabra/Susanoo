@@ -8,6 +8,13 @@ Setup and recovery: [customer runner operations](RUNNER_OPERATIONS.md).
 
 ## Latest continuation
 
+The owner explicitly authorized publishing the current implementation to auto-deploying main after
+being told the remaining gaps. This authorization does not certify full product acceptance or authorize
+manual production migrations/customer/provider calls. All reported checks at `b51e0c7` passed before
+promotion. The follow-up private source credential consumer has focused unit/Git-configuration and
+API/PostgreSQL/worker tests; real GitHub transport remains externally unverified. It keeps tokens out
+of argv, Git config files, build environments and local journals, and queues revocation after acquisition.
+
 All advanced worker kinds now have concrete producers; activation still requires exact local inputs.
 Approval keys now hash the entire typed execution manifest, including limits, policy and repair/artifact
 pins. Old graph-only approvals are deliberately invalidated. Canonical schema revision remains proposed.
@@ -39,8 +46,8 @@ Linux retest. The original failing XML is preserved separately from retests. Hos
 provider/browser evidence must be checked against the new PR head, not a previous green revision.
 
 Remaining boundaries are explicitly listed in the latest `docs/implementation-status.md` section. In
-particular, do not describe native framework placeholders, live Twilio execution, private Git broker
-consumption, a rootless source/image sandbox, or simulator-source PR publication as completed by these
+particular, do not describe native framework placeholders, live Twilio execution, live private GitHub
+qualification, a rootless source/image sandbox, or simulator-source PR publication as completed by these
 tests. No vendor/customer call, merge, main push, production migration or manual deployment is authorized.
 
 ## Authorization and ownership
