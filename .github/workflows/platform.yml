@@ -92,6 +92,10 @@ jobs:
             .platform/console-mobile.png
             .platform/workflow-desktop.png
             .platform/workflow-mobile.png
+            .platform/advanced-desktop.png
+            .platform/advanced-mobile.png
+            .platform/operations-desktop.png
+            .platform/operations-mobile.png
           retention-days: 7
           include-hidden-files: true
   containers:

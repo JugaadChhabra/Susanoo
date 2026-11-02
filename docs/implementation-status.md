@@ -9,16 +9,20 @@ The owner requested completion of all remaining platform implementation, not jus
 Typed advanced-report persistence/read/classification, domain-specific report screens, snapshot PDF/ZIP
 projection, persistent task-correlated webhook/Twilio relays, project-digest OTLP collection, automatic-run
 budget admission/deduplication, and operations controls are now implemented. The local disposable-PostgreSQL
-suite passed 77 tests; web type/lint checks passed. Publication reconciliation, multilingual PDF qualification,
-expanded browser coverage and final-head hosted CI are being completed; this is not yet a completion claim.
+suite initially passed 77 tests. The completion follow-up implements exact typed repair validation/evidence
+approval, marker-first publication recovery, stale-base races, artifact integrity and held-out caps. Embedded
+offline Latin/Devanagari fonts and shaping are rendered/inspected; six expanded desktop/mobile platform
+browser checks, 121 web tests and production build pass. The final full-suite/hosted publication record is
+maintained on PR #45; see `parallel/aarav/PLATFORM_COMPLETION.md` for the implementation checklist.
 Runtime imports in the API are existing DTOs and pure ingestion/policy/publication helpers only. The API
 does not instantiate an executor, build customer code, invoke an agent or contact arbitrary customer endpoints.
 
 The hackathon product is preserved. The expanded platform has a working private
 control plane and UI at `/evaluation`. This is **not complete product acceptance**:
 The outcome/preflight runner now connects to the real platform and has passed synthetic
-PASS/FAIL/UNKNOWN service integration. Advanced job dispatch, specialized report views and
-provider qualification remain incomplete. Canonical wire major `1.0`, revision `1.1-proposed`,
+PASS/FAIL/UNKNOWN service integration. Advanced worker handlers and live-provider qualification remain
+incomplete; platform typed report storage, domain views and upload contracts now exist. Canonical wire
+major `1.0`, revision `1.1-proposed`,
 is pending peer review, not an agreed freeze. See the current
 [integration handoff](parallel/aarav/INTEGRATION_HANDOFF.md) and
 [Muaz continuation prompt](parallel/aarav/MUAZ_NEXT_PROMPT.md) for the complete remaining split.
@@ -26,8 +30,8 @@ Draft integration review: [PR #45](https://github.com/JugaadChhabra/Susanoo/pull
 the platform review. First integration commit `da1d896` passed all reported hosted PR checks;
 follow-up changes require their own exact-head verification. Nothing has been merged into main.
 
-The matrix below preserves the original platform checkpoint. The integration handoff supersedes
-its older statements that no runtime exists; it does not turn pending milestones into release acceptance.
+The matrix below preserves the original platform checkpoint. The completion ledger and integration handoff
+supersede its old platform-gap descriptions; they do not turn pending joint milestones into release acceptance.
 
 | Milestone | Aarav platform implementation | Remaining shared/runtime exit gate |
 |---|---|---|

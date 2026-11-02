@@ -1,12 +1,14 @@
 """Retry only safe internal jobs. Expired customer attempts are interrupted, never redispatched."""
 
 import hashlib
+import asyncio
 import logging
 import os
 import smtplib
 import time
 from email.message import EmailMessage
 from uuid import uuid4
+from psycopg.types.json import Jsonb
 
 from susanoo_contracts import PatchBundle, RunCreate
 
@@ -202,17 +204,54 @@ def publish_job(job):
         project = ctx.project(repair["project_id"], service.REVIEWERS)
         source = ctx.version(repair["source_version_id"], project, "source", True)
         artifact, _ = artifacts.authorized_artifact(ctx, repair["patch_artifact_id"])
-    bundle = PatchBundle.model_validate_json(artifacts.ObjectStore().get(artifact["object_key"]))
+        from .reports import authorized_report
+
+        if not repair["validation_report_id"]:
+            raise PlatformError("VALIDATION_REQUIRED", "Publication requires retained typed validation evidence.", 409)
+        validation_report, _ = authorized_report(ctx, repair["validation_report_id"], reviewer=True)
+    patch_bytes = artifacts.ObjectStore().get(artifact["object_key"])
+    if hashlib.sha256(patch_bytes).hexdigest() != artifact["digest"]:
+        raise PlatformError("INTEGRITY_ERROR", "Patch artifact digest differs from its approved bytes.", 409)
+    bundle = PatchBundle.model_validate_json(patch_bytes)
+    from .publication import reconcile_before_publish, validate_report
+    from susanoo_runner.agent_repair import StaleProposal
+
+    validation = validate_report(repair, bundle, validation_report)
+    if repair["validation_evidence_digest"] != validation.evidence_digest:
+        raise PlatformError("VALIDATION_REQUIRED", "Publication approval does not bind this evidence.", 409)
     client = GitHubApp()
     try:
         token = client.installation_token(integration["installation_id"], integration["repository"], write=True)
-        url = client.draft_pr(integration["repository"], token, repair, bundle, source["data"]["allowed_patch_paths"])
+        resolution, request = asyncio.run(reconcile_before_publish(
+            client, integration["repository"], token, repair, bundle, validation
+        ))
+        if isinstance(resolution, StaleProposal):
+            with transaction() as db:
+                db.execute(
+                    "update platform.repairs set state='stale',approved_by=null,approved_at=null,"
+                    "publication_record=%s where id=%s", (Jsonb(resolution.model_dump(mode="json")), repair["id"])
+                )
+            return
+        url = resolution or client.draft_pr(
+            integration["repository"], token, repair, bundle, source["data"]["allowed_patch_paths"]
+        )
+    except PlatformError as exc:
+        if exc.code == "STALE_BASE":
+            with transaction() as db:
+                db.execute(
+                    "update platform.repairs set state='stale',approved_by=null,approved_at=null,"
+                    "publication_record=%s where id=%s",
+                    (Jsonb({"status": "stale", "reason": "base_moved_during_publication",
+                            "validated_base": repair["base_commit"]}), repair["id"]),
+                )
+        raise
     finally:
         client.close()
     with transaction() as db:
         db.execute(
-            "update platform.repairs set state='published',pr_url=%s where id=%s and publication_key=%s",
-            (url, repair["id"], repair["publication_key"]),
+            "update platform.repairs set state='published',pr_url=%s,publication_record=%s "
+            "where id=%s and publication_key=%s",
+            (url, Jsonb(request.model_dump(mode="json", exclude={"patch"})), repair["id"], repair["publication_key"]),
         )
         ctx = Context(db, {"user_id": repair["approved_by"]}, str(uuid4()))
         ctx.audit("repair.published", repair["id"], project)
@@ -323,6 +362,13 @@ def expire_evidence():
         ).fetchall()
         for run in runs:
             db.execute(
+                """update platform.repairs set validation_report_id=null,
+                state=case when state='published' then state else 'validation_expired' end,
+                approved_by=case when state='published' then approved_by else null end
+                where validation_report_id in (select id from platform.advanced_reports where run_id=%s)""",
+                (run["id"],),
+            )
+            db.execute(
                 "delete from platform.report_reviews where report_id in "
                 "(select id from platform.advanced_reports where run_id=%s)", (run["id"],),
             )
@@ -387,18 +433,19 @@ def purge_deleted():
             # This fixed order follows the private-schema FK graph; no user-provided table names.
             for table in (
                 "report_reviews",
+                "repairs",
                 "advanced_reports",
                 "relay_events",
                 "relay_tasks",
                 "passive_records",
                 "automatic_decisions",
+                "heldout_exposure_counts",
                 "retention_receipts",
                 "source_grants",
                 "resource_leases",
                 "late_runner_events",
                 "reconciliations",
                 "budget_reservations",
-                "repairs",
                 "deliveries",
                 "integrations",
                 "jobs",

@@ -344,6 +344,9 @@ def test_exports_share_one_snapshot_and_hide_held_out_content(runs):
     )
     c01 = next(c for c in bundle["cases"] if c["case_id"] == "C01")
     assert c01["checks"] and c01["fixture"]["recipe"]["seed"] and "reproduce" in c01["command"]
+    public_requirements = {requirement for case in bundle["cases"] if not case["content_withheld"]
+                           for requirement in case["requirement_ids"]}
+    assert all(requirement["id"] in public_requirements for requirement in bundle["suite"]["requirements"])
     assert bundle["evaluator_digest"] == report.evaluator_digest and bundle["agent"]["spec"] == "inprocess:wrong_amount"
     operator = cli(
         "export",

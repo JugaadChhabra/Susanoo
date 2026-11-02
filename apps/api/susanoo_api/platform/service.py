@@ -990,6 +990,9 @@ def finalize_attempt(ctx, attempt_id, body):
         if len(results) != 1:
             raise PlatformError("INCOMPLETE_EVIDENCE", "Completed jobs require exactly one immutable result.", 409)
         result = results[0]["result"]
+        from .reports import validate_completed_reports
+
+        validate_completed_reports(ctx, row, result)
         if row["kind"] == "preflight":
             fields = ("invocation_ok", "observer_ok", "cleanup_ok")
             if not all(type(result.get(key)) is bool for key in fields):

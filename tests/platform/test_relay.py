@@ -146,3 +146,27 @@ def test_collector_tokens_are_scoped_hashed_revocable_and_dedupe_across_requests
     del headers["X-Susanoo-Project"]
     world["owner"].ok("POST", f"/credentials/{issued['credential_id']}/revoke")
     assert world["owner"].send("POST", "/v1/traces", content=raw, headers=headers).status_code == 401
+
+
+def test_collector_protobuf_and_tightened_policy_are_enforced(world):
+    from google.protobuf.json_format import ParseDict
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+    issued = world["owner"].ok("POST", f"/projects/{world['project']['id']}/collector-credentials", {})
+    data = otlp()
+    # Protobuf JSON uses base64 IDs, unlike OTLP JSON's hex IDs; these fields are optional here.
+    span = data["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    span["traceId"], span["spanId"] = "EREREREREREREREREREREQ==", "IiIiIiIiIiI="
+    raw = ParseDict(data, ExportTraceServiceRequest()).SerializeToString()
+    headers = {"Authorization": "Bearer " + issued["token"], "Content-Type": "application/x-protobuf"}
+    response = world["owner"].send("POST", "/v1/traces", content=raw, headers=headers)
+    assert response.status_code == 200, response.text
+    records = world["owner"].ok("GET", f"/projects/{world['project']['id']}/passive-records")
+    assert len(records["items"]) == 1 and records["evidence_only"] and not records["replay_authorized"]
+    assert world["browsers"]["outsider"].send(
+        "GET", f"/projects/{world['project']['id']}/passive-records"
+    ).status_code == 404
+    world["owner"].ok("POST", f"/projects/{world['project']['id']}/policy", {"mode": "local_only"})
+    assert world["owner"].send("POST", "/v1/traces", content=raw, headers=headers).status_code == 403
+    assert world["owner"].send(
+        "POST", f"/projects/{world['project']['id']}/collector-credentials", {}
+    ).status_code == 403

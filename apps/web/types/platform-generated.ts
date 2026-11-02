@@ -33,6 +33,7 @@ export interface AdvancedReportRecord {
   content_hash: string;
   payload: Record<string, unknown>;
   hidden: boolean;
+  hosted_heldout_exposures: number | null;
   created_at: string;
 }
 
@@ -72,6 +73,7 @@ export interface Alias {
 export interface ApprovalIn {
   content_hash: string;
   rationale: string;
+  evidence_digest: string | null;
 }
 
 export interface ApprovedAction {
@@ -493,6 +495,7 @@ export interface DataPolicy {
   source_upload_allowed: boolean;
   media_upload_allowed: boolean;
   report_upload_allowed: boolean;
+  max_heldout_exposures: number;
   allowed_hosts?: Array<string>;
   allowed_operations?: Array<string>;
 }
@@ -1390,6 +1393,7 @@ export interface RepairContext {
   base_commit: string;
   layer: "agent" | "simulator" | "evaluator";
   finding_id: string;
+  validation_patch_digest: string | null;
 }
 
 export interface RepairIn {
@@ -1408,6 +1412,11 @@ export interface RepairRecord {
   base_commit: string;
   proposal_hash: string;
   validation_run_id: string | null;
+  validation_report_id: string | null;
+  validation_evidence_digest: string | null;
+  publication_record: Record<string, unknown> | null;
+  available_validation_digest: string | null;
+  available_validation_report_id: string | null;
   approved_by: string | null;
   approved_at: string | null;
   state: string;
@@ -1425,6 +1434,7 @@ export interface RepairResult {
   heldout_passed: boolean;
   controls_passed: boolean;
   criteria_unchanged: boolean;
+  report_id: string | null;
 }
 
 export interface RepetitionResult {
@@ -1450,9 +1460,10 @@ export interface ReportResult {
   job_kind: "action_comparison" | "fresh_agent_pair" | "reduce_reproduction" | "simulator_inspect" | "simulator_reset" | "trace_import" | "incident_draft" | "collision" | "probe" | "voice";
   status: "succeeded" | "failed" | "unknown" | "unavailable";
   artifact_ids?: Array<string>;
+  report_ids?: Array<string>;
 }
 
-export type ReportSubmission = ComparisonReportSubmission | TaskImpactReportSubmission | TwoByTwoReportSubmission | ReductionReportSubmission | SimulatorRepairReportSubmission | AgentRepairReportSubmission | ProbePlanReportSubmission | ProbeRunReportSubmission | ProbeComparisonReportSubmission | CollisionReportSubmission | CalibrationReportSubmission | MediaReportSubmission | ImportReportSubmission | IncidentReportSubmission | ConclusionReportSubmission | ValidityReportSubmission | CapacityReportSubmission | RunExportReportSubmission | ReproductionReportSubmission;
+export type ReportSubmission = ComparisonReportSubmission | TaskImpactReportSubmission | TwoByTwoReportSubmission | ReductionReportSubmission | SimulatorRepairReportSubmission | AgentRepairReportSubmission | ProbePlanReportSubmission | ProbeRunReportSubmission | ProbeComparisonReportSubmission | CollisionReportSubmission | CalibrationReportSubmission | MediaReportSubmission | ImportReportSubmission | IncidentReportSubmission | ConclusionReportSubmission | ValidityReportSubmission | CapacityReportSubmission | RunExportReportSubmission | ReproductionReportSubmission | SimulatorStateReportSubmission;
 
 export interface ReportedOutcome {
   kind: string;
@@ -1745,6 +1756,14 @@ export interface SimulatorRepairReportSubmission {
   audience: "project" | "reviewers";
   report_type: "simulator_repair";
   payload: susanoo_runner__repair__RepairValidation;
+}
+
+export interface SimulatorStateReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "simulator_state";
+  payload: StateSnapshot;
 }
 
 export interface SnapshotScope {

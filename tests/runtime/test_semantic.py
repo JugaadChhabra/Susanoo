@@ -49,7 +49,8 @@ MANAGER = None
 @pytest.fixture(scope="module", autouse=True)
 def provider_process_state():
     global MANAGER
-    with multiprocessing.Manager() as manager:
+    # The full suite has active service threads; never fork their locks into the proxy server.
+    with multiprocessing.get_context("spawn").Manager() as manager:
         MANAGER = manager
         yield
     MANAGER = None

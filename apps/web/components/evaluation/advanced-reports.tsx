@@ -8,7 +8,7 @@ import type { ReportSubmission } from "@/types/platform-generated";
 type Review = { actor_id: string; candidate_id: string; classification: string; rationale: string; created_at: string };
 type Stored<T> = T extends { report_type: string; payload: unknown }
   ? Pick<T, "report_type" | "payload"> & { id: string; report_key: string; content_hash: string;
-    run_id: string; attempt_id: string; created_at: string; reviews: Review[] }
+    run_id: string; attempt_id: string; created_at: string; reviews: Review[]; hosted_heldout_exposures?: number | null }
   : never;
 export type RuntimeReport = Stored<ReportSubmission>;
 type Row = Record<string, unknown>;
@@ -20,7 +20,7 @@ const titles: Record<string, string> = {
   collision: "Shared-State Collision", calibration: "Grader Calibration", media: "Audio Measurements",
   import: "Historical Import", incident: "Draft Regression Case", conclusion: "Conclusion",
   validity: "Evidence Validity", capacity: "Measured Capacity", run_export: "Runtime Results",
-  reproduction: "Reproduction Materials",
+  reproduction: "Reproduction Materials", simulator_state: "Simulator State",
 };
 
 function rows(value: unknown): Row[] {
@@ -101,7 +101,7 @@ export function ReportContent({ report }: { report: RuntimeReport }) {
         ["steps", "Candidate Steps"], ["outcome", "Outcome"], ["runs", "Runs Used"]]} />
       <h4>Fresh Reproduction</h4>{cell(data.reproduction)}
       <h4>Retained Action Plan</h4><Grid data={rows(object(data.reduced_plan).actions)} columns={[
-        ["id", "Step"], ["action", "Approved Action"], ["after", "Prerequisites"],
+        ["step", "Step"], ["operation", "Approved Operation"], ["request", "Request"],
       ]} />
     </>;
     case "agent_repair": case "simulator_repair": return <>
@@ -112,6 +112,9 @@ export function ReportContent({ report }: { report: RuntimeReport }) {
       ]} />
       {data.flags !== undefined && <><h4>Risk Flags</h4>{cell(data.flags)}</>}
       {data.heldout !== undefined && <><h4>Held-Out Summary</h4>{cell(data.heldout)}</>}
+      {report.report_type === "agent_repair" && <Facts data={{
+        local_exposures: data.heldout_exposures, hosted_exposures: report.hosted_heldout_exposures,
+      }} keys={["local_exposures", "hosted_exposures"]} />}
     </>;
     case "probe_plan": return <>
       <Facts data={data} keys={["strategy", "seed", "budget_cap", "cleanup_allowance", "pool_digest"]} />
@@ -184,6 +187,12 @@ export function ReportContent({ report }: { report: RuntimeReport }) {
     </>;
     case "reproduction": return <Grid data={rows(data.cases)} columns={[["case_id", "Case"],
       ["visibility", "Visibility"], ["content_withheld", "Content Withheld"], ["case_digest", "Pinned Digest"]]} />;
+    case "simulator_state": return <>
+      <Facts data={data} keys={["captured_at", "digest"]} />
+      {Object.entries(object(data.state)).map(([kind, entities]) => <section key={kind}>
+        <h4>{label(kind)}</h4>{cell(entities)}
+      </section>)}
+    </>;
     default: return null;
   }
 }

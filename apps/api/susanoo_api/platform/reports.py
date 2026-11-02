@@ -31,6 +31,7 @@ from susanoo_runner.local import RunReport
 from susanoo_runner.ci import RunManifest
 from susanoo_runner.suite import LocalCase
 from susanoo_sdk.passive import Redactor
+from susanoo_sdk import StateSnapshot
 
 from . import service
 from .database import PlatformError
@@ -157,6 +158,7 @@ REPORTS = {
     "capacity": (CapacityReport, set()),
     "run_export": (RuntimeExport, {"outcome_suite"}),
     "reproduction": (ReproductionIngredient, {"outcome_suite"}),
+    "simulator_state": (StateSnapshot, {"simulator_inspect", "simulator_reset"}),
 }
 
 
@@ -185,6 +187,26 @@ _variants = tuple(create_model(
 ) for name, (model, _) in REPORTS.items())
 ReportSubmission = Annotated[reduce(or_, _variants), Field(discriminator="report_type")]
 REPORT_ADAPTER = TypeAdapter(ReportSubmission)
+
+
+def validate_completed_reports(ctx, attempt, result):
+    required = {
+        "action_comparison": {"comparison"}, "fresh_agent_pair": {"task_impact", "two_by_two"},
+        "reduce_reproduction": {"reduction"}, "repair_retest": {"agent_repair"}, "trace_import": {"import"},
+        "incident_draft": {"incident"}, "collision": {"collision"}, "probe": {"probe_run"}, "voice": {"media"},
+        "simulator_inspect": {"simulator_state"}, "simulator_reset": {"simulator_state"},
+    }.get(attempt["kind"])
+    if not required:
+        return
+    identifiers = [result["report_id"]] if result.get("report_id") else result.get("report_ids", [])
+    reports = ctx.db.execute(
+        "select id,report_type from platform.advanced_reports where attempt_id=%s and id=any(%s::uuid[])",
+        (attempt["id"], identifiers),
+    ).fetchall()
+    if len(reports) != len(set(identifiers)) or not required.intersection(row["report_type"] for row in reports):
+        raise PlatformError(
+            "INCOMPLETE_EVIDENCE", "Completed advanced jobs need an assigned typed report reference.", 409
+        )
 
 
 def visible_reports(ctx, run, project, *, audience="reviewers"):
@@ -228,7 +250,9 @@ def mount_report_routes(app):
             raise PlatformError("INVALID_INPUT", "Report type does not match the assigned job kind.", 422)
         if body.report_type == "run_export" and body.payload.snapshot["report"]["run_id"] != str(attempt["run_id"]):
             raise PlatformError("INVALID_INPUT", "Runtime export lineage differs from the assigned run.", 422)
-        project = ctx.db.execute("select * from platform.projects where id=%s", (attempt["project_id"],)).fetchone()
+        project = ctx.db.execute(
+            "select * from platform.projects where id=%s for update", (attempt["project_id"],)
+        ).fetchone()
         for policy in (attempt["manifest"]["policy"], project["policy"]):
             if policy["mode"] == "local_only" or (
                 policy["mode"] != "synthetic" and not policy.get("report_upload_allowed", False)
@@ -263,12 +287,32 @@ def mount_report_routes(app):
         ).fetchone()["n"]
         if used + len(encoded) > attempt["manifest"]["limits"]["max_storage_bytes"]:
             raise PlatformError("BUDGET_EXCEEDED", "Run report storage budget exhausted.", 409)
+        exposures = None
+        if body.report_type == "agent_repair" and body.payload.heldout is not None:
+            split = body.payload.heldout.split_digest
+            cap = min(project["policy"].get("max_heldout_exposures", 5),
+                      attempt["manifest"]["policy"].get("max_heldout_exposures", 5))
+            previous = ctx.db.execute(
+                "select exposures from platform.heldout_exposure_counts where project_id=%s and split_digest=%s",
+                (project["id"], split),
+            ).fetchone()
+            if (previous and previous["exposures"] >= cap) or not 1 <= body.payload.heldout_exposures <= cap:
+                raise PlatformError(
+                    "BUDGET_EXCEEDED", "Rotate the held-out split before requesting more feedback.", 409
+                )
+            exposures = ctx.db.execute(
+                """insert into platform.heldout_exposure_counts(workspace_id,project_id,split_digest,exposures)
+                values(%s,%s,%s,1) on conflict(project_id,split_digest) do update set
+                exposures=platform.heldout_exposure_counts.exposures+1,updated_at=now() returning exposures""",
+                (project["workspace_id"], project["id"], split),
+            ).fetchone()["exposures"]
         row = ctx.db.execute(
             """insert into platform.advanced_reports(workspace_id,project_id,run_id,attempt_id,report_type,
-            report_key,content_hash,payload,hidden,audience,policy_hash)
-            values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning id""",
+            report_key,content_hash,payload,hidden,audience,policy_hash,hosted_heldout_exposures)
+            values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning id""",
             (attempt["workspace_id"], attempt["project_id"], attempt["run_id"], attempt_id, body.report_type,
-             body.report_key, digest, Jsonb(payload), attempt["hidden"], audience, content_hash(project["policy"])),
+             body.report_key, digest, Jsonb(payload), attempt["hidden"], audience,
+             content_hash(project["policy"]), exposures),
         ).fetchone()
         return {**row, "content_hash": digest, "duplicate": False}
 

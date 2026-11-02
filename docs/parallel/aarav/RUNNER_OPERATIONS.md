@@ -122,6 +122,53 @@ uncertainty. Never retry an uncertain fixture creation or business write automat
 `tests/platform/test_runtime_integration.py` exercises real TCP API/PostgreSQL/journal/JSONL
 agent/simulator paths for PASS/FAIL/UNKNOWN and lease loss. Browser workflow tests still use
 an explicitly labelled protocol producer. Neither proves live provider or full T01-T40 acceptance.
-Advanced handlers, persistent callbacks/OTLP, complete resource-limit enforcement and target
-deployment qualification remain in `INTEGRATION_HANDOFF.md`. No production action is authorized
+Advanced handlers, complete runtime resource-limit enforcement and target deployment
+qualification remain in `INTEGRATION_HANDOFF.md`. No production action is authorized
 by these instructions.
+
+## Advanced report protocol
+
+The API imports existing runtime DTOs and pure helpers, never a customer executor. A capable worker
+uploads `report_type`, typed `payload`, stable `report_key`, explicit audience and `lease_token` to
+`POST /api/v1/runner/attempts/{attempt_id}/reports`. Upload is live-lease, job-kind, tenant and policy
+bound. Default audience is reviewers; hidden input always forces it. Non-synthetic upload requires
+`report_upload_allowed` in both pinned and current policy and local minimization. Limits are 1 MiB per
+report plus the pinned aggregate storage budget. Same key/content retries return the original ID;
+changed bytes or audience conflict. Current policy changes invalidate old report access.
+
+Persist that ID before `job_result`: completed advanced jobs reference `report_ids`; repair_retest uses
+`report_id`. The server refuses a completed advanced job without its assigned typed report. Original
+machine classifications remain immutable; reviewer decisions append rationale/evidence separately.
+
+For code repairs, use `PatchBundle.validation_diff()` to compute the runtime patch digest. Validation
+must bind the exact base, finding and layer, unchanged criteria, unit tests, original reproduction,
+valid controls and nonempty passing held-out evidence. A different reviewer approves proposal hash
+and evidence digest. Publication requests write authority separately, reconciles an existing provider
+marker first and refuses a moved base, including movement during publication. Never retry by erasing
+the marker/publication key. Hosted exposure counters survive report expiry until project deletion.
+
+## Hosted callbacks and passive collection
+
+An owner creates a webhook/media integration with a configured HTTPS public origin and secret-store
+reference. Callback URL: `/api/v1/callbacks/runtime/{integration_id}`. Pin its ID in the connection's
+`mapping.relay_integration_id`. After dispatch, register task/invocation/operation IDs at
+`POST /runner/attempts/{attempt_id}/tasks`; journal the registry ID. Poll
+`POST /runner/attempts/{attempt_id}/tasks/{registry_id}/poll` with `lease_token` and `after` cursor.
+Never put lease tokens in URLs. Expired polling carries `dispatch_authority=false` and only returns
+retained approved evidence. It does not renew a lease or authorize a new task.
+
+Sign generic JSON callbacks with timestamp-bound `X-Susanoo-Signature` using the supported connector
+helper. Twilio signatures bind the configured public URL, not incoming Host headers; JSON also binds
+its body digest. Unknown tasks, conflicting receipts and invalid signatures fail closed. Duplicate,
+out-of-order and post-terminal events never trigger a fresh task. Call completion is not task success.
+
+Tracing is off until an owner issues a collector credential in Settings. Submit OTLP JSON or protobuf,
+optionally bounded gzip, to `/api/v1/v1/traces` with Bearer authentication. Configure the SDK/exporter
+with this full endpoint. Tokens are project scoped, digest-only at rest, expiring and revocable.
+Only current policy-approved fields survive, conversation IDs are hashed, and ingestion deduplicates
+across requests/restarts. Current local-only policy blocks ingestion and relay use. Passive traces
+are evidence-only and cannot authorize replay. Customer SDK sampling/fail-open behavior is separate.
+
+Schedules and signed change triggers use durable semantic deduplication and project-serialized
+automatic budgets. Settings shows skipped/blocked reasons and delayed-until values. Unknown costs
+block admission when a cost cap is configured; they are never reported as zero cost.

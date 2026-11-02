@@ -10,17 +10,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 from xml.etree.ElementTree import Element, SubElement, tostring
-from xml.sax.saxutils import escape
 
 from psycopg.types.json import Jsonb
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from susanoo_contracts import content_hash
 
 from .database import PlatformError
 from .service import ENGINEERS, REVIEWERS, browser_run, get_run, json_safe
 from .local_security import secure_local_path
+from .pdf_typography import markup as escape, styles as pdf_styles
 
 CONTENT_TYPES = {
     "json": "application/json",
@@ -459,7 +458,7 @@ def render_export(snapshot, format):
             "EXPORT_TOO_LARGE", "PDF summaries are bounded to 1,000 findings; split the evaluation scope.", 422
         )
     output = io.BytesIO()
-    styles = getSampleStyleSheet()
+    styles = pdf_styles()
     story = [Paragraph("Susanoo Evaluation Evidence", styles["Title"]), Spacer(1, 12)]
     run = snapshot["run"]
     for label, value in (

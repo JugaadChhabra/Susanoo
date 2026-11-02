@@ -45,7 +45,7 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
   const environment = await revision({ kind: "environment", adapter: "protocol_fixture_no_business_backend", version: "test-only", allowed_operations: ["synthetic_write"], identity_profile: "synthetic", fixture_version_id: fixture.id }, "Browser Environment");
   const connection = await revision({ kind: "connection", family: "I03", adapter: "protocol_fixture_no_business_backend", capabilities: { invoke: true, observe: true } }, "Browser Connection");
   const registration = await owner.call("POST", `/projects/${project.id}/runner-registration`);
-  const token = (await owner.call("POST", "/runner/register", { registration_token: registration.token, name: "Browser protocol test double", version: "not-a-business-runtime", capabilities: ["preflight", "outcome_suite"] })).token;
+  const token = (await owner.call("POST", "/runner/register", { registration_token: registration.token, name: "Browser protocol test double", version: "not-a-business-runtime", capabilities: ["preflight", "outcome_suite", "action_comparison", "fresh_agent_pair"] })).token;
   const runner = (path: string, body: unknown) => owner.call("POST", `/runner${path}`, body, token);
   const claim = (kind: string) => runner("/claims", { supported_job_kinds: [kind] });
   const event = (attempt: { attempt_id: string; lease_token: string }, sequence: number, type: string, payload = {}) => runner(`/attempts/${attempt.attempt_id}/events`, { lease_token: attempt.lease_token,
@@ -54,6 +54,29 @@ export async function protocolFixture(baseURL: string, credentialsPath: string) 
     lease_token: attempt.lease_token, execution_state: execution, business_verdict: verdict, final_sequence: 1, cleanup_state: "succeeded", reconciliation_state: "not_needed",
   });
   return { project, requirement, check, suite, environment, connection, accounts, owner, reviewer, runner, claim, event, finalize,
+    async comparison() {
+      await approve(requirement); await approve(environment); await approve(suite);
+      const reference = await revision({ ...environment.data, version: "reference-test-only" }, "Browser Reference");
+      await approve(reference);
+      const fidelity = await revision({ kind: "fidelity", simulator_version_id: environment.id,
+        reference_version_id: reference.id, operations: ["synthetic_write"], identity_profile: "synthetic" }, "Browser Fidelity");
+      await approve(fidelity);
+      const run = await owner.call("POST", `/projects/${project.id}/jobs`, {
+        kind: "action_comparison", version_ids: [fidelity.id],
+      });
+      const attempt = await claim("action_comparison");
+      const report = await runner(`/attempts/${attempt.attempt_id}/reports`, {
+        lease_token: attempt.lease_token, report_type: "comparison", audience: "project", payload: {
+          contract_id: "synthetic", contract_digest: "a".repeat(64), criteria_digest: "b".repeat(64),
+          plan_id: "synthetic-plan", plan_digest: "c".repeat(64), simulator_digest: "d".repeat(64),
+          reference_digest: "e".repeat(64), status: "compared", preflight: { ok: true },
+          candidates: [{ id: "synthetic-duplicate", category: "duplicate_write", summary: "Synthetic duplicate state" }],
+        },
+      });
+      await event(attempt, 1, "job_result", { job_kind: "action_comparison", status: "succeeded", report_ids: [report.id] });
+      await finalize(attempt, "FAIL");
+      return { run, report };
+    },
     async ready() {
       await approve(environment); await approve(suite);
       await owner.call("POST", `/projects/${project.id}/jobs`, { kind: "preflight", version_ids: [connection.id] });

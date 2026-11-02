@@ -26,6 +26,28 @@ new evidence is listed separately; this does not qualify every adapter or advanc
 
 ## Original Platform Matrix
 
+### Completion overlay (2026-11-02)
+
+- T12/T13/T14: typed reports enforce assigned attempt, policy, hidden audience and scoped review;
+  callback tasks are pinned to an integration and dispatched operation. Tokens are hashed/revocable.
+- T17: actual runtime projection helpers feed typed API persistence and a public-only ZIP validated
+  as LocalSuite; matching snapshot digests are required. Offline English/Hindi/Marathi PDF proof is
+  rendered and visually inspected with embedded fonts/HarfBuzz. Fresh execution of the resulting ZIP
+  on a separately authorized target runner remains a joint acceptance gate.
+- T22/T37: PostgreSQL-persistent signed relay covers dedupe/conflict/order/terminal/read-only expiry;
+  Twilio configured-public-URL signatures are tested without calls. Transcript-only reports cannot
+  assert audio metrics. Real media provider execution remains unqualified.
+- T25-T31/T35/T36/T38: specialized typed domain views/persistence/PDF projections are implemented.
+  Protocol producer tests and UI tests do not qualify the advanced customer-side worker handlers.
+- T31/T32: exact typed validation evidence/patch/base binds separate approval, marker-first recovery,
+  stale-base races and corrupted artifact refusal. Hosted held-out counters are monotonic per split.
+  A live GitHub App draft publication still needs explicit authorized credentials/provider verification.
+- T33/T34: automatic budget/dedupe policy is connected to schedules/triggers with retained reasons;
+  project-token OTLP JSON/protobuf/gzip collection and policy minimization persist across requests.
+  These are no longer missing platform code. Production SDK and advanced runtime integration remain separate.
+
+The table below is historical; these overlays supersede its outdated platform-gap descriptions.
+
 The following rows retain the 2026-10-30 platform-only checkpoint. Consult the overlay
 above and `INTEGRATION_HANDOFF.md` before interpreting an item as still wholly absent.
 

@@ -64,7 +64,7 @@ def test_typed_report_persistence_visibility_classification_and_snapshot_export(
     assert original["payload"]["candidates"][0]["classification"] == "unresolved"
     assert original["reviews"][0]["classification"] == "intentional_simplification"
     runner.event(claim, 1, "job_result", {
-        "job_kind": "action_comparison", "status": "succeeded",
+        "job_kind": "action_comparison", "status": "succeeded", "report_ids": [created["id"]],
     })
     runner.finalize(claim, "FAIL")
     with transaction() as db:

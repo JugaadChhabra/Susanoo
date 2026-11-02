@@ -78,21 +78,37 @@ class GitHubApp:
         if response.status_code not in {204, 401}:
             raise PlatformError("PROVIDER_ERROR", "Source credential revocation needs reconciliation.", 502)
 
+    def find_publication(self, repo, token, repair_id, publication_key):
+        repo = repository(repo)
+        branch = "susanoo/repair-" + str(repair_id)
+        marker = f"<!-- susanoo-publication:{publication_key} -->"
+        for page in range(1, 6):
+            prs = self.request("GET", f"/repos/{repo}/pulls", token, params={
+                "state": "all", "head": repo.split("/")[0] + ":" + branch, "per_page": 100, "page": page,
+            })
+            matches = [pr for pr in prs if marker in (pr.get("body") or "")]
+            if len(matches) > 1:
+                raise PlatformError(
+                    "PUBLICATION_CONFLICT", "Multiple provider markers require manual reconciliation.", 409
+                )
+            if matches:
+                url = matches[0]["html_url"]
+                if not re.fullmatch(r"https://github\.com/" + re.escape(repo) + r"/pull/[0-9]+", url):
+                    raise PlatformError("PROVIDER_ERROR", "The provider returned an invalid publication URL.", 502)
+                return url
+            if len(prs) < 100:
+                return None
+        raise PlatformError("CAPACITY_EXCEEDED", "Publication marker search exceeded its bounded page budget.", 409)
+
     def draft_pr(self, repo, token, proposal, bundle: PatchBundle, allowed_paths):
         repo = repository(repo)
         marker = f"<!-- susanoo-publication:{proposal['publication_key']} -->"
         meta = self.request("GET", f"/repos/{repo}", token)
         default_branch = meta["default_branch"]
         branch = "susanoo/repair-" + str(proposal["id"])
-        prs = self.request(
-            "GET",
-            f"/repos/{repo}/pulls",
-            token,
-            params={"state": "all", "head": repo.split("/")[0] + ":" + branch, "per_page": 100},
-        )
-        for pr in prs:
-            if marker in (pr.get("body") or ""):
-                return pr["html_url"]
+        existing_url = self.find_publication(repo, token, proposal["id"], proposal["publication_key"])
+        if existing_url:
+            return existing_url
         head = self.request("GET", f"/repos/{repo}/git/ref/heads/{default_branch}", token)
         if head["object"]["sha"] != proposal["base_commit"]:
             raise PlatformError(
@@ -158,6 +174,9 @@ class GitHubApp:
                 or existing_commit["parents"][0]["sha"] != proposal["base_commit"]
             ):
                 raise PlatformError("PUBLICATION_CONFLICT", "The publication branch contains different work.", 409)
+        current = self.request("GET", f"/repos/{repo}/git/ref/heads/{default_branch}", token)
+        if current["object"]["sha"] != proposal["base_commit"]:
+            raise PlatformError("STALE_BASE", "The base moved during publication; revalidation is required.", 409)
         pr = self.request(
             "POST",
             f"/repos/{repo}/pulls",

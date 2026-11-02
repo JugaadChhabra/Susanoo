@@ -219,7 +219,9 @@ def reproduction_ingredient(snapshot: ExportSnapshot) -> dict[str, Any]:
             "approval_kind": snapshot.report.approval_kind,
             "timezone": suite.timezone,
             "limits": suite.limits.model_dump(mode="json"),
-            "requirements": [r.model_dump(mode="json") for r in suite.requirements],
+            "requirements": [r.model_dump(mode="json") for r in suite.requirements if snapshot.audience == "operator"
+                             or r.id in {requirement for case in cases if not case["content_withheld"]
+                                         for requirement in case["requirement_ids"]}],
         },
         "agent": {"label": manifest.agent_label, "spec": manifest.agent_spec, "command": manifest.agent_cmd},
         "adapters": {

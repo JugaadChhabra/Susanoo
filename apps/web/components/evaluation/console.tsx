@@ -2023,7 +2023,7 @@ export function EvaluationConsole() {
                 </button>
                 <button
                   className="ev-primary"
-                  disabled={busy || !reviewer || !rationale.trim()}
+                  disabled={busy || !reviewer || !rationale.trim() || !selectedRepair.available_validation_digest}
                   onClick={() =>
                     void act(async () => {
                       await platform(
@@ -2031,6 +2031,7 @@ export function EvaluationConsole() {
                         "POST",
                         {
                           content_hash: selectedRepair.proposal_hash,
+                          evidence_digest: selectedRepair.available_validation_digest,
                           rationale,
                         },
                       );
@@ -2075,6 +2076,8 @@ export function EvaluationConsole() {
                   )
                 }
               />
+              {selectedRepair.validation_run_id && <AdvancedReports runId={selectedRepair.validation_run_id}
+                revisionKey={selectedRepair.state} reviewer={reviewer} />}
             </section>
           )}
 

@@ -140,6 +140,19 @@
           "title": "Hidden",
           "type": "boolean"
         },
+        "hosted_heldout_exposures": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hosted Heldout Exposures"
+        },
         "id": {
           "format": "uuid",
           "title": "Id",
@@ -398,6 +411,19 @@
           "pattern": "^[a-f0-9]{64}$",
           "title": "Content Hash",
           "type": "string"
+        },
+        "evidence_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Digest"
         },
         "rationale": {
           "maxLength": 4000,
@@ -3153,6 +3179,13 @@
           "maximum": 30,
           "minimum": 1,
           "title": "Hosted Retention Days",
+          "type": "integer"
+        },
+        "max_heldout_exposures": {
+          "default": 5,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Heldout Exposures",
           "type": "integer"
         },
         "media_upload_allowed": {
@@ -8835,6 +8868,19 @@
           "pattern": "^[a-f0-9]{64}$",
           "title": "Proposal Hash",
           "type": "string"
+        },
+        "validation_patch_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Patch Digest"
         }
       },
       "required": [
@@ -8911,6 +8957,32 @@
           ],
           "title": "Approved By"
         },
+        "available_validation_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Available Validation Digest"
+        },
+        "available_validation_report_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Available Validation Report Id"
+        },
         "base_commit": {
           "title": "Base Commit",
           "type": "string"
@@ -8955,6 +9027,19 @@
           "title": "Proposal Hash",
           "type": "string"
         },
+        "publication_record": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publication Record"
+        },
         "source_version_id": {
           "format": "uuid",
           "title": "Source Version Id",
@@ -8963,6 +9048,32 @@
         "state": {
           "title": "State",
           "type": "string"
+        },
+        "validation_evidence_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Evidence Digest"
+        },
+        "validation_report_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Report Id"
         },
         "validation_run_id": {
           "anyOf": [
@@ -9043,6 +9154,19 @@
           ],
           "default": null,
           "title": "Patch Artifact Id"
+        },
+        "report_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Id"
         },
         "source_commit": {
           "anyOf": [
@@ -9223,6 +9347,15 @@
           "title": "Job Kind",
           "type": "string"
         },
+        "report_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Report Ids",
+          "type": "array"
+        },
         "status": {
           "enum": [
             "succeeded",
@@ -9260,6 +9393,7 @@
           "reproduction": "#/$defs/ReproductionReportSubmission",
           "run_export": "#/$defs/RunExportReportSubmission",
           "simulator_repair": "#/$defs/SimulatorRepairReportSubmission",
+          "simulator_state": "#/$defs/SimulatorStateReportSubmission",
           "task_impact": "#/$defs/TaskImpactReportSubmission",
           "two_by_two": "#/$defs/TwoByTwoReportSubmission",
           "validity": "#/$defs/ValidityReportSubmission"
@@ -9323,6 +9457,9 @@
         },
         {
           "$ref": "#/$defs/ReproductionReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/SimulatorStateReportSubmission"
         }
       ]
     },
@@ -11019,6 +11156,48 @@
         "payload"
       ],
       "title": "SimulatorRepairReportSubmission",
+      "type": "object"
+    },
+    "SimulatorStateReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/StateSnapshot"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "simulator_state",
+          "default": "simulator_state",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "SimulatorStateReportSubmission",
       "type": "object"
     },
     "SnapshotScope": {

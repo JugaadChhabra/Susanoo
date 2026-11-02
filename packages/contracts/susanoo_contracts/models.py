@@ -131,6 +131,7 @@ class DataPolicy(WireModel):
     source_upload_allowed: bool = False
     media_upload_allowed: bool = False
     report_upload_allowed: bool = False
+    max_heldout_exposures: int = Field(default=5, ge=1, le=100)
     allowed_hosts: list[Name] = Field(default_factory=list, max_length=100)
     allowed_operations: list[Name] = Field(default_factory=list, max_length=100)
 
@@ -460,6 +461,7 @@ class VersionCreate(WireModel):
 class ApprovalIn(WireModel):
     content_hash: Digest
     rationale: str = Field(min_length=1, max_length=4000)
+    evidence_digest: Digest | None = None
 
 
 class RunCreate(WireModel):
@@ -572,6 +574,7 @@ class RepairResult(WireModel):
     heldout_passed: bool = Field(strict=True)
     controls_passed: bool = Field(strict=True)
     criteria_unchanged: bool = Field(strict=True)
+    report_id: UUID | None = None
 
 
 class ReportResult(WireModel):
@@ -589,6 +592,7 @@ class ReportResult(WireModel):
     ]
     status: Literal["succeeded", "failed", "unknown", "unavailable"]
     artifact_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 JobResult = Annotated[
@@ -1060,6 +1064,7 @@ class AdvancedReportRecord(WireModel):
     content_hash: Digest
     payload: dict[str, Any]
     hidden: bool
+    hosted_heldout_exposures: int | None = Field(default=None, ge=1)
     created_at: datetime
 
 
@@ -1072,6 +1077,22 @@ class PatchFile(WireModel):
 class PatchBundle(WireModel):
     base_commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")]
     files: list[PatchFile] = Field(min_length=1, max_length=20)
+
+    def validation_diff(self) -> str:
+        """Canonical data-only unified diff used by the runtime validation digest."""
+        import difflib
+
+        parts = []
+        for file in self.files:
+            parts.append(f"diff --git a/{file.path} b/{file.path}\n")
+            lines = difflib.unified_diff(
+                (file.before or "").splitlines(keepends=True), (file.after or "").splitlines(keepends=True),
+                fromfile="a/" + file.path if file.before is not None else "/dev/null",
+                tofile="b/" + file.path if file.after is not None else "/dev/null", lineterm="\n",
+            )
+            for line in lines:
+                parts.append(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n")
+        return "".join(parts)
 
 
 class PublishIn(WireModel):
@@ -1202,6 +1223,11 @@ class RepairRecord(ReadModel):
     base_commit: str
     proposal_hash: Digest
     validation_run_id: UUID | None
+    validation_report_id: UUID | None = None
+    validation_evidence_digest: Digest | None = None
+    publication_record: dict[str, Any] | None = None
+    available_validation_digest: Digest | None = None
+    available_validation_report_id: UUID | None = None
     approved_by: UUID | None
     approved_at: datetime | None
     state: str
@@ -1254,6 +1280,7 @@ class RepairContext(WireModel):
     base_commit: str
     layer: Literal["agent", "simulator", "evaluator"]
     finding_id: UUID
+    validation_patch_digest: Digest | None = None
 
 
 class ExecutionManifest(WireModel):

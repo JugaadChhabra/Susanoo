@@ -88,6 +88,14 @@ PYTHONPATH = ":".join(
 )
 
 
+@pytest.fixture(autouse=True)
+def fresh_invocation_deadline(monkeypatch):
+    # A module-import deadline expires during a long suite, before this test even dispatches.
+    monkeypatch.setattr(sys.modules[__name__], "CTX", InvocationContext(
+        attempt_id="a1", namespace="ns", deadline=datetime.now(UTC) + timedelta(minutes=5)
+    ))
+
+
 class LifespanServer(AppServer):
     """AppServer with the ASGI lifespan on (the MCP Streamable HTTP session manager needs it)."""
 

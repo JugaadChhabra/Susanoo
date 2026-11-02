@@ -102,19 +102,34 @@ The ignored `promo/` project, source PRD and generated credentials are excluded 
   It is mixed-revision evidence, not a green result or a reason to weaken immutable-manifest refusal.
   A fresh no-edit-during-execution run is required and final-head hosted CI remains authoritative.
 
+## Platform completion follow-up
+
+The expanded platform checkpoint `9998b62` passed every reported hosted check. The subsequent
+completion pass adds typed validation approval, provider-marker reconciliation, stale-base race
+handling, patch byte integrity, hosted held-out exposure caps, embedded offline Noto fonts with
+HarfBuzz shaping, public reproduction materials from runtime helpers, and expanded browser tests.
+See `PLATFORM_COMPLETION.md` and the PR #45 exact-head publication record for final verification.
+Earlier test totals above are historical, overlapping evidence, not the final-head count.
+The final local platform/contract bundle passed 90 tests; preserved focused Python passed 759 with
+26 skipped. Web passed 121 tests, six desktop/mobile platform browser checks and production build.
+Native semantic tests passed all 13. The interrupted WSL timing run is documented, not called green.
+
 ## Remaining by lane
 
 ### Aarav / platform integration
 
-1. Persist and expose the runtime's typed advanced reports with their correct authorization and lineage;
-   complete specialized comparison/2x2/reduction/probe/media views rather than calling a generic JSON inspector finished.
-2. Connect persistent tenant/attempt-scoped webhook TaskRegistry/RelayQueue, Twilio callback validation using
-   the configured public URL, and project-token-digest OTLP collection. Generic callback boundaries are not these services.
-3. Connect automatic-run budget decisions and semantic trigger deduplication to schedules/webhooks; retain
-   blocked reasons. Existing idempotency keys do not by themselves prove the requested trigger policy.
-4. Finish advanced report PDF/reproduction-bundle projection, repair publication reconciliation with the
-   supplied runtime helpers, and the complete T01-T40 evidence matrix.
-5. Qualify the actual target deployment, storage, SMTP, GitHub App and complex-script PDF shaping separately.
+The previously listed platform code gaps are implemented: 20 typed report variants and scoped domain
+views; append-only classification; persistent callback registry/queue and configured-URL Twilio verification;
+digest-token JSON/protobuf/gzip OTLP collection; schedule/webhook admission with retained blocked reasons;
+advanced PDF/ZIP snapshots; exact-evidence publication reconciliation and held-out exposure accounting.
+Implementation is not advanced worker acceptance. Qualified producers still need to call these endpoints.
+
+English/Hindi/Marathi PDF engineering proof embeds licensed fonts and uses HarfBuzz; unsupported glyphs
+or unspaced mixed-script words fail explicitly instead of producing silent replacement boxes. This is
+not fluent-language or speech-quality validation. JSON remains the lossless fallback.
+
+Target storage/SMTP/GitHub App and production deployment qualification remain external/joint gates,
+not missing independent platform code. No release approval is implied by finishing this lane.
 
 ### Muaz / runtime integration
 

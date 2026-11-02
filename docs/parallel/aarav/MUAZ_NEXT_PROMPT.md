@@ -19,9 +19,25 @@ connector/profile binding; conditional and non-text execution; true platform/run
 reconciliation and concurrency gates; and complete resource-limit enforcement. The outcome/preflight
 platform client and the four previously documented runtime fixes already exist and have focused tests.
 
-Coordinate Aarav-owned callback persistence, OTLP/token handling, typed advanced report storage/views,
-automatic-run budgets/dedupe, exports and repair-publication integration. Do not silently edit canonical
-contracts in parallel; request explicit ownership/coordination where necessary.
+The Aarav-owned report persistence/views, callback registry/queue, OTLP/token handling, automatic-run
+admission and exports/publication integration now exist. Read PLATFORM_COMPLETION.md and
+RUNNER_OPERATIONS.md before proposing replacements. Integrate your actual advanced workers with them:
+
+- Upload the matching discriminated DTO to POST /runner/attempts/{attempt_id}/reports under the live
+  lease; retain the returned report ID in your durable journal before emitting job_result.
+- Completed advanced jobs must reference assigned typed reports via report_ids, or repair report_id.
+  Repair approval requires the exact typed evidence digest, canonical PatchBundle.validation_diff()
+  digest, pinned base/finding/layer and every gate. Boolean summary flags alone cannot authorize it.
+- Pinned connection.mapping.relay_integration_id enables live-lease task registration only after the
+  correlated operation was dispatched. Journal the task registry ID. Poll using POST plus the existing
+  lease token; an expired lease permits evidence polling only, never customer dispatch.
+- Runtime export and reproduction helpers must emit a matching snapshot digest. Project reproduction
+  bundles contain public cases/requirements only. The shared helper now withholds hidden-only requirements.
+- Hosted held-out feedback has a monotonic per-project/split cap. Enforce the local pre-execution cap
+  too; API upload refusal cannot erase a local exposure. Never rotate just the key to bypass the split cap.
+- Keep unsupported capabilities unadvertised until actual handlers and end-to-end tests pass.
+
+Do not silently edit canonical contracts in parallel; request explicit ownership/coordination when needed.
 
 Re-run frozen-install Python, TypeScript, real PostgreSQL/browser and container checks. Use an isolated
 Linux bytecode cache under WSL to avoid Windows .pyc filenames breaking inspect.getsource.

@@ -1,8 +1,7 @@
 """Domain-specific PDF projections, always from the export's authorized immutable snapshot."""
 
-from xml.sax.saxutils import escape
-
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+from .pdf_typography import markup as escape
 
 
 def report_story(reports, styles):
@@ -15,10 +14,29 @@ def report_story(reports, styles):
         if not rows:
             return
         value = Table([[text(value) for value in headers]] + [[text(value) for value in row] for row in rows],
-                      repeatRows=1, hAlign="LEFT")
+                      repeatRows=1, hAlign="LEFT", colWidths=[468 / len(headers)] * len(headers), splitInRow=1)
         value.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
                                    ("GRID", (0, 0), (-1, -1), 0.25, "#ccd5d3")]))
         story.extend([value, Spacer(1, 10)])
+
+    def detail(title, value):
+        story.append(Paragraph(escape(title.replace("_", " ").title()), styles["Heading3"]))
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if isinstance(item, dict | list):
+                    detail(key, item)
+                else:
+                    story.append(text(key.replace("_", " ") + ": " + str(item)))
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                if isinstance(item, dict | list):
+                    detail(str(index + 1), item)
+                else:
+                    story.append(text(item))
+            if not value:
+                story.append(text("None recorded"))
+        else:
+            story.append(text(value))
 
     for report in reports:
         kind, data = report["report_type"], report["payload"]
@@ -62,6 +80,11 @@ def report_story(reports, styles):
                 [row.get("name", row.get("id", "Gate")), row.get("passed"), row.get("detail", row.get("reason", ""))]
                 for row in data["checks"]
             ])
+            for key in ("pins", "pinned", "flags", "heldout", "heldout_exposures"):
+                if key in data:
+                    detail(key, data[key])
+            if report.get("hosted_heldout_exposures") is not None:
+                detail("Hosted held-out exposures", report["hosted_heldout_exposures"])
         elif kind in {"probe_run", "probe_comparison", "collision", "calibration", "media", "capacity"}:
             for key, value in data.items():
                 if isinstance(value, str | int | float | bool) or value is None:
@@ -78,8 +101,12 @@ def report_story(reports, styles):
                     for arm in ("baseline", "priority")
                 ])
             elif kind == "media":
-                for key in ("transcript_quality", "response_latency", "speech_quality"):
-                    story.append(text(key.replace("_", " ") + ": " + str(data[key])))
+                for key in ("transcript_quality", "response_latency", "interruptions", "speech_quality"):
+                    detail(key, data[key])
+            elif kind in {"collision", "calibration"}:
+                for key, value in data.items():
+                    if isinstance(value, dict | list):
+                        detail(key, value)
         elif kind == "run_export":
             run = data["snapshot"]["report"]
             story.append(text("Runtime machine gate: " + run["gate"]))
@@ -87,5 +114,8 @@ def report_story(reports, styles):
                 [row["title"], row["execution_state"], row["business_verdict"], row["cleanup_state"],
                  row["reconciliation_state"]] for row in run["attempts"]
             ])
+        elif kind in {"import", "incident", "conclusion", "validity", "probe_plan", "simulator_state", "reproduction"}:
+            for key, value in data.items():
+                detail(key, value)
         story.append(Spacer(1, 12))
     return story
