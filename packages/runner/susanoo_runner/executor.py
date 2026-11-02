@@ -246,7 +246,16 @@ class AttemptExecutor:
             state.fail("error", f"Agent session did not start: {getattr(error, 'code', 'timeout')}")
             return
         state.session = session
-        for index, turn in enumerate(case.script[: self.limits.max_turns], start=1):
+        previous_reply = None
+        for index, turn in enumerate(case.script, start=1):
+            if turn.when != "always":
+                if previous_reply is None or not (
+                    turn.value in previous_reply if turn.when == "reply_contains" else turn.value == previous_reply
+                ):
+                    continue
+            if len(state.turns) >= self.limits.max_turns:
+                state.fail("error", "Approved turn budget exhausted before the script completed")
+                return
             if cancel.requested:
                 self.journal.append_event(attempt_id, "cancel_acknowledged", {})
                 state.fail(CANCELLED, "Cancelled before the next turn; no new action was started")
@@ -316,6 +325,7 @@ class AttemptExecutor:
                 },
             )
             state.turns.append(Turn(index=index, message=turn.message, reply=reply.text, dispatch_state="acknowledged"))
+            previous_reply = None if reply.truncated else reply.text
 
     async def _observe_and_evaluate(self, attempt_id, case, fixture, state) -> list[CheckOutcome]:
         step = self._housekeeping_step(

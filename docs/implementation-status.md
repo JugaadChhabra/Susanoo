@@ -5,6 +5,21 @@ Updated 2026-11-02. Integration branch: `codex/aarav-runtime-integration`; prese
 
 ## Aarav Completion Pass
 
+### Full-build continuation, 2026-11-03
+
+The owner authorized continuing both lanes against the original full PRD/build plan. The customer
+platform worker now has real handlers for simulator inspection/reset, fixed-action comparison,
+reduction, fresh task-impact pairs, JSONL/CSV evidence import and incident drafting. These use existing
+runtime algorithms, not report-producing protocol doubles. A local profile approves exact immutable
+job-version graphs and inputs; each environment HTTP request is journaled and budget/lease checked.
+Parent authority also gates nested agent calls. Conditional scripts preserve their canonical conditions;
+skipped steps never dispatch, and truncated replies cannot authorize a conditional branch.
+
+These are implemented slices, NOT full software acceptance. Still outstanding: source/build and repair
+worker integration, 2x2 platform execution, collision/probe/calibration/voice workers, complete connector
+binding, resource/output sandbox hardening and the combined T01-T40 acceptance command. Existing local
+algorithms and green core tests must not be used to silently mark those application paths complete.
+
 The owner requested completion of all remaining platform implementation, not just the bridge checkpoint.
 Typed advanced-report persistence/read/classification, domain-specific report screens, snapshot PDF/ZIP
 projection, persistent task-correlated webhook/Twilio relays, project-digest OTLP collection, automatic-run

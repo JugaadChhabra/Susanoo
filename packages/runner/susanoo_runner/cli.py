@@ -340,6 +340,11 @@ def _platform_worker(args):
     client = PlatformClient(args.url, token)
 
     async def perform(claim):
+        if claim.kind not in {"outcome_suite", "preflight"}:
+            from .platform_jobs import execute_advanced
+            return await execute_advanced(client, claim, profile=profile,
+                                          journal_path=args.state_dir / f"{claim.attempt_id}.sqlite",
+                                          simulator_url=args.simulator_url, simulator_key=key, agent_factory=factory)
         fixtures = SimulatorFixtureAdapter(args.simulator_url, key)
         try:
             return await execute_claim(
@@ -355,7 +360,9 @@ def _platform_worker(args):
 
     try:
         while True:
-            claim = client.claim()
+            from .platform_jobs import SUPPORTED
+            advanced = {value["job_kind"] for value in profile.advanced_inputs.values() if "job_kind" in value}
+            claim = client.claim(["outcome_suite", "preflight", *sorted(advanced & SUPPORTED)])
             if claim:
                 result = asyncio.run(perform(claim))
                 print(f"{result.attempt_id}: {result.execution_state} / {result.business_verdict}")

@@ -116,6 +116,18 @@ Native semantic tests passed all 13. The interrupted WSL timing run is documente
 
 ## Remaining by lane
 
+### 2026-11-03 worker continuation
+
+The worker no longer supports only outcome/preflight: locally approved advanced handlers now execute
+simulator inspect/reset, comparison, reduction, fresh task-impact pairs, trace import and incident drafts.
+Seven actual API/PostgreSQL/HTTP simulator integration cases passed; the fresh pair independently passed
+both arms. Conditional branching passed complete/truncated reply checks, and 47 local-runtime/contract
+regressions passed. These are implementation-progress results, not completion of the full build.
+
+Still absent from the platform worker: source/build, repair validation, 2x2, collision, probe, calibration
+and voice execution. Connector/profile integration and the complete acceptance command remain open.
+Keep the existing failure-closed full acceptance result until these actual workflows are qualified.
+
 ### Aarav / platform integration
 
 The previously listed platform code gaps are implemented: 20 typed report variants and scoped domain

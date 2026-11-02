@@ -32,6 +32,10 @@ class PlatformProfile(LocalProfile):
     allowed_connection_adapters: list[str] = Field(min_length=1)
     cleanup_reserve: int = Field(default=3, ge=1, le=1000)
     allowed_connection_hashes: list[str] = Field(min_length=1)
+    advanced_inputs: dict[str, dict] = Field(default_factory=dict)
+    max_reference_calls: int = Field(default=160, ge=0)
+    max_output_bytes: int = Field(default=262144, ge=1, le=1048576)
+    max_storage_bytes: int = Field(default=10485760, ge=1)
 
 
 class PlatformClient:
@@ -68,8 +72,10 @@ class PlatformClient:
             raise JournalError(error.get("code", "platform_error"), error.get("message", "Platform refused request"))
         return response.json()
 
-    def claim(self):
-        value = self.post("runner/claims", {"supported_job_kinds": ["outcome_suite", "preflight"]})
+    def claim(self, supported_job_kinds=None):
+        value = self.post("runner/claims", {
+            "supported_job_kinds": supported_job_kinds or ["outcome_suite", "preflight"]
+        })
         if value is None:
             return None
         claim = RunnerClaimResponse.model_validate(value)
@@ -133,10 +139,6 @@ def local_case(claim: RunnerClaimResponse, profile: PlatformProfile) -> LocalCas
             window_seconds=check.window_seconds,
             baseline=check.operator in {"transition", "unchanged", "forbidden_change"},
         )
-    if any(step.when != "always" for step in case.data.script):
-        raise JournalError(
-            "unsupported_branch", "This runner refuses conditional scripts until branch support is qualified"
-        )
     result = LocalCase(
         id=str(case.id),
         title=case.title,
@@ -144,7 +146,7 @@ def local_case(claim: RunnerClaimResponse, profile: PlatformProfile) -> LocalCas
         required=case.data.required,
         visibility=case.data.visibility,
         modality=case.data.modality,
-        script=[{"message": step.message} for step in case.data.script],
+        script=[step.model_dump(mode="json") for step in case.data.script],
         fixture=fixture.data,
         observations=list(queries.values()),
         checks=definitions,

@@ -128,6 +128,33 @@ by these instructions.
 
 ## Advanced report protocol
 
+### Advanced worker activation (2026-11-03)
+
+`PlatformProfile.advanced_inputs` maps an explicit local approval key to reviewed JSON inputs. Compute
+the key using `susanoo_runner.platform_jobs.approval_key(claim)`, equivalently the canonical hash of
+`{"kind": JOB_KIND, "versions": {VERSION_UUID: EXACT_TYPED_VERSION_DATA}}` over the complete dependency
+graph. IDs and data are pinned, not mutable titles. Never approve a graph obtained from unreviewed
+agent text. Each input entry includes `job_kind`; the CLI advertises only implemented configured kinds.
+An owner must separately register those capabilities on the runner. No remote command/path is accepted.
+
+Current handlers: `simulator_inspect`, `simulator_reset`, `action_comparison`, `reduce_reproduction`,
+`fresh_agent_pair`, `trace_import`, `incident_draft`. Advanced hosted handlers currently require a synthetic
+profile and project policy. Other job kinds remain unadvertised, not falsely successful.
+
+- Simulator jobs require locally approved `entity_kinds` and consume the pinned fixture/environment.
+- Comparison/reduction require `entity_kinds` and an `ActionPlan` in `plan`; reduction additionally uses
+  `violation_category` and optional `reduction_budget`. The contract comes from pinned platform revisions.
+- Fresh task impact uses the configured local agent, approved connection hash and pinned suite/checks
+  in fresh simulator/reference fixtures. This is separate from replay; its parent result remains UNKNOWN
+  while the typed pair report contains independently evaluated task verdicts and attribution.
+- Imports/drafts require an I13 connection plus locally supplied `data`, `format` (jsonl/csv), and `domain`
+  for drafts. Empty incident detection never fabricates a draft. Imported outcomes do not prove state.
+
+Configure sufficient *approved* housekeeping/reference budgets for every HTTP request, not just business
+calls. Local `max_reference_calls`, `max_output_bytes`, `max_storage_bytes`, deadline and cleanup ceilings
+cannot be widened remotely. Responses are bounded and compressed responses refused. All started
+attempts remain reconciliation-only after lost authority; do not edit profiles to resume them.
+
 The API imports existing runtime DTOs and pure helpers, never a customer executor. A capable worker
 uploads `report_type`, typed `payload`, stable `report_key`, explicit audience and `lease_token` to
 `POST /api/v1/runner/attempts/{attempt_id}/reports`. Upload is live-lease, job-kind, tenant and policy

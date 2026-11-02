@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from susanoo_contracts import FixtureSpec, content_hash
+from susanoo_contracts import FixtureSpec, ScriptStep, content_hash
 from susanoo_evaluator import Check, parse_check
 from susanoo_sdk import ObservationQuery
 
@@ -19,8 +19,8 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ScriptTurn(_Model):
-    message: str = Field(min_length=1, max_length=65536)
+class ScriptTurn(ScriptStep):
+    pass
 
 
 class Requirement(_Model):

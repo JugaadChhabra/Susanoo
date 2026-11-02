@@ -49,6 +49,30 @@ def test_checked_in_suite_matches_the_generator():
     assert len(SUITE.cases) == 20
 
 
+@pytest.mark.parametrize("truncated", [False, True])
+async def test_conditional_script_uses_complete_reply(simulator, tmp_path, truncated):
+    class BranchAgent(SusanooAgent):
+        def __init__(self):
+            self.messages = []
+        async def respond(self, session_id, message, context):
+            self.messages.append(message.text)
+            return Reply(text="continue" + ("x" * 262144 if truncated else ""))
+    agent = BranchAgent()
+    case = SUITE.cases[0].model_dump(mode="json")
+    case["script"] = [{"message": "first"},
+                      {"message": "branch", "when": "reply_contains", "value": "continue"},
+                      {"message": "never", "when": "reply_contains", "value": "not-in-reply"},
+                      {"message": "last"}]
+    suite = SUITE.model_copy(update={"cases": [type(SUITE.cases[0]).model_validate(case)]})
+    report, journal = await run(simulator, tmp_path, agent=agent, suite=suite)
+    try:
+        assert agent.messages == (["first", "last"] if truncated else ["first", "branch", "last"])
+        steps = journal.steps(report.attempts[0].attempt_id)
+        assert all(step.step_id != "turn-003" for step in steps)
+    finally:
+        journal.close()
+
+
 async def test_m2_correct_agent_passes_every_case(simulator, tmp_path):
     report, journal = await run(simulator, tmp_path)
     assert set(verdicts(report).values()) == {"PASS"}
