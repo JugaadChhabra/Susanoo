@@ -93,6 +93,27 @@ def test_hidden_report_cannot_be_made_public(suite):
     assert suite["browsers"]["engineer"].ok("GET", f"/runs/{run['id']}/reports")["items"] == []
 
 
+def test_calibration_summary_cannot_disagree_with_typed_measurements(suite):
+    negative = version(suite, suite["case"]["data"])
+    grader = version(suite, {"kind": "grader", "evaluator_digest": "a" * 64, "control_set_hash": "b" * 64,
+                            "positive_control_ids": [suite["case"]["id"]], "negative_control_ids": [negative["id"]]})
+    runner = ProtocolRunner(suite, capabilities=["calibration"])
+    suite["owner"].ok("POST", f"/projects/{suite['project']['id']}/jobs", {
+        "kind": "calibration", "version_ids": [grader["id"]]}, headers={"Idempotency-Key": "typed-calibration"})
+    claim = runner.claim("calibration")
+    report = runner.ok(f"/attempts/{claim['attempt_id']}/reports", {
+        "lease_token": claim["lease_token"], "report_type": "deterministic_calibration", "payload": {
+            "check_id": suite["check"]["id"], "control_set_hash": "b" * 64, "accepted": False,
+            "missed_defects": [negative["id"]]}})
+    runner.event(claim, 1, "job_result", {"job_kind": "calibration", "control_set_hash": "b" * 64,
+        "controls_verified": True, "missed_defects": 0, "false_alarms": 0, "report_ids": [report["id"]]})
+    response = runner.send(f"/attempts/{claim['attempt_id']}/finalize", {
+        "lease_token": claim["lease_token"], "execution_state": "completed", "business_verdict": "PASS",
+        "cleanup_state": "succeeded", "reconciliation_state": "not_needed", "final_sequence": 1})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_INPUT"
+
+
 def test_automatic_run_budget_and_semantic_dedupe_are_persistent(suite):
     body = RunCreate.model_validate(suite["body"])
     def dispatch(key, **budget):

@@ -340,11 +340,28 @@ def _platform_worker(args):
     client = PlatformClient(args.url, token)
 
     async def perform(claim):
+        selected_factory, variants = factory, None
+        connection = claim.agent_context.connection or next(
+            (version.data for version in claim.execution_manifest.versions if version.kind == "connection"), None)
+        if connection is not None:
+            from susanoo_contracts import content_hash
+            digest = content_hash(connection)
+            binding = profile.connection_bindings.get(digest)
+            if binding is not None:
+                from .platform_bindings import factory_for_connection
+                selected_factory = factory_for_connection(connection, digest, profile.connection_bindings)
+                if "variants" in binding:
+                    variants = {label: factory_for_connection(connection, digest, {digest: local})
+                                for label, local in binding["variants"].items()}
+            elif (args.agent is None and args.agent_cmd is None and connection.family != "I13"
+                  and connection.adapter != "locally-approved-collections"):
+                raise ConfigError("This connection needs a hash-pinned local binding; no demo agent was substituted")
         if claim.kind not in {"outcome_suite", "preflight"}:
             from .platform_jobs import execute_advanced
             return await execute_advanced(client, claim, profile=profile,
                                           journal_path=args.state_dir / f"{claim.attempt_id}.sqlite",
-                                          simulator_url=args.simulator_url, simulator_key=key, agent_factory=factory)
+                                          simulator_url=args.simulator_url, simulator_key=key,
+                                          agent_factory=selected_factory, agent_factories=variants)
         fixtures = SimulatorFixtureAdapter(args.simulator_url, key)
         try:
             return await execute_claim(
@@ -352,7 +369,7 @@ def _platform_worker(args):
                 claim,
                 profile=profile,
                 journal_path=args.state_dir / f"{claim.attempt_id}.sqlite",
-                agent_factory=factory,
+                agent_factory=selected_factory,
                 fixtures=fixtures,
             )
         finally:

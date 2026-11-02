@@ -1,10 +1,47 @@
 # Integration Checkpoint and Remaining Work
 
-Updated 2026-11-02. Working branch: `codex/aarav-runtime-integration`.
+Updated 2026-11-03. Working branch: `codex/aarav-runtime-integration`.
 Base: Muaz's `a8f7707`, which already contains Aarav's `301c39d` and all 27 runtime commits.
 This is a review candidate, not full PRD acceptance or a production deployment.
 Published review: https://github.com/JugaadChhabra/Susanoo/pull/45 (draft, stacked on PR #44).
 Setup and recovery: [customer runner operations](RUNNER_OPERATIONS.md).
+
+## Latest continuation
+
+All advanced worker kinds now have concrete producers; activation still requires exact local inputs.
+Approval keys now hash the entire typed execution manifest, including limits, policy and repair/artifact
+pins. Old graph-only approvals are deliberately invalidated. Canonical schema revision remains proposed.
+
+New evidence includes real four-cell impact, seeded discrepancy/reduction, equal-budget probing,
+shared-state collision detection, deterministic grader calibration, actual synthetic WebSocket audio,
+directory/archive intake and a passing Linux API-to-worktree repair/retest/reviewer-approval workflow.
+The nine binding checks use real loopback services, including installed MCP, grpcio and Chromium paths;
+combined provider/binding qualification passed 12 tests. The TypeScript SDK passed 13 tests, web unit
+tests passed 121, production web build/type/lint passed, and six desktop/mobile platform browser checks
+passed. Browser protocol fixtures are still distinct from actual runtime execution tests.
+
+Linux-only qualification can be run from Windows with:
+
+```powershell
+uv run --no-sync python scripts/wsl_platform_tests.py --full -q --junitxml=.platform/qualification-linux.xml
+```
+
+This creates a random temporary WSL PostgreSQL role and UUID database; cleanup is restricted to databases
+owned by that exact temporary role. It does not migrate or delete any existing application database.
+The local UI is `http://localhost:3000/evaluation`; credentials remain in the ignored bootstrap file.
+
+The first complete WSL/PostgreSQL 18 run recorded **2,534 passed, 128 skipped, 5 failed**. This is not a
+green full-suite claim. One failure exposed a missing CREATEROLE privilege in the new disposable-role
+wrapper; its RLS/migration retest now passes without granting superuser. Four semantic correctness tests
+hit their shared 0.5-second IPC fixture budget. Correctness fixtures now allow three seconds; the explicit
+timeout test still enforces 0.5 seconds and UNKNOWN on timeout. All 13 semantic tests pass in the focused
+Linux retest. The original failing XML is preserved separately from retests. Hosted PostgreSQL 17 and
+provider/browser evidence must be checked against the new PR head, not a previous green revision.
+
+Remaining boundaries are explicitly listed in the latest `docs/implementation-status.md` section. In
+particular, do not describe native framework placeholders, live Twilio execution, private Git broker
+consumption, a rootless source/image sandbox, or simulator-source PR publication as completed by these
+tests. No vendor/customer call, merge, main push, production migration or manual deployment is authorized.
 
 ## Authorization and ownership
 

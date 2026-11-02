@@ -17,7 +17,9 @@ const titles: Record<string, string> = {
   comparison: "Simulator / Reference", task_impact: "Task Impact", two_by_two: "2 x 2 Experiment",
   reduction: "Reduced Reproduction", simulator_repair: "Simulator Repair", agent_repair: "Agent Repair",
   probe_plan: "Probe Plan", probe_run: "Probe Results", probe_comparison: "Probe Strategy Comparison",
-  collision: "Shared-State Collision", calibration: "Grader Calibration", media: "Audio Measurements",
+  collision: "Shared-State Collision", calibration: "Grader Calibration",
+  deterministic_calibration: "Deterministic Grader Calibration", media: "Audio Measurements",
+  source_build: "Source And Build",
   import: "Historical Import", incident: "Draft Regression Case", conclusion: "Conclusion",
   validity: "Evidence Validity", capacity: "Measured Capacity", run_export: "Runtime Results",
   reproduction: "Reproduction Materials", simulator_state: "Simulator State",
@@ -144,6 +146,15 @@ export function ReportContent({ report }: { report: RuntimeReport }) {
         <Grid data={rows(value.evidence)} columns={[["step", "Step"], ["actor", "Actor"], ["event", "Event"],
           ["operation", "Operation"], ["status", "Status"], ["elapsed_ms", "Elapsed (ms)"], ["detail", "Evidence"]]} />
       </section>)}
+    </>;
+    case "source_build": return <>
+      <Facts data={data} keys={["source_kind", "status", "source_commit", "snapshot_digest", "recipe_digest",
+        "files", "runtime", "exit_code"]} />
+      {data.log_tail ? <pre>{String(data.log_tail)}</pre> : null}
+    </>;
+    case "deterministic_calibration": return <>
+      <Facts data={data} keys={["check_id", "accepted", "control_set_hash", "missed_defects", "false_alarms",
+        "inconclusive", "invalid_negative_controls", "heldout_missed_defects", "heldout_false_alarms"]} />
     </>;
     case "calibration": return <>
       <Facts data={data} keys={["grader_version_id", "model_id", "accepted", "reasons", "control_set_hash"]} />

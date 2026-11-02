@@ -7,9 +7,12 @@ that ends before completion is an adapter error. Reconnecting is never treated a
 
 from __future__ import annotations
 
+import asyncio
 import json
+import socket
 import uuid
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 import websockets
@@ -143,18 +146,45 @@ class SseAgentAdapter(_Base):
 
 
 class WebSocketAgentAdapter(_Base):
-    def __init__(self, connection: StreamConnection):
+    def __init__(self, connection: StreamConnection, *, pinned_addresses: tuple[str, ...] | None = None):
         if connection.kind != "websocket":
             raise ValueError("WebSocketAgentAdapter needs a websocket connection")
         super().__init__(connection)
+        self.pinned_addresses = pinned_addresses
+
+    async def _pinned_socket(self) -> socket.socket:
+        parsed = urlsplit(self.connection.url)
+        port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+        loop = asyncio.get_running_loop()
+        last_error: OSError | None = None
+        for address in self.pinned_addresses or ():
+            family = socket.AF_INET6 if ":" in address else socket.AF_INET
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            sock.setblocking(False)
+            sockaddr = (address, port, 0, 0) if family == socket.AF_INET6 else (address, port)
+            try:
+                await asyncio.wait_for(loop.sock_connect(sock, sockaddr), timeout=self.connection.timeout_seconds)
+                return sock
+            except (OSError, TimeoutError) as error:
+                last_error = error if isinstance(error, OSError) else TimeoutError("pinned WebSocket connect timed out")
+                sock.close()
+        if last_error is not None:
+            raise last_error
+        raise OSError("WebSocket binding has no pinned destination addresses")
 
     async def invoke(self, session: SessionHandle, message: Message, context: InvocationContext) -> AgentReply:
         c = self.connection
         invocation_id = f"inv-{uuid.uuid4().hex[:12]}"
         assembler = _Assembler(c)
+        sock = await self._pinned_socket() if self.pinned_addresses is not None else None
         try:
             async with websockets.connect(
-                c.url, additional_headers=c.auth.headers(), max_size=c.max_total_bytes, open_timeout=c.timeout_seconds
+                c.url,
+                additional_headers=c.auth.headers(),
+                max_size=c.max_total_bytes,
+                open_timeout=c.timeout_seconds,
+                proxy=None,
+                sock=sock,
             ) as socket:
                 await socket.send(json.dumps(render(c.request, message, context, session.session_id)))
                 async for frame in socket:
@@ -163,6 +193,9 @@ class WebSocketAgentAdapter(_Base):
                         break
         except (OSError, websockets.WebSocketException) as error:
             raise AdapterError("stream_interrupted", f"WebSocket failed: {type(error).__name__}") from None
+        finally:
+            if sock is not None:
+                sock.close()
         return assembler.reply(invocation_id, session.session_id)
 
     async def aclose(self) -> None:

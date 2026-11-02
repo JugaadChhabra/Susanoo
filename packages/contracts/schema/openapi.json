@@ -596,6 +596,27 @@
             "title": "Job Kind",
             "type": "string"
           },
+          "report_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Report Ids",
+            "type": "array"
+          },
+          "snapshot_digest": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Digest"
+          },
           "source_commit": {
             "anyOf": [
               {
@@ -683,44 +704,6 @@
           "payload"
         ],
         "title": "CalibrationReportSubmission",
-        "type": "object"
-      },
-      "CalibrationResult": {
-        "additionalProperties": false,
-        "properties": {
-          "control_set_hash": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Control Set Hash",
-            "type": "string"
-          },
-          "controls_verified": {
-            "title": "Controls Verified",
-            "type": "boolean"
-          },
-          "false_alarms": {
-            "minimum": 0.0,
-            "title": "False Alarms",
-            "type": "integer"
-          },
-          "job_kind": {
-            "const": "calibration",
-            "default": "calibration",
-            "title": "Job Kind",
-            "type": "string"
-          },
-          "missed_defects": {
-            "minimum": 0.0,
-            "title": "Missed Defects",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "control_set_hash",
-          "controls_verified",
-          "missed_defects",
-          "false_alarms"
-        ],
-        "title": "CalibrationResult",
         "type": "object"
       },
       "CancelEvent": {
@@ -2548,6 +2531,29 @@
         "title": "DataPolicy",
         "type": "object"
       },
+      "DeclaredSimplification": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "rationale"
+        ],
+        "title": "DeclaredSimplification",
+        "type": "object"
+      },
       "Defect": {
         "additionalProperties": false,
         "properties": {
@@ -2607,6 +2613,48 @@
           "relationship"
         ],
         "title": "DependencyIn",
+        "type": "object"
+      },
+      "DeterministicCalibrationReportSubmission": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "default": "reviewers",
+            "enum": [
+              "project",
+              "reviewers"
+            ],
+            "title": "Audience",
+            "type": "string"
+          },
+          "lease_token": {
+            "maxLength": 200,
+            "minLength": 32,
+            "title": "Lease Token",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/susanoo_evaluator__calibration__CalibrationResult"
+          },
+          "report_key": {
+            "default": "primary",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Report Key",
+            "type": "string"
+          },
+          "report_type": {
+            "const": "deterministic_calibration",
+            "default": "deterministic_calibration",
+            "title": "Report Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lease_token",
+          "payload"
+        ],
+        "title": "DeterministicCalibrationReportSubmission",
         "type": "object"
       },
       "Difference": {
@@ -3390,6 +3438,14 @@
             "title": "Intentional Omissions",
             "type": "array"
           },
+          "intentional_simplifications": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredSimplification"
+            },
+            "maxItems": 100,
+            "title": "Intentional Simplifications",
+            "type": "array"
+          },
           "kind": {
             "const": "fidelity",
             "default": "fidelity",
@@ -3657,6 +3713,14 @@
       "GraderSpec": {
         "additionalProperties": false,
         "properties": {
+          "ambiguous_control_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Ambiguous Control Ids",
+            "type": "array"
+          },
           "control_set_hash": {
             "pattern": "^[a-f0-9]{64}$",
             "title": "Control Set Hash",
@@ -4298,7 +4362,7 @@
               "mapping": {
                 "action_comparison": "#/components/schemas/ReportResult",
                 "build": "#/components/schemas/BuildResult",
-                "calibration": "#/components/schemas/CalibrationResult",
+                "calibration": "#/components/schemas/susanoo_contracts__models__CalibrationResult",
                 "collision": "#/components/schemas/ReportResult",
                 "fresh_agent_pair": "#/components/schemas/ReportResult",
                 "incident_draft": "#/components/schemas/ReportResult",
@@ -4320,7 +4384,7 @@
                 "$ref": "#/components/schemas/PreflightResult"
               },
               {
-                "$ref": "#/components/schemas/CalibrationResult"
+                "$ref": "#/components/schemas/susanoo_contracts__models__CalibrationResult"
               },
               {
                 "$ref": "#/components/schemas/BuildResult"
@@ -6836,6 +6900,32 @@
         "title": "RepairResult",
         "type": "object"
       },
+      "RepairValidationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Version Ids",
+            "type": "array"
+          }
+        },
+        "title": "RepairValidationIn",
+        "type": "object"
+      },
       "RepetitionResult": {
         "additionalProperties": false,
         "properties": {
@@ -8419,6 +8509,133 @@
         "title": "SimulatorStateReportSubmission",
         "type": "object"
       },
+      "SourceBuildReport": {
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "files": {
+            "minimum": 0.0,
+            "title": "Files",
+            "type": "integer"
+          },
+          "log_tail": {
+            "default": "",
+            "maxLength": 4096,
+            "title": "Log Tail",
+            "type": "string"
+          },
+          "recipe_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Recipe Digest",
+            "type": "string"
+          },
+          "runtime": {
+            "enum": [
+              "python",
+              "node",
+              "container"
+            ],
+            "title": "Runtime",
+            "type": "string"
+          },
+          "snapshot_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Snapshot Digest",
+            "type": "string"
+          },
+          "source_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Commit"
+          },
+          "source_kind": {
+            "enum": [
+              "git",
+              "directory",
+              "archive"
+            ],
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_kind",
+          "status",
+          "snapshot_digest",
+          "recipe_digest",
+          "files",
+          "runtime"
+        ],
+        "title": "SourceBuildReport",
+        "type": "object"
+      },
+      "SourceBuildReportSubmission": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "default": "reviewers",
+            "enum": [
+              "project",
+              "reviewers"
+            ],
+            "title": "Audience",
+            "type": "string"
+          },
+          "lease_token": {
+            "maxLength": 200,
+            "minLength": 32,
+            "title": "Lease Token",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SourceBuildReport"
+          },
+          "report_key": {
+            "default": "primary",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Report Key",
+            "type": "string"
+          },
+          "report_type": {
+            "const": "source_build",
+            "default": "source_build",
+            "title": "Report Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lease_token",
+          "payload"
+        ],
+        "title": "SourceBuildReportSubmission",
+        "type": "object"
+      },
       "SourceCredentialIn": {
         "additionalProperties": false,
         "properties": {
@@ -8491,9 +8708,16 @@
             "type": "array"
           },
           "commit": {
-            "pattern": "^[a-f0-9]{40}$",
-            "title": "Commit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
           },
           "installation_id": {
             "anyOf": [
@@ -8529,6 +8753,28 @@
             "title": "Repository",
             "type": "string"
           },
+          "snapshot_digest": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Digest"
+          },
+          "source_kind": {
+            "default": "git",
+            "enum": [
+              "git",
+              "directory",
+              "archive"
+            ],
+            "title": "Source Kind",
+            "type": "string"
+          },
           "trusted": {
             "default": false,
             "title": "Trusted",
@@ -8537,7 +8783,6 @@
         },
         "required": [
           "repository",
-          "commit",
           "recipe_hash",
           "lockfile_hash"
         ],
@@ -9848,6 +10093,119 @@
           "roles"
         ],
         "title": "WorkspaceRecord",
+        "type": "object"
+      },
+      "susanoo_contracts__models__CalibrationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "control_set_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Control Set Hash",
+            "type": "string"
+          },
+          "controls_verified": {
+            "title": "Controls Verified",
+            "type": "boolean"
+          },
+          "false_alarms": {
+            "minimum": 0.0,
+            "title": "False Alarms",
+            "type": "integer"
+          },
+          "job_kind": {
+            "const": "calibration",
+            "default": "calibration",
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "missed_defects": {
+            "minimum": 0.0,
+            "title": "Missed Defects",
+            "type": "integer"
+          },
+          "report_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Report Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "control_set_hash",
+          "controls_verified",
+          "missed_defects",
+          "false_alarms"
+        ],
+        "title": "CalibrationResult",
+        "type": "object"
+      },
+      "susanoo_evaluator__calibration__CalibrationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "check_id": {
+            "title": "Check Id",
+            "type": "string"
+          },
+          "control_set_hash": {
+            "title": "Control Set Hash",
+            "type": "string"
+          },
+          "false_alarms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "False Alarms",
+            "type": "array"
+          },
+          "heldout_false_alarms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Heldout False Alarms",
+            "type": "array"
+          },
+          "heldout_missed_defects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Heldout Missed Defects",
+            "type": "array"
+          },
+          "inconclusive": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inconclusive",
+            "type": "array"
+          },
+          "invalid_negative_controls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invalid Negative Controls",
+            "type": "array"
+          },
+          "missed_defects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missed Defects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "check_id",
+          "control_set_hash",
+          "accepted"
+        ],
+        "title": "CalibrationResult",
         "type": "object"
       },
       "susanoo_runner__agent_repair__RepairValidation": {
@@ -12594,6 +12952,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RepairValidationIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "content": {
@@ -13239,6 +13614,7 @@
                     "collision": "#/components/schemas/CollisionReportSubmission",
                     "comparison": "#/components/schemas/ComparisonReportSubmission",
                     "conclusion": "#/components/schemas/ConclusionReportSubmission",
+                    "deterministic_calibration": "#/components/schemas/DeterministicCalibrationReportSubmission",
                     "import": "#/components/schemas/ImportReportSubmission",
                     "incident": "#/components/schemas/IncidentReportSubmission",
                     "media": "#/components/schemas/MediaReportSubmission",
@@ -13250,6 +13626,7 @@
                     "run_export": "#/components/schemas/RunExportReportSubmission",
                     "simulator_repair": "#/components/schemas/SimulatorRepairReportSubmission",
                     "simulator_state": "#/components/schemas/SimulatorStateReportSubmission",
+                    "source_build": "#/components/schemas/SourceBuildReportSubmission",
                     "task_impact": "#/components/schemas/TaskImpactReportSubmission",
                     "two_by_two": "#/components/schemas/TwoByTwoReportSubmission",
                     "validity": "#/components/schemas/ValidityReportSubmission"
@@ -13257,6 +13634,9 @@
                   "propertyName": "report_type"
                 },
                 "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceBuildReportSubmission"
+                  },
                   {
                     "$ref": "#/components/schemas/ComparisonReportSubmission"
                   },
@@ -13289,6 +13669,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/CalibrationReportSubmission"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeterministicCalibrationReportSubmission"
                   },
                   {
                     "$ref": "#/components/schemas/MediaReportSubmission"

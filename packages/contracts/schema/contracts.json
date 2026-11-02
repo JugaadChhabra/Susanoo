@@ -858,6 +858,28 @@
           "title": "Job Kind",
           "type": "string"
         },
+        "report_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Report Ids",
+          "type": "array"
+        },
+        "snapshot_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Digest"
+        },
         "source_commit": {
           "anyOf": [
             {
@@ -951,37 +973,65 @@
     "CalibrationResult": {
       "additionalProperties": false,
       "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "check_id": {
+          "title": "Check Id",
+          "type": "string"
+        },
         "control_set_hash": {
-          "pattern": "^[a-f0-9]{64}$",
           "title": "Control Set Hash",
           "type": "string"
         },
-        "controls_verified": {
-          "title": "Controls Verified",
-          "type": "boolean"
-        },
         "false_alarms": {
-          "minimum": 0,
+          "items": {
+            "type": "string"
+          },
           "title": "False Alarms",
-          "type": "integer"
+          "type": "array"
         },
-        "job_kind": {
-          "const": "calibration",
-          "default": "calibration",
-          "title": "Job Kind",
-          "type": "string"
+        "heldout_false_alarms": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Heldout False Alarms",
+          "type": "array"
+        },
+        "heldout_missed_defects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Heldout Missed Defects",
+          "type": "array"
+        },
+        "inconclusive": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inconclusive",
+          "type": "array"
+        },
+        "invalid_negative_controls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Invalid Negative Controls",
+          "type": "array"
         },
         "missed_defects": {
-          "minimum": 0,
+          "items": {
+            "type": "string"
+          },
           "title": "Missed Defects",
-          "type": "integer"
+          "type": "array"
         }
       },
       "required": [
+        "check_id",
         "control_set_hash",
-        "controls_verified",
-        "missed_defects",
-        "false_alarms"
+        "accepted"
       ],
       "title": "CalibrationResult",
       "type": "object"
@@ -3342,6 +3392,29 @@
       "title": "DeadlineCheck",
       "type": "object"
     },
+    "DeclaredSimplification": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "rationale"
+      ],
+      "title": "DeclaredSimplification",
+      "type": "object"
+    },
     "Defect": {
       "additionalProperties": false,
       "properties": {
@@ -3401,6 +3474,48 @@
         "relationship"
       ],
       "title": "DependencyIn",
+      "type": "object"
+    },
+    "DeterministicCalibrationReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/CalibrationResult"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "deterministic_calibration",
+          "default": "deterministic_calibration",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "DeterministicCalibrationReportSubmission",
       "type": "object"
     },
     "Difference": {
@@ -4493,6 +4608,14 @@
           "title": "Intentional Omissions",
           "type": "array"
         },
+        "intentional_simplifications": {
+          "items": {
+            "$ref": "#/$defs/DeclaredSimplification"
+          },
+          "maxItems": 100,
+          "title": "Intentional Simplifications",
+          "type": "array"
+        },
         "kind": {
           "const": "fidelity",
           "default": "fidelity",
@@ -5010,6 +5133,14 @@
     "GraderSpec": {
       "additionalProperties": false,
       "properties": {
+        "ambiguous_control_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Ambiguous Control Ids",
+          "type": "array"
+        },
         "control_set_hash": {
           "pattern": "^[a-f0-9]{64}$",
           "title": "Control Set Hash",
@@ -9207,6 +9338,33 @@
       "title": "RepairResult",
       "type": "object"
     },
+    "RepairValidationIn": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Version Ids",
+          "type": "array"
+        }
+      },
+      "title": "RepairValidationIn",
+      "type": "object"
+    },
     "RepetitionResult": {
       "additionalProperties": false,
       "properties": {
@@ -9383,6 +9541,7 @@
           "collision": "#/$defs/CollisionReportSubmission",
           "comparison": "#/$defs/ComparisonReportSubmission",
           "conclusion": "#/$defs/ConclusionReportSubmission",
+          "deterministic_calibration": "#/$defs/DeterministicCalibrationReportSubmission",
           "import": "#/$defs/ImportReportSubmission",
           "incident": "#/$defs/IncidentReportSubmission",
           "media": "#/$defs/MediaReportSubmission",
@@ -9394,6 +9553,7 @@
           "run_export": "#/$defs/RunExportReportSubmission",
           "simulator_repair": "#/$defs/SimulatorRepairReportSubmission",
           "simulator_state": "#/$defs/SimulatorStateReportSubmission",
+          "source_build": "#/$defs/SourceBuildReportSubmission",
           "task_impact": "#/$defs/TaskImpactReportSubmission",
           "two_by_two": "#/$defs/TwoByTwoReportSubmission",
           "validity": "#/$defs/ValidityReportSubmission"
@@ -9401,6 +9561,9 @@
         "propertyName": "report_type"
       },
       "oneOf": [
+        {
+          "$ref": "#/$defs/SourceBuildReportSubmission"
+        },
         {
           "$ref": "#/$defs/ComparisonReportSubmission"
         },
@@ -9433,6 +9596,9 @@
         },
         {
           "$ref": "#/$defs/CalibrationReportSubmission"
+        },
+        {
+          "$ref": "#/$defs/DeterministicCalibrationReportSubmission"
         },
         {
           "$ref": "#/$defs/MediaReportSubmission"
@@ -11223,6 +11389,135 @@
       "title": "SnapshotScope",
       "type": "object"
     },
+    "SourceBuildReport": {
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
+        },
+        "files": {
+          "minimum": 0,
+          "title": "Files",
+          "type": "integer"
+        },
+        "log_tail": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Log Tail",
+          "type": "string"
+        },
+        "recipe_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Recipe Digest",
+          "type": "string"
+        },
+        "runtime": {
+          "enum": [
+            "python",
+            "node",
+            "container"
+          ],
+          "title": "Runtime",
+          "type": "string"
+        },
+        "snapshot_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshot Digest",
+          "type": "string"
+        },
+        "source_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Commit"
+        },
+        "source_kind": {
+          "enum": [
+            "git",
+            "directory",
+            "archive"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_kind",
+        "status",
+        "snapshot_digest",
+        "recipe_digest",
+        "files",
+        "runtime"
+      ],
+      "title": "SourceBuildReport",
+      "type": "object"
+    },
+    "SourceBuildReportSubmission": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "default": "reviewers",
+          "enum": [
+            "project",
+            "reviewers"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "lease_token": {
+          "maxLength": 200,
+          "minLength": 32,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/SourceBuildReport"
+        },
+        "report_key": {
+          "default": "primary",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Report Key",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "source_build",
+          "default": "source_build",
+          "title": "Report Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_token",
+        "payload"
+      ],
+      "title": "SourceBuildReportSubmission",
+      "type": "object"
+    },
     "SourceCredentialIn": {
       "additionalProperties": false,
       "properties": {
@@ -11295,9 +11590,17 @@
           "type": "array"
         },
         "commit": {
-          "pattern": "^[a-f0-9]{40}$",
-          "title": "Commit",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit"
         },
         "installation_id": {
           "anyOf": [
@@ -11334,6 +11637,29 @@
           "title": "Repository",
           "type": "string"
         },
+        "snapshot_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Digest"
+        },
+        "source_kind": {
+          "default": "git",
+          "enum": [
+            "git",
+            "directory",
+            "archive"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
         "trusted": {
           "default": false,
           "title": "Trusted",
@@ -11342,7 +11668,6 @@
       },
       "required": [
         "repository",
-        "commit",
         "recipe_hash",
         "lockfile_hash"
       ],

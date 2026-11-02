@@ -124,7 +124,8 @@ def referenced_versions(data):
     relationships = {
         "check": {"requirement_version_id": "requirement", "grader_version_id": "grader"},
         "case": {"fixture_version_id": "fixture", "check_version_ids": "check", "dependencies": None},
-        "grader": {"positive_control_ids": "case", "negative_control_ids": "case", "heldout_control_ids": "case"},
+        "grader": {"positive_control_ids": "case", "negative_control_ids": "case",
+                   "ambiguous_control_ids": "case", "heldout_control_ids": "case"},
         "suite": {"case_version_ids": "case"},
         "environment": {"fixture_version_id": "fixture"},
         "fidelity": {"simulator_version_id": "environment", "reference_version_id": "environment"},
@@ -136,7 +137,7 @@ def referenced_versions(data):
         values = data.get(field)
         if values is not None:
             result.extend((value, kind) for value in (values if isinstance(values, list) else [values]))
-    return result
+    return list(dict.fromkeys(result))
 
 
 def remove_member(ctx, workspace_id, user_id):
@@ -1003,6 +1004,8 @@ def finalize_attempt(ctx, attempt_id, body):
             if type(concurrency) is not int or not 1 <= concurrency <= 3:
                 raise PlatformError("INVALID_INPUT", "Preflight concurrency must be an integer from 1 to 3.", 422)
         if row["kind"] == "calibration":
+            from .reports import validate_calibration_reports
+            validate_calibration_reports(ctx, row, result)
             if type(result.get("controls_verified")) is not bool or any(
                 type(result.get(key)) is not int or result[key] < 0 for key in ("missed_defects", "false_alarms")
             ):

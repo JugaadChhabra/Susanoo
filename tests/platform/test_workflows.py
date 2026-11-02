@@ -85,6 +85,7 @@ def test_default_deny_rls_and_repeat_migrations(world):
     role = "susanoo_test_rls_" + uuid4().hex
     with transaction() as db:
         db.execute(sql.SQL("create role {} nologin nosuperuser nobypassrls").format(sql.Identifier(role)))
+        db.execute(sql.SQL("grant {} to current_user").format(sql.Identifier(role)))
         db.execute(sql.SQL("grant usage on schema platform to {}").format(sql.Identifier(role)))
         db.execute(sql.SQL("grant select on platform.projects to {}").format(sql.Identifier(role)))
         db.execute(sql.SQL("set local role {}").format(sql.Identifier(role)))

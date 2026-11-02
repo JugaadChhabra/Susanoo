@@ -359,6 +359,11 @@ class ResourceReleaseIn(WireModel):
     reconciliation_id: UUID
 
 
+class DeclaredSimplification(WireModel):
+    path: str = Field(min_length=1, max_length=500)
+    rationale: str = Field(min_length=1, max_length=4000)
+
+
 class FidelitySpec(WireModel):
     kind: Literal["fidelity"] = "fidelity"
     simulator_version_id: UUID
@@ -367,6 +372,7 @@ class FidelitySpec(WireModel):
     identity_profile: Name
     normalizers: list[dict[str, Any]] = Field(default_factory=list)
     intentional_omissions: list[str] = Field(default_factory=list)
+    intentional_simplifications: list[DeclaredSimplification] = Field(default_factory=list, max_length=100)
     reference_limitations: list[str] = Field(default_factory=list)
     consistency_window_seconds: int = Field(default=10, ge=0, le=3600)
 
@@ -378,6 +384,7 @@ class GraderSpec(WireModel):
     control_set_hash: Digest
     positive_control_ids: list[UUID] = Field(min_length=1)
     negative_control_ids: list[UUID] = Field(min_length=1)
+    ambiguous_control_ids: list[UUID] = Field(default_factory=list)
     heldout_control_ids: list[UUID] = Field(default_factory=list)
     rubric: str | None = Field(default=None, max_length=10000)
     provider: Name | None = None
@@ -389,12 +396,24 @@ class GraderSpec(WireModel):
 class SourceSpec(WireModel):
     kind: Literal["source"] = "source"
     repository: Name
-    commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")]
+    source_kind: Literal["git", "directory", "archive"] = "git"
+    commit: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{40}$")] | None = None
+    snapshot_digest: Digest | None = None
     recipe_hash: Digest
     lockfile_hash: Digest
     installation_id: int | None = Field(default=None, ge=1)
     trusted: bool = False
     allowed_patch_paths: list[Name] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def pinned_source_identity(self):
+        if self.source_kind == "git" and self.commit is None:
+            raise ValueError("Git sources require a pinned full commit")
+        if self.source_kind != "git" and (self.snapshot_digest is None or self.commit is not None):
+            raise ValueError("Local/archive sources require a snapshot digest, not a fabricated Git commit")
+        if self.source_kind != "git" and self.installation_id is not None:
+            raise ValueError("Only Git sources may request GitHub installation access")
+        return self
 
 
 class VoiceSpec(WireModel):
@@ -554,6 +573,7 @@ class CalibrationResult(WireModel):
     controls_verified: bool = Field(strict=True)
     missed_defects: int = Field(ge=0, strict=True)
     false_alarms: int = Field(ge=0, strict=True)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 class BuildResult(WireModel):
@@ -561,7 +581,21 @@ class BuildResult(WireModel):
     status: Literal["succeeded", "failed", "unavailable"]
     source_commit: str | None = None
     image_digest: str | None = None
+    snapshot_digest: Digest | None = None
     artifact_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    report_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class SourceBuildReport(WireModel):
+    source_kind: Literal["git", "directory", "archive"]
+    status: Literal["succeeded", "failed", "unavailable"]
+    source_commit: str | None = None
+    snapshot_digest: Digest
+    recipe_digest: Digest
+    files: int = Field(ge=0)
+    runtime: Literal["python", "node", "container"]
+    log_tail: str = Field(default="", max_length=4096)
+    exit_code: int | None = None
 
 
 class RepairResult(WireModel):
@@ -990,6 +1024,11 @@ class RepairIn(WireModel):
     source_version_id: UUID
     patch_artifact_id: UUID
     layer: Literal["agent", "simulator", "evaluator"]
+
+
+class RepairValidationIn(WireModel):
+    version_ids: list[UUID] = Field(default_factory=list, max_length=20)
+    limits: RunLimits | None = None
 
 
 class RelayConfiguration(WireModel):

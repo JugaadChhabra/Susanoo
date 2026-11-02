@@ -19,6 +19,7 @@ Drives a chat-style web UI through a small driver protocol modeled on Playwright
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import json
 import os
 import re
@@ -380,12 +381,29 @@ class _PlaywrightContext:
 
 
 class PlaywrightDriver:
-    """Chromium via Playwright. Requires ``playwright`` and ``playwright install chromium``."""
+    """Chromium with DNS pinned to numeric addresses and a per-request origin allowlist."""
 
-    def __init__(self, *, headless: bool = True):
+    def __init__(self, *, headless: bool = True, pinned_hosts: dict[str, str] | None = None):
         self.headless = headless
+        self.pinned_hosts = dict(pinned_hosts or {})
         self._playwright: Any = None
         self._browser: Any = None
+
+    def _host_resolver_rules(self) -> str:
+        rules = []
+        for host, raw_address in sorted(self.pinned_hosts.items()):
+            if not re.fullmatch(r"[a-z0-9.-]+", host):
+                raise AdapterError("egress_denied", "Browser DNS pin contains an invalid hostname")
+            try:
+                address = ipaddress.ip_address(raw_address)
+            except ValueError:
+                raise AdapterError("egress_denied", "Browser DNS pin must contain a numeric address") from None
+            if address.is_multicast or address.is_unspecified:
+                raise AdapterError("egress_denied", "Browser DNS pin is not a connectable unicast address")
+            rendered = f"[{address}]" if address.version == 6 else str(address)
+            rules.append(f"MAP {host} {rendered}")
+        rules.append("MAP * ~NOTFOUND")
+        return ",".join(rules)
 
     async def _start(self) -> None:
         if self._browser is not None:
@@ -398,7 +416,11 @@ class PlaywrightDriver:
                 "Playwright is not installed; install the 'playwright' package and run 'playwright install chromium'",
             ) from None
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        self._browser = await self._playwright.chromium.launch(
+            headless=self.headless,
+            args=([f"--host-resolver-rules={self._host_resolver_rules()}", "--no-proxy-server"]
+                  if self.pinned_hosts else []),
+        )
 
     async def new_context(
         self, *, accept_downloads: bool, storage_state: str | None, allowed_origins: list[str]

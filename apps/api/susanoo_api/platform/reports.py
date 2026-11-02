@@ -12,10 +12,11 @@ from fastapi import Query
 from psycopg.types.json import Jsonb
 from pydantic import Field, TypeAdapter, create_model, model_validator
 from susanoo_contracts import (
-    Digest, LeaseRequest, Name, ReportClassificationIn, WireModel, canonical_json, content_hash,
+    Digest, LeaseRequest, Name, ReportClassificationIn, SourceBuildReport, WireModel, canonical_json, content_hash,
 )
 from susanoo_connectors.media.metrics import AudioMetricsReport
 from susanoo_evaluator.semantic import SemanticCalibration
+from susanoo_evaluator.calibration import CalibrationResult as DeterministicCalibration
 from susanoo_runner.agent_repair import RepairValidation as AgentRepairValidation
 from susanoo_runner.capacity import CapacityReport
 from susanoo_runner.dependencies import Conclusion, ValidityMark
@@ -139,6 +140,7 @@ class ReproductionIngredient(WireModel):
 
 
 REPORTS = {
+    "source_build": (SourceBuildReport, {"source_import", "build"}),
     "comparison": (ComparisonResult, {"action_comparison"}),
     "task_impact": (PairOutcome, {"fresh_agent_pair"}),
     "two_by_two": (TwoByTwoReport, {"fresh_agent_pair", "repair_retest"}),
@@ -150,6 +152,7 @@ REPORTS = {
     "probe_comparison": (ProbeComparison, {"probe"}),
     "collision": (CollisionReport, {"collision"}),
     "calibration": (SemanticCalibration, {"calibration"}),
+    "deterministic_calibration": (DeterministicCalibration, {"calibration"}),
     "media": (AudioMetricsReport, {"voice"}),
     "import": (ImportBatch, {"trace_import"}),
     "incident": (DraftScenario, {"incident_draft"}),
@@ -192,7 +195,8 @@ REPORT_ADAPTER = TypeAdapter(ReportSubmission)
 def validate_completed_reports(ctx, attempt, result):
     required = {
         "action_comparison": {"comparison"}, "fresh_agent_pair": {"task_impact", "two_by_two"},
-        "reduce_reproduction": {"reduction"}, "repair_retest": {"agent_repair"}, "trace_import": {"import"},
+        "reduce_reproduction": {"reduction"}, "repair_retest": {"agent_repair", "simulator_repair"},
+        "trace_import": {"import"},
         "incident_draft": {"incident"}, "collision": {"collision"}, "probe": {"probe_run"}, "voice": {"media"},
         "simulator_inspect": {"simulator_state"}, "simulator_reset": {"simulator_state"},
     }.get(attempt["kind"])
@@ -207,6 +211,36 @@ def validate_completed_reports(ctx, attempt, result):
         raise PlatformError(
             "INCOMPLETE_EVIDENCE", "Completed advanced jobs need an assigned typed report reference.", 409
         )
+
+
+def validate_calibration_reports(ctx, attempt, result):
+    identifiers = result.get("report_ids", [])
+    if not identifiers:
+        return  # Existing protocol 1.0 summary-only calibrations remain compatible.
+    rows = ctx.db.execute(
+        "select report_type,payload from platform.advanced_reports where attempt_id=%s and id=any(%s::uuid[])",
+        (attempt["id"], identifiers),
+    ).fetchall()
+    if len(rows) != 1 or len(identifiers) != 1:
+        raise PlatformError("INCOMPLETE_EVIDENCE", "Calibration requires its exact assigned report.", 409)
+    row = rows[0]
+    payload = row["payload"]
+    if row["report_type"] == "deterministic_calibration":
+        missed = len(payload["missed_defects"]) + len(payload["heldout_missed_defects"])
+        alarms = len(payload["false_alarms"]) + len(payload["heldout_false_alarms"])
+        expected = (payload["control_set_hash"], payload["accepted"], missed, alarms)
+        actual = tuple(result.get(key) for key in ("control_set_hash", "controls_verified", "missed_defects",
+                                                   "false_alarms"))
+        if expected != actual:
+            raise PlatformError("INVALID_INPUT", "Calibration summary contradicts its immutable measurements.", 422)
+    elif row["report_type"] == "calibration":
+        expected = (payload["control_set_hash"], payload["accepted"], len(payload["false_passes"]),
+                    len(payload["false_fails"]))
+        if expected != tuple(result.get(key) for key in ("control_set_hash", "controls_verified", "missed_defects",
+                                                         "false_alarms")):
+            raise PlatformError("INVALID_INPUT", "Semantic summary contradicts its immutable measurements.", 422)
+    else:
+        raise PlatformError("INVALID_INPUT", "Expected a typed grader calibration report.", 422)
 
 
 def visible_reports(ctx, run, project, *, audience="reviewers"):

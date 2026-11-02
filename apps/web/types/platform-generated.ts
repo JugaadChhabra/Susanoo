@@ -143,7 +143,9 @@ export interface BuildResult {
   status: "succeeded" | "failed" | "unavailable";
   source_commit: string | null;
   image_digest: string | null;
+  snapshot_digest: string | null;
   artifact_ids?: Array<string>;
+  report_ids?: Array<string>;
 }
 
 export interface BusinessDate {
@@ -160,11 +162,15 @@ export interface CalibrationReportSubmission {
 }
 
 export interface CalibrationResult {
-  job_kind: "calibration";
+  check_id: string;
   control_set_hash: string;
-  controls_verified: boolean;
-  missed_defects: number;
-  false_alarms: number;
+  missed_defects?: Array<string>;
+  false_alarms?: Array<string>;
+  inconclusive?: Array<string>;
+  invalid_negative_controls?: Array<string>;
+  heldout_missed_defects?: Array<string>;
+  heldout_false_alarms?: Array<string>;
+  accepted: boolean;
 }
 
 export interface CancelEvent {
@@ -515,6 +521,11 @@ export interface DeadlineCheck {
   within_seconds: number;
 }
 
+export interface DeclaredSimplification {
+  path: string;
+  rationale: string;
+}
+
 export interface Defect {
   kind: "lost_update" | "duplicate_record" | "invalid_transition" | "ownership_conflict" | "write_after_revocation";
   entity: string;
@@ -525,6 +536,14 @@ export interface DependencyIn {
   source_version_id: string;
   target_version_id: string;
   relationship: "declared_dependency" | "observed_dependency";
+}
+
+export interface DeterministicCalibrationReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "deterministic_calibration";
+  payload: CalibrationResult;
 }
 
 export interface Difference {
@@ -684,6 +703,7 @@ export interface FidelitySpec {
   identity_profile: string;
   normalizers?: Array<Record<string, unknown>>;
   intentional_omissions?: Array<string>;
+  intentional_simplifications?: Array<DeclaredSimplification>;
   reference_limitations?: Array<string>;
   consistency_window_seconds: number;
 }
@@ -776,6 +796,7 @@ export interface GraderSpec {
   control_set_hash: string;
   positive_control_ids: Array<string>;
   negative_control_ids: Array<string>;
+  ambiguous_control_ids?: Array<string>;
   heldout_control_ids?: Array<string>;
   rubric: string | null;
   provider: string | null;
@@ -1437,6 +1458,11 @@ export interface RepairResult {
   report_id: string | null;
 }
 
+export interface RepairValidationIn {
+  version_ids?: Array<string>;
+  limits: RunLimits | null;
+}
+
 export interface RepetitionResult {
   repetition: number;
   namespace: string;
@@ -1463,7 +1489,7 @@ export interface ReportResult {
   report_ids?: Array<string>;
 }
 
-export type ReportSubmission = ComparisonReportSubmission | TaskImpactReportSubmission | TwoByTwoReportSubmission | ReductionReportSubmission | SimulatorRepairReportSubmission | AgentRepairReportSubmission | ProbePlanReportSubmission | ProbeRunReportSubmission | ProbeComparisonReportSubmission | CollisionReportSubmission | CalibrationReportSubmission | MediaReportSubmission | ImportReportSubmission | IncidentReportSubmission | ConclusionReportSubmission | ValidityReportSubmission | CapacityReportSubmission | RunExportReportSubmission | ReproductionReportSubmission | SimulatorStateReportSubmission;
+export type ReportSubmission = SourceBuildReportSubmission | ComparisonReportSubmission | TaskImpactReportSubmission | TwoByTwoReportSubmission | ReductionReportSubmission | SimulatorRepairReportSubmission | AgentRepairReportSubmission | ProbePlanReportSubmission | ProbeRunReportSubmission | ProbeComparisonReportSubmission | CollisionReportSubmission | CalibrationReportSubmission | DeterministicCalibrationReportSubmission | MediaReportSubmission | ImportReportSubmission | IncidentReportSubmission | ConclusionReportSubmission | ValidityReportSubmission | CapacityReportSubmission | RunExportReportSubmission | ReproductionReportSubmission | SimulatorStateReportSubmission;
 
 export interface ReportedOutcome {
   kind: string;
@@ -1771,6 +1797,26 @@ export interface SnapshotScope {
   kinds: Array<string>;
 }
 
+export interface SourceBuildReport {
+  source_kind: "git" | "directory" | "archive";
+  status: "succeeded" | "failed" | "unavailable";
+  source_commit: string | null;
+  snapshot_digest: string;
+  recipe_digest: string;
+  files: number;
+  runtime: "python" | "node" | "container";
+  log_tail: string;
+  exit_code: number | null;
+}
+
+export interface SourceBuildReportSubmission {
+  lease_token: string;
+  report_key: string;
+  audience: "project" | "reviewers";
+  report_type: "source_build";
+  payload: SourceBuildReport;
+}
+
 export interface SourceCredentialIn {
   lease_token: string;
   source_version_id: string;
@@ -1787,7 +1833,9 @@ export interface SourceCredentialResponse {
 export interface SourceSpec {
   kind: "source";
   repository: string;
-  commit: string;
+  source_kind: "git" | "directory" | "archive";
+  commit: string | null;
+  snapshot_digest: string | null;
   recipe_hash: string;
   lockfile_hash: string;
   installation_id: number | null;

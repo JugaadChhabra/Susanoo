@@ -40,7 +40,7 @@ CONFIG = GraderConfig(
     prompt_template="Grade the note against the rubric. Reply JSON {label, rationale}.",
     rubric=RUBRIC,
     redact_paths=["holder_phone"],
-    timeout_seconds=0.5,
+    timeout_seconds=3.0,
 )
 PERMIT = ExternalDataPermission(allowed=True, observations=["handoffs"], granted_by="owner@example.test")
 MANAGER = None
@@ -223,12 +223,14 @@ def test_external_data_permission_is_required_and_off_by_default():
 def test_provider_failures_are_unknown_never_pass(mode, status):
     judge = FakeJudge(mode)
     grader, _ = calibrated(judge=judge)
+    # Keep the actual timeout regression strict; correctness fixtures allow host/IPC scheduling slack.
+    grader.config = grader.config.model_copy(update={"timeout_seconds": 0.5})
     started = time.monotonic()
     result = grade(grader)
     judge.release.set()
     assert result.verdict == "UNKNOWN" and result.measured["semantic_status"] == status
     # Startup/termination are bounded separately; the provider itself still gets only 0.5 seconds.
-    assert time.monotonic() - started < WORKER_STARTUP_SECONDS + CONFIG.timeout_seconds + 2 * WORKER_STOP_SECONDS + 1
+    assert time.monotonic() - started < WORKER_STARTUP_SECONDS + 0.5 + 2 * WORKER_STOP_SECONDS + 1
 
 
 def test_ambiguous_and_unusable_observations_are_unknown():

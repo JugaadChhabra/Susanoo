@@ -132,14 +132,16 @@ by these instructions.
 
 `PlatformProfile.advanced_inputs` maps an explicit local approval key to reviewed JSON inputs. Compute
 the key using `susanoo_runner.platform_jobs.approval_key(claim)`, equivalently the canonical hash of
-`{"kind": JOB_KIND, "versions": {VERSION_UUID: EXACT_TYPED_VERSION_DATA}}` over the complete dependency
-graph. IDs and data are pinned, not mutable titles. Never approve a graph obtained from unreviewed
+`{"kind": JOB_KIND, "execution_manifest": EXACT_TYPED_EXECUTION_MANIFEST}`. This includes the complete
+dependency graph, policy, budgets, artifact pins and exact repair context. Old graph-only approval
+keys must be reviewed again. IDs and data are pinned, not mutable titles. Never approve a graph obtained from unreviewed
 agent text. Each input entry includes `job_kind`; the CLI advertises only implemented configured kinds.
 An owner must separately register those capabilities on the runner. No remote command/path is accepted.
 
 Current handlers: `simulator_inspect`, `simulator_reset`, `action_comparison`, `reduce_reproduction`,
-`fresh_agent_pair`, `trace_import`, `incident_draft`. Advanced hosted handlers currently require a synthetic
-profile and project policy. Other job kinds remain unadvertised, not falsely successful.
+`fresh_agent_pair`, `trace_import`, `incident_draft`, `source_import`, `build`, `repair_retest`, `calibration`,
+`collision`, `probe`, `voice`. Advanced hosted handlers currently require a synthetic profile and project
+policy. Registration alone is not activation: each graph still requires its local inputs and usable adapters.
 
 - Simulator jobs require locally approved `entity_kinds` and consume the pinned fixture/environment.
 - Comparison/reduction require `entity_kinds` and an `ActionPlan` in `plan`; reduction additionally uses
@@ -147,6 +149,8 @@ profile and project policy. Other job kinds remain unadvertised, not falsely suc
 - Fresh task impact uses the configured local agent, approved connection hash and pinned suite/checks
   in fresh simulator/reference fixtures. This is separate from replay; its parent result remains UNKNOWN
   while the typed pair report contains independently evaluated task verdicts and attribution.
+- Four-cell impact uses `mode: "two_by_two"`, one to ten `repetitions`, and explicit `old`/`new` local
+  connection binding variants. Every cell retains all repetitions; no additive accuracy claim is derived.
 - Imports/drafts require an I13 connection plus locally supplied `data`, `format` (jsonl/csv), and `domain`
   for drafts. Empty incident detection never fabricates a draft. Imported outcomes do not prove state.
 

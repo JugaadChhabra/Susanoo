@@ -84,11 +84,15 @@ def create_job(ctx, project_id, body, key, *, repair=None):
         if (
             version["kind"] == "grader"
             and version["data"]["mode"] == "semantic"
+            and version["data"].get("provider") != "recorded_replay"
             and not project["policy"]["external_models_allowed"]
         ):
             raise PlatformError("FORBIDDEN", "External semantic grading is disabled by the current policy.", 403)
         approved_limits = version["data"].get("limits")
-        if approved_limits and any(value > approved_limits[key] for key, value in dump(body.limits).items()):
+        aggregate = {"max_agent_invocations", "max_reference_calls", "cleanup_reserve"} if body.kind in {
+            "repair_retest", "fresh_agent_pair"} else set()
+        if approved_limits and any(value > approved_limits[key] for key, value in dump(body.limits).items()
+                                   if key not in aggregate):
             raise PlatformError("BUDGET_EXCEEDED", "Job limits exceed a pinned plan's approved limits.", 422)
     if body.kind == "repair_retest" and repair is None:
         raise PlatformError("INVALID_INPUT", "Launch repair validation from the exact proposal.", 422)

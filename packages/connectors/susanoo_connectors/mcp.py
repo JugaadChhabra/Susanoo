@@ -22,7 +22,7 @@ import json
 import os
 import re
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Literal, Protocol
 
 import jsonschema
@@ -190,6 +190,8 @@ class McpToolClient:
         self,
         connection: McpConnection,
         *,
+        http_transport: Any = None,
+        secret_env: Mapping[str, str] | None = None,
         sampling_handler: SamplingFnT | None = None,
         elicitation_handler: ElicitationFnT | None = None,
     ):
@@ -202,6 +204,9 @@ class McpToolClient:
         if connection.allow_elicitation and elicitation_handler is None:
             raise ValueError("allow_elicitation needs an explicit elicitation handler")
         self.connection = connection
+        self._http_transport = http_transport
+        self._secret_env = secret_env
+        self._http_client: Any = None
         self._sampling, self._elicitation = sampling_handler, elicitation_handler
         self._worker: _Worker | None = None
         self.tools: dict[str, ReviewedTool] = {}
@@ -215,16 +220,20 @@ class McpToolClient:
             assert c.command is not None
             env = dict(c.env)
             for child, ref in c.env_secret_refs.items():
-                if ref not in os.environ:
+                source = self._secret_env if self._secret_env is not None else os.environ
+                if ref not in source:
                     raise AdapterError("missing_secret", f"Local secret {ref} is not configured")
-                env[child] = os.environ[ref]
+                env[child] = source[ref]
             server: Any = StdioServerParameters(command=c.command[0], args=c.command[1:], env=env, cwd=c.cwd)
         else:
             import httpx2  # the MCP SDK's own HTTP client; headers carry the resolved auth reference
 
             assert c.url is not None
-            http = httpx2.AsyncClient(headers=c.auth.headers(), timeout=c.timeout_seconds)
-            server = streamable_http_client(c.url, http_client=http)
+            self._http_client = httpx2.AsyncClient(
+                headers=c.auth.headers(), timeout=c.timeout_seconds, transport=self._http_transport,
+                follow_redirects=False, trust_env=False,
+            )
+            server = streamable_http_client(c.url, http_client=self._http_client)
         return Client(
             server,
             mode=_MODE[c.protocol_revision],
@@ -349,6 +358,9 @@ class McpToolClient:
         if self._worker is not None:
             await self._worker.close()
             self._worker = None
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
 
     async def __aenter__(self) -> McpToolClient:
         await self.connect()

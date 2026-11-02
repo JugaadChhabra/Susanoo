@@ -1,9 +1,50 @@
 # Expanded Build Implementation Status
 
-Updated 2026-11-02. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
+Updated 2026-11-03. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
 `73224ee9133133663a7f4df6925b8afac209d88b`.
 
 ## Aarav Completion Pass
+
+### Submission integration, 2026-11-03
+
+The advanced worker now dispatches pinned source import/build, repair retest, collision, probing,
+calibration and synthetic WebSocket voice jobs in addition to the seven earlier handlers. Secure
+connection bindings select typed adapters by the exact approved connection hash; HTTP, MCP, gRPC,
+WebSocket and Chromium use numeric DNS pins rather than a resolution-only SSRF check. Connection
+claims cannot override local commands, drivers, secrets or endpoint configuration. Real loopback
+HTTP/MCP/gRPC/WebSocket/Chromium binding checks pass, independently from live-provider qualification.
+
+Real API/PostgreSQL/journal/simulator checks now cover all four old/new impact cells, seeded duplicate
+and permission discrepancies followed by budgeted reduction, equal-budget probing, shared-state lost
+updates, deterministic calibration and actual synthetic media chunks/timestamps/recordings. Directory
+and archive source imports persist their true snapshot identity without inventing Git commits. Source
+and recipe/lockfile pins, bounded logs, process-group teardown and cancellation are enforced locally.
+
+The Linux code-repair integration passed the actual workflow: independent backend failure, exact
+downloaded patch, isolated Git worktree, original reproduction, valid control, separately held-out case,
+immutable typed report and separate reviewer approval. It does not publish a customer PR automatically.
+Repair launch inherits the original evaluation graph and exposes additional approved revisions and
+explicit aggregate limits in the UI. Reference/control label overlap is deduplicated at the graph edge,
+not by dropping a control from evaluation. Invalid negative controls cannot certify a grader.
+
+`scripts/platform_acceptance.py` now resolves T01-T40 against executed JUnit evidence and refuses
+missing/skipped requirements; the old blanket "pending Muaz" response is removed. Full software
+acceptance is still a qualification result, not a consequence of advertising a worker kind. Current
+checks and remaining release boundaries are recorded in `parallel/aarav/INTEGRATION_HANDOFF.md`.
+
+Open software/release boundaries: advanced hosted workers currently admit synthetic policy only;
+Twilio platform-worker activation and private GitHub credential consumption need completion; CrewAI
+and AutoGen native recipes remain explicitly untested; arbitrary OCI/Dockerfile builds need a dedicated
+rootless builder rather than resource-limiting the Docker client; simulator-configuration repair is not
+the same as validated simulator-source PR publication. Mixed unspaced Latin/Devanagari PDF words still
+fail explicitly instead of rendering wrong glyphs. Live customer/provider checks, production configuration,
+fluent Hindi/Marathi review and independent contract approval remain separate external qualification.
+
+External hosted semantic providers also remain disabled until each outbound model request is bound
+to live authority, budgets and connect-time egress enforcement. Offline recorded calibration does not
+need permission to send data externally and cannot be labeled a live model validation.
+
+The sections below describe earlier checkpoints and must not be read as current missing-worker counts.
 
 ### Full-build continuation, 2026-11-03
 

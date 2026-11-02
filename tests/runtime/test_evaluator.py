@@ -295,7 +295,7 @@ def test_calibration_catches_missed_defects_and_invalid_controls():
     )
     unverified = dup.model_copy(update={"id": "unverified", "violation_verified": False})
     result = calibrate(ONCE, [good, dup, unverified])
-    assert result.accepted and result.invalid_negative_controls == ["unverified"]
+    assert not result.accepted and result.invalid_negative_controls == ["unverified"]
     lax = check("count", filter={"account_id": {"alias": "fixture.primary_account"}}, min=1)
     weak = calibrate(lax, [good, dup])
     assert not weak.accepted and weak.missed_defects == ["dup"]

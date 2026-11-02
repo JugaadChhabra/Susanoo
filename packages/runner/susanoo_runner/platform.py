@@ -33,6 +33,7 @@ class PlatformProfile(LocalProfile):
     cleanup_reserve: int = Field(default=3, ge=1, le=1000)
     allowed_connection_hashes: list[str] = Field(min_length=1)
     advanced_inputs: dict[str, dict] = Field(default_factory=dict)
+    connection_bindings: dict[str, dict] = Field(default_factory=dict)
     max_reference_calls: int = Field(default=160, ge=0)
     max_output_bytes: int = Field(default=262144, ge=1, le=1048576)
     max_storage_bytes: int = Field(default=10485760, ge=1)

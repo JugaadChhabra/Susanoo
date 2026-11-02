@@ -13,6 +13,9 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import signal
+import threading
+import time
 try:
     import resource
 except ImportError:
@@ -138,18 +141,99 @@ def _git_env(home: Path) -> dict[str, str]:
     }
 
 
-def _git(args: list[str], cwd: Path, env: dict[str, str], timeout: int = 300) -> str:
-    result = subprocess.run(
-        ["git", *GIT_CONFIG, *args], cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout, check=False
+def _kill_process_tree(process: subprocess.Popen, *, force: bool = True) -> None:
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    elif process.poll() is None:
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F" if force else "/T"],
+                capture_output=True,
+                timeout=2,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            if force:
+                process.kill()
+            else:
+                process.terminate()
+
+
+def _git(args: list[str], cwd: Path, env: dict[str, str], timeout: int = 300,
+         cancelled: threading.Event | None = None) -> str:
+    output_limit = 1024 * 1024
+    output = {"stdout": bytearray(), "stderr": bytearray()}
+    lock = threading.Lock()
+    overflow = threading.Event()
+    process = subprocess.Popen(
+        ["git", *GIT_CONFIG, *args], cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=os.name == "posix",
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
-    if result.returncode != 0:
-        raise SourceError("git_failed", f"git {args[0]} failed: {result.stderr.strip()[-300:]}")
-    return result.stdout
+
+    def drain(name, stream):
+        while chunk := stream.read(4096):
+            with lock:
+                total = sum(len(value) for value in output.values())
+                room = max(0, output_limit - total)
+                if room > 0:
+                    output[name].extend(chunk[:room])
+                if len(chunk) > room:
+                    overflow.set()
+                    _kill_process_tree(process)
+
+    readers = [
+        threading.Thread(target=drain, args=(name, stream), daemon=True)
+        for name, stream in (("stdout", process.stdout), ("stderr", process.stderr))
+    ]
+    for reader in readers:
+        reader.start()
+    deadline = time.monotonic() + timeout
+    reason = None
+    while process.poll() is None:
+        if cancelled is not None and cancelled.is_set():
+            reason = "cancelled"
+            _kill_process_tree(process)
+            break
+        if overflow.is_set():
+            reason = "output_limit"
+            _kill_process_tree(process)
+            break
+        if time.monotonic() >= deadline:
+            reason = "git_timeout"
+            _kill_process_tree(process)
+            break
+        time.sleep(0.025)
+    # A git helper may survive its parent process; it must not outlive the bounded operation.
+    _kill_process_tree(process)
+    process.wait()
+    for reader in readers:
+        reader.join(timeout=2)
+    for stream in (process.stdout, process.stderr):
+        stream.close()
+    if reason:
+        messages = {
+            "cancelled": "Source acquisition was cancelled",
+            "output_limit": "Git output exceeded the local byte limit",
+            "git_timeout": f"git {args[0]} exceeded its {timeout}s deadline",
+        }
+        raise SourceError(reason, messages[reason])
+    stdout = bytes(output["stdout"]).decode("utf-8", "replace")
+    stderr = bytes(output["stderr"]).decode("utf-8", "replace")
+    if process.returncode != 0:
+        raise SourceError("git_failed", f"git {args[0]} failed: {stderr.strip()[-300:]}")
+    return stdout
 
 
-def tree_digest(root: Path) -> tuple[str, int]:
+def tree_digest(root: Path, *, max_files: int = 10000, max_file_bytes: int = 25 * 1024 * 1024,
+                max_total_bytes: int = 500 * 1024 * 1024) -> tuple[str, int]:
     """Digest over (path, executable bit, content hash) for every regular file, excluding .git."""
     entries = []
+    total_bytes = 0
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
         if relative.parts and relative.parts[0] == ".git":
@@ -157,12 +241,30 @@ def tree_digest(root: Path) -> tuple[str, int]:
         if path.is_symlink():
             entries.append([relative.as_posix(), "link", os.readlink(path)])
         elif path.is_file():
+            size = path.stat().st_size
+            if size > max_file_bytes:
+                raise SourceError("file_too_large", f"{relative.as_posix()} exceeds the per-file source limit")
             executable = bool(path.stat().st_mode & stat.S_IXUSR)
-            entries.append([relative.as_posix(), executable, hashlib.sha256(path.read_bytes()).hexdigest()])
+            digest = hashlib.sha256()
+            actual_size = 0
+            with path.open("rb") as stream:
+                while chunk := stream.read(65536):
+                    actual_size += len(chunk)
+                    total_bytes += len(chunk)
+                    if actual_size > max_file_bytes:
+                        raise SourceError("file_too_large", f"{relative.as_posix()} grew past its source limit")
+                    if total_bytes > max_total_bytes:
+                        raise SourceError("source_too_large", "Snapshot exceeds the total source byte limit")
+                    digest.update(chunk)
+            entries.append([relative.as_posix(), executable, digest.hexdigest()])
+        if len(entries) > max_files:
+            raise SourceError("too_many_files", f"Snapshot exceeds the {max_files}-entry source limit")
     return content_hash(entries), len(entries)
 
 
-def acquire_git(source: GitSource, destination: Path) -> Snapshot:
+def acquire_git(source: GitSource, destination: Path, *, cancelled: threading.Event | None = None,
+                max_files: int = 10000, max_file_bytes: int = 25 * 1024 * 1024,
+                max_total_bytes: int = 500 * 1024 * 1024) -> Snapshot:
     validate_git_url(source)
     destination = Path(destination)
     if destination.exists() and any(destination.iterdir()):
@@ -170,24 +272,31 @@ def acquire_git(source: GitSource, destination: Path) -> Snapshot:
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="susanoo-git-home-") as home:
         env = _git_env(Path(home))
-        _git(["init", "--quiet"], destination, env)
+        _git(["init", "--quiet"], destination, env, cancelled=cancelled)
         # Disable every external filter/diff/merge driver before any file is checked out.
         (destination / ".git" / "info").mkdir(parents=True, exist_ok=True)
         (destination / ".git" / "info" / "attributes").write_text("* -filter -diff -merge\n")
-        _git(["remote", "add", "origin", "--", source.url], destination, env)
+        _git(["remote", "add", "origin", "--", source.url], destination, env, cancelled=cancelled)
         try:
             _git(
                 ["fetch", "--quiet", "--depth", "1", "--no-recurse-submodules", "origin", source.commit],
                 destination,
                 env,
+                cancelled=cancelled,
             )
-        except SourceError:
-            _git(["fetch", "--quiet", "--no-recurse-submodules", "origin"], destination, env)
-        _git(["checkout", "--quiet", "--detach", source.commit], destination, env)
-        head = _git(["rev-parse", "HEAD"], destination, env).strip()
+        except SourceError as exc:
+            if exc.code != "git_failed":
+                raise
+            if cancelled is not None and cancelled.is_set():
+                raise
+            _git(["fetch", "--quiet", "--no-recurse-submodules", "origin"], destination, env,
+                 cancelled=cancelled)
+        _git(["checkout", "--quiet", "--detach", source.commit], destination, env, cancelled=cancelled)
+        head = _git(["rev-parse", "HEAD"], destination, env, cancelled=cancelled).strip()
     if head != source.commit:
         raise SourceError("commit_mismatch", "Checked-out commit differs from the pinned commit")
-    digest, files = tree_digest(destination)
+    digest, files = tree_digest(destination, max_files=max_files, max_file_bytes=max_file_bytes,
+                                max_total_bytes=max_total_bytes)
     return Snapshot(kind="git", origin=source.url, commit=head, digest=digest, files=files, path=str(destination))
 
 
@@ -238,7 +347,9 @@ def import_archive(archive: Path, destination: Path, limits: ArchiveLimits | Non
     return Snapshot(kind="archive", origin=str(archive), digest=digest, files=files, path=str(destination))
 
 
-def import_directory(source: Path, destination: Path) -> Snapshot:
+def import_directory(source: Path, destination: Path, *, max_files: int = 10000,
+                     max_file_bytes: int = 25 * 1024 * 1024,
+                     max_total_bytes: int = 500 * 1024 * 1024) -> Snapshot:
     source, destination = Path(source).resolve(), Path(destination)
 
     def ignore(directory: str, names: list[str]) -> list[str]:
@@ -250,7 +361,8 @@ def import_directory(source: Path, destination: Path) -> Snapshot:
         return skipped
 
     shutil.copytree(source, destination, symlinks=True, ignore=ignore)
-    digest, files = tree_digest(destination)
+    digest, files = tree_digest(destination, max_files=max_files, max_file_bytes=max_file_bytes,
+                                max_total_bytes=max_total_bytes)
     return Snapshot(kind="directory", origin=str(source), digest=digest, files=files, path=str(destination))
 
 

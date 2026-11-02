@@ -14,15 +14,20 @@ runs with ``susanoo_connectors.source.GIT_CONFIG`` (hooks, fsmonitor, submodules
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+
 try:
     import resource
 except ImportError:
     resource = None
 import shutil
 import subprocess
+import signal
+import threading
+import time
 import tempfile
 from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
@@ -590,7 +595,9 @@ class UnitTestCommand(Model):
         return content_hash(self.model_dump(mode="json"))
 
 
-def run_unit_tests(command: UnitTestCommand, tree: Path, *, approved_digest: str) -> tuple[bool, str]:
+def run_unit_tests(
+    command: UnitTestCommand, tree: Path, *, approved_digest: str, cancelled: threading.Event | None = None
+) -> tuple[bool, str]:
     if approved_digest != command.digest:
         raise RepairError("command_not_approved", "The unit-test command differs from the approved digest")
     if resource is None:
@@ -599,23 +606,81 @@ def run_unit_tests(command: UnitTestCommand, tree: Path, *, approved_digest: str
 
     def limits() -> None:
         resource.setrlimit(resource.RLIMIT_CPU, (command.cpu_seconds, command.cpu_seconds))
+        resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))
 
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             list(command.argv),
             cwd=tree,
             env=env,
-            capture_output=True,
-            text=True,
-            timeout=command.timeout_seconds,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             preexec_fn=limits,
-            check=False,
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired:
-        return False, "unit tests timed out"
     except FileNotFoundError:
         return False, f"{command.argv[0]} not found"
-    return result.returncode == 0, _scrub((result.stdout + result.stderr)[-1500:])
+    output, overflow = bytearray(), threading.Event()
+
+    def stop():
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def drain():
+        while chunk := process.stdout.read(4096):
+            room = max(0, 65536 - len(output))
+            output.extend(chunk[:room])
+            if len(chunk) > room:
+                overflow.set()
+                stop()
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    deadline, reason = time.monotonic() + command.timeout_seconds, ""
+    try:
+        while process.poll() is None:
+            if cancelled and cancelled.is_set():
+                reason = "unit tests cancelled"
+                break
+            if overflow.is_set():
+                reason = "unit test output exceeded 64 KiB"
+                break
+            if time.monotonic() >= deadline:
+                reason = "unit tests timed out"
+                break
+            time.sleep(0.025)
+    finally:
+        stop()
+        process.wait()
+        reader.join(timeout=2)
+        process.stdout.close()
+    if overflow.is_set():
+        reason = "unit test output exceeded 64 KiB"
+    return not reason and process.returncode == 0, reason or _scrub(output.decode("utf-8", "replace")[-1500:])
+
+
+async def _unit_tests_async(command, tree, digest, cancellation):
+    stopped = threading.Event()
+    task = asyncio.create_task(
+        asyncio.to_thread(run_unit_tests, command, tree, approved_digest=digest, cancelled=stopped)
+    )
+    try:
+        while not task.done():
+            if cancellation and cancellation():
+                stopped.set()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), 0.1)
+            except TimeoutError:
+                pass
+        return await task
+    except asyncio.CancelledError:
+        stopped.set()
+        try:
+            await asyncio.shield(task)
+        finally:
+            raise
 
 
 class RepairHarness(Protocol):
@@ -711,6 +776,7 @@ async def validate_repair(
     failing_check_ids: Iterable[str] = (),
     policy: RepairPolicy | None = None,
     parent: Path | None = None,
+    cancellation: Callable[[], bool] | None = None,
 ) -> RepairValidation:
     """F06 gate for a code patch on one layer. Policy refusals raise; gate failures return ``rejected``."""
     policy = policy or RepairPolicy()
@@ -793,7 +859,7 @@ async def validate_repair(
             )
         )
 
-        ok, log = run_unit_tests(unit_tests, tree.path, approved_digest=unit_tests_approved_digest)
+        ok, log = await _unit_tests_async(unit_tests, tree.path, unit_tests_approved_digest, cancellation)
         checks.append(GateCheck(name="unit_tests", passed=ok, detail=log[-300:] or ("passed" if ok else "failed")))
 
         after = await harness.reproduce(tree.path)

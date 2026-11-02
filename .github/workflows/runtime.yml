@@ -21,5 +21,12 @@ jobs:
           node-version: "22"
       - run: uv sync --frozen --all-packages --group providers
       - run: uv run --no-sync python -m playwright install --with-deps chromium
-      - run: uv run --no-sync pytest tests/runtime tests/contract -q
+      - run: uv run --no-sync pytest tests/runtime tests/runner tests/contract -q --junitxml=.platform/qualification-runtime.xml
       - run: node --test "packages/sdk-typescript/test/*.test.ts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: runtime-qualification-${{ github.event_name }}
+          path: .platform/qualification-runtime.xml
+          include-hidden-files: true
+          retention-days: 7

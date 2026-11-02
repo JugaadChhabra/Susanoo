@@ -91,8 +91,16 @@ class GrpcTransport(Protocol):
 class GrpcioTransport:
     """``grpc.aio`` channel with identity (bytes) serializers. ``grpcio`` is imported on first use."""
 
-    def __init__(self, target: str, *, tls: bool = True, max_message_bytes: int = 4_194_304):
+    def __init__(
+        self,
+        target: str,
+        *,
+        tls: bool = True,
+        max_message_bytes: int = 4_194_304,
+        authority: str | None = None,
+    ):
         self.target, self.tls, self.max_message_bytes = target, tls, max_message_bytes
+        self.authority = authority
         self._channel: Any = None
 
     def _open(self) -> Any:
@@ -107,8 +115,13 @@ class GrpcioTransport:
             options = [
                 ("grpc.max_send_message_length", self.max_message_bytes),
                 ("grpc.max_receive_message_length", self.max_message_bytes),
+                ("grpc.enable_http_proxy", 0),
             ]
+            if self.authority:
+                options.append(("grpc.default_authority", self.authority))
             if self.tls:
+                if self.authority:
+                    options.append(("grpc.ssl_target_name_override", self.authority))
                 self._channel = aio.secure_channel(self.target, grpc.ssl_channel_credentials(), options=options)
             else:
                 self._channel = aio.insecure_channel(self.target, options=options)

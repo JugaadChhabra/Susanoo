@@ -279,6 +279,11 @@ export function EvaluationConsole() {
     (RepairRecord & { patch: PatchBundle }) | null
   >(null);
   const [jobForm, setJobForm] = useState(false);
+  const [repairVersions, setRepairVersions] = useState<string[]>([]);
+  const [repairLimits, setRepairLimits] = useState<RunLimits>(() => ({
+    ...initialValue(schemaDefinitions.RunLimits) as RunLimits,
+    cleanup_reserve: 100, max_reference_calls: 160,
+  }));
   const [jobKind, setJobKind] = useState<JobCreate["kind"]>("preflight");
   const [jobVersions, setJobVersions] = useState<string[]>([]);
   const [token, setToken] = useState("");
@@ -2000,6 +2005,21 @@ export function EvaluationConsole() {
                   </div>
                 </details>
               ))}
+              <details className="ev-details">
+                <summary>Validation Scope And Limits</summary>
+                <fieldset>
+                  <legend>Additional Approved Revisions</legend>
+                  {versions.filter((version) => version.approved && ["suite", "fidelity"].includes(version.kind))
+                    .map((version) => <label key={version.id} className="ev-checkbox-row">
+                      <input type="checkbox" checked={repairVersions.includes(version.id)}
+                        onChange={(event) => setRepairVersions((current) => event.target.checked
+                          ? [...current, version.id] : current.filter((id) => id !== version.id))} />
+                      {version.title} · {version.kind} · r{version.revision}
+                    </label>)}
+                </fieldset>
+                <SchemaForm root name="limits" schema={schemaDefinitions.RunLimits} value={repairLimits}
+                  onChange={(value) => setRepairLimits(value as RunLimits)} />
+              </details>
               <div className="ev-toolbar">
                 <button
                   className="ev-secondary"
@@ -2009,7 +2029,7 @@ export function EvaluationConsole() {
                       await platform(
                         `/repairs/${selectedRepair.id}/validate`,
                         "POST",
-                        undefined,
+                        { version_ids: repairVersions, limits: repairLimits },
                         launchKey(),
                       );
                       setSelectedRepair(

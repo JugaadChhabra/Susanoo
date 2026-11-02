@@ -52,6 +52,11 @@ def calibrate(
     check: Check, controls: Iterable[Control], *, max_missed_defects: int = 0, max_false_alarms: int = 0
 ) -> CalibrationResult:
     controls = list(controls)
+    if max_missed_defects < 0 or max_false_alarms < 0:
+        raise ValueError("Calibration thresholds cannot be negative")
+    identifiers = [control.id for control in controls]
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError("Control IDs must be unique")
     missed, alarms, inconclusive, invalid, held_missed, held_alarms = [], [], [], [], [], []
     for control in controls:
         if control.label == "negative" and not control.violation_verified:
@@ -68,6 +73,7 @@ def calibrate(
     has_both = {c.label for c in controls if c.id not in invalid} >= {"positive", "negative"}
     accepted = (
         has_both
+        and not invalid
         and not inconclusive
         and len(missed) + len(held_missed) <= max_missed_defects
         and len(alarms) + len(held_alarms) <= max_false_alarms

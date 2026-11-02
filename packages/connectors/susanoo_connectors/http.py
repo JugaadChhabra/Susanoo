@@ -155,7 +155,7 @@ class HttpAgentAdapter:
 class AsyncHttpAgentAdapter:
     def __init__(self, connection: AsyncHttpConnection, *, transport: httpx.AsyncBaseTransport | None = None):
         self.connection = connection
-        self._client = httpx.AsyncClient(transport=transport)
+        self._client = httpx.AsyncClient(transport=transport, follow_redirects=False, trust_env=False)
         self._tasks: dict[str, str] = {}
 
     async def preflight(self) -> CapabilityReport:

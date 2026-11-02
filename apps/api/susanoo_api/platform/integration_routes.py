@@ -9,7 +9,9 @@ from uuid import UUID, uuid4
 
 from fastapi import Query, Request
 from psycopg.types.json import Jsonb
-from susanoo_contracts import ApprovalIn, IntegrationIn, JobCreate, PatchBundle, PublishIn, RepairIn, content_hash
+from susanoo_contracts import (
+    ApprovalIn, IntegrationIn, JobCreate, PatchBundle, PublishIn, RepairIn, RepairValidationIn, RunLimits, content_hash,
+)
 
 from . import artifacts, service, workflows
 from .database import Context, PlatformError, transaction
@@ -386,12 +388,21 @@ def mount_integration_routes(app):
         return row
 
     @app.post("/repairs/{repair_id}/validate", status_code=202)
-    def validate_repair(repair_id: UUID, key: Idempotency, ctx: Ctx):
+    def validate_repair(repair_id: UUID, key: Idempotency, ctx: Ctx, body: RepairValidationIn | None = None):
         row, project = _repair(ctx, repair_id, service.ENGINEERS)
+        original = ctx.db.execute(
+            "select r.manifest from platform.findings f join platform.runs r on r.id=f.run_id where f.id=%s",
+            (row["finding_id"],),
+        ).fetchone()["manifest"]
+        inherited = [value["id"] for name in ("suite", "connection", "environment")
+                     if (value := original.get(name))]
+        version_ids = list(dict.fromkeys([str(row["source_version_id"]), *inherited,
+                                         *[str(value) for value in (body.version_ids if body else [])]]))
         job = workflows.create_job(
             ctx,
             project["id"],
-            JobCreate(kind="repair_retest", version_ids=[row["source_version_id"]], finding_id=row["finding_id"]),
+            JobCreate(kind="repair_retest", version_ids=version_ids, finding_id=row["finding_id"],
+                      limits=(body.limits if body and body.limits else RunLimits.model_validate(original["limits"]))),
             key,
             repair=service.json_safe(
                 {
