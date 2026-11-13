@@ -1,5 +1,23 @@
 # Expanded Build Implementation Status
 
+## Local Sim Integration Handoff, 2026-11-14
+
+`codex/sim-local-integration` packages the trusted local synthetic Sim integration in
+[`integrations/sim`](../integrations/sim/README.md). The original twenty-case workflow
+passed through actual Sim/JSONL/simulator/evaluator and the real local platform
+claim/evidence/finalization flow. All 76 critical definitions were calibrated before
+automated synthetic reviewer-account approval. Expected false-completion/wrong-write
+controls remain FAIL/BLOCKED; unavailable observation remains UNKNOWN/NEEDS_REVIEW.
+The persistent worker and real browser console path were checked locally.
+
+This is not V3 acceptance, live-provider/customer verification, hosted CI evidence,
+human reviewer approval or production qualification. No existing runtime, canonical
+contracts, migrations or deployment source changes are included. See the
+[technical handoff](../integrations/sim/HANDOFF.md) and
+[evidence ledger](../integrations/sim/EVIDENCE.md) for scope, reproduction and limits.
+The preceding build status below remains a historical checkpoint, not refreshed
+by this local connector demonstration.
+
 Updated 2026-11-03. Integration branch: `codex/aarav-runtime-integration`; preserved baseline:
 `73224ee9133133663a7f4df6925b8afac209d88b`.
 
