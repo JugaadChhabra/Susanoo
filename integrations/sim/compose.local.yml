@@ -1,0 +1,22 @@
+services:
+  simstudio:
+    image: ghcr.io/simstudioai/simstudio@sha256:a7cb936a0a83cda7af989a121b00ebac998ae271eedcbc387586dab5a2e6297a
+    ports: !override
+      - '127.0.0.1:3010:3000'
+    environment:
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:3012
+      DISABLE_AUTH: 'false'
+  realtime:
+    image: ghcr.io/simstudioai/realtime@sha256:50d87eadd23f71fd03fbff13f557001f889e6c1d675373be2a55c80440974d82
+    ports: !override
+      - '127.0.0.1:3012:3002'
+    environment:
+      DISABLE_AUTH: 'false'
+  migrations:
+    image: ghcr.io/simstudioai/migrations@sha256:3d630dd05015138ff2efa2d26ccc377fed5f9c89d168ad3306f51fc235d03bd0
+  cron:
+    image: ghcr.io/simstudioai/cron@sha256:ba61c2b4b8e04f1a5377364741c078b5eebc11fa77c811d4080af50138fe9c7c
+  db:
+    image: pgvector/pgvector@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
+  redis:
+    image: redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe

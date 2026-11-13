@@ -1,0 +1,9 @@
+.env
+.private/
+*.sqlite*
+*-report.json
+*-summary.json
+worker-check.json
+workflow.json
+*.png
+__pycache__/

@@ -1,5 +1,13 @@
 # Platform Publication and Runtime Handoff
 
+2026-11-14: local Sim interoperability is packaged separately on
+`codex/sim-local-integration`. Start with the
+[Sim technical handoff](../../../integrations/sim/HANDOFF.md),
+[setup guide](../../../integrations/sim/README.md) and
+[local evidence ledger](../../../integrations/sim/EVIDENCE.md).
+Runtime ownership review is requested before adopting it as a supported connector.
+No contract changes, V3 requirement adoption or production acceptance is implied.
+
 2026-11-02 update: the active continuation is now
 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md). It includes Muaz's published runtime and
 the new real outcome/preflight platform bridge. The remainder of this file records the
